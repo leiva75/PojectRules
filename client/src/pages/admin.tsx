@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -34,6 +35,8 @@ import {
   AlertTriangle,
   CheckCircle,
   TrendingUp,
+  ClipboardCheck,
+  Eye,
 } from "lucide-react";
 import type { Employee, Punch } from "@shared/schema";
 import { EmployeeDialog } from "@/components/employee-dialog";
@@ -58,10 +61,11 @@ interface PunchWithEmployee extends Punch {
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "exports">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "exports">("dashboard");
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
+  const { toast } = useToast();
 
   const { data: stats } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
@@ -77,6 +81,36 @@ export default function AdminPage() {
 
   const { data: flaggedPunches } = useQuery<PunchWithEmployee[]>({
     queryKey: ["/api/punches", { needsReview: true }],
+  });
+
+  interface ReviewablePunch extends PunchWithEmployee {
+    reviewed: boolean;
+    corrected: boolean;
+  }
+
+  const { data: reviewPunches, isLoading: reviewLoading } = useQuery<ReviewablePunch[]>({
+    queryKey: ["/api/punches/needs-review"],
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ punchId, note }: { punchId: string; note?: string }) => {
+      return apiRequest("POST", `/api/punches/${punchId}/review`, { note });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/punches/needs-review"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: "Pointage révisé",
+        description: "Le pointage a été marqué comme révisé",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de réviser le pointage",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleLogout = async () => {
@@ -95,6 +129,7 @@ export default function AdminPage() {
     { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
     { id: "employees", label: "Employés", icon: Users },
     { id: "punches", label: "Pointages", icon: Clock },
+    { id: "revision", label: "Révision", icon: ClipboardCheck },
     { id: "exports", label: "Exports", icon: FileText },
   ];
 
@@ -460,6 +495,125 @@ export default function AdminPage() {
                       <Clock className="h-12 w-12 mx-auto mb-2 opacity-30" />
                       Aucun pointage
                     </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === "revision" && (
+              <Card className="border-card-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ClipboardCheck className="h-5 w-5" />
+                    Pointages à Réviser
+                  </CardTitle>
+                  <CardDescription>
+                    Pointages nécessitant une vérification manuelle (sans géolocalisation)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {reviewLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="h-16 bg-muted/50 animate-pulse rounded-md" />
+                      ))}
+                    </div>
+                  ) : reviewPunches && reviewPunches.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Employé</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Type</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date/Heure</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Position</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Statut</th>
+                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reviewPunches.map((punch) => (
+                            <tr key={punch.id} className="border-b last:border-0">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarFallback className="text-xs bg-amber-100 text-amber-700">
+                                      {punch.employee.firstName[0]}{punch.employee.lastName[0]}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-medium">
+                                    {punch.employee.firstName} {punch.employee.lastName}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <StatusBadge status={punch.type as "IN" | "OUT"} />
+                              </td>
+                              <td className="py-3 px-4 font-mono text-sm">
+                                {new Date(punch.timestamp).toLocaleString("fr-FR")}
+                              </td>
+                              <td className="py-3 px-4">
+                                <GeoBadge 
+                                  hasLocation={!!(punch.latitude && punch.longitude)} 
+                                  needsReview={punch.needsReview} 
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex gap-1">
+                                  {punch.reviewed && (
+                                    <Badge className="bg-green-100 text-green-700 text-xs">
+                                      <Eye className="h-3 w-3 mr-1" />
+                                      Révisé
+                                    </Badge>
+                                  )}
+                                  {punch.corrected && (
+                                    <Badge className="bg-blue-100 text-blue-700 text-xs">
+                                      Corrigé
+                                    </Badge>
+                                  )}
+                                  {!punch.reviewed && !punch.corrected && (
+                                    <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                                      En attente
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex gap-2 justify-end">
+                                  {!punch.reviewed && (
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => reviewMutation.mutate({ punchId: punch.id })}
+                                      disabled={reviewMutation.isPending}
+                                      data-testid={`button-mark-reviewed-${punch.id}`}
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Valider
+                                    </Button>
+                                  )}
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => setSelectedPunchForCorrection(punch)}
+                                    data-testid={`button-correct-review-${punch.id}`}
+                                  >
+                                    Corriger
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-500 opacity-50" />
+                      <p className="text-muted-foreground">
+                        Tous les pointages ont été révisés
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>

@@ -1,12 +1,13 @@
 import { 
-  employees, punches, punchCorrections, refreshTokens,
+  employees, punches, punchCorrections, refreshTokens, punchReviews, auditLog,
   type Employee, type InsertEmployee, 
   type Punch, type InsertPunch,
   type PunchCorrection, type InsertPunchCorrection,
-  type RefreshToken
+  type RefreshToken, type PunchReview, type InsertPunchReview,
+  type AuditLog, type InsertAuditLog
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getEmployee(id: string): Promise<Employee | undefined>;
@@ -21,6 +22,7 @@ export interface IStorage {
   getPunchesByEmployee(employeeId: string, limit?: number): Promise<Punch[]>;
   getLastPunchByEmployee(employeeId: string): Promise<Punch | undefined>;
   getAllPunches(options?: { limit?: number; needsReview?: boolean; startDate?: Date; endDate?: Date; employeeId?: string }): Promise<(Punch & { employee: { id: string; firstName: string; lastName: string } })[]>;
+  getAllPunchesForExport(options?: { startDate?: Date; endDate?: Date; employeeId?: string; limit?: number }): Promise<(Punch & { employee: { id: string; firstName: string; lastName: string }; reviewed: boolean; corrected: boolean })[]>;
 
   createCorrection(correction: InsertPunchCorrection): Promise<PunchCorrection>;
   getCorrectionsByPunch(punchId: string): Promise<PunchCorrection[]>;
@@ -29,6 +31,13 @@ export interface IStorage {
   getRefreshToken(token: string): Promise<RefreshToken | undefined>;
   deleteRefreshToken(token: string): Promise<void>;
   deleteRefreshTokensByEmployee(employeeId: string): Promise<void>;
+
+  createPunchReview(review: InsertPunchReview): Promise<PunchReview>;
+  getPunchReview(punchId: string): Promise<PunchReview | undefined>;
+  getPunchesNeedingReview(): Promise<(Punch & { employee: { id: string; firstName: string; lastName: string }; reviewed: boolean; corrected: boolean })[]>;
+
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(options?: { limit?: number; targetType?: string; targetId?: string }): Promise<AuditLog[]>;
 
   getStats(): Promise<{ totalEmployees: number; activeToday: number; currentlyIn: number; needsReview: number }>;
 }
@@ -132,6 +141,62 @@ export class DatabaseStorage implements IStorage {
     return query.limit(options?.limit || 100);
   }
 
+  async getAllPunchesForExport(options?: { startDate?: Date; endDate?: Date; employeeId?: string; limit?: number }) {
+    const conditions = [];
+    
+    if (options?.startDate) {
+      conditions.push(gte(punches.timestamp, options.startDate));
+    }
+    if (options?.endDate) {
+      conditions.push(lte(punches.timestamp, options.endDate));
+    }
+    if (options?.employeeId) {
+      conditions.push(eq(punches.employeeId, options.employeeId));
+    }
+
+    const results = await db
+      .select({
+        id: punches.id,
+        employeeId: punches.employeeId,
+        type: punches.type,
+        timestamp: punches.timestamp,
+        latitude: punches.latitude,
+        longitude: punches.longitude,
+        accuracy: punches.accuracy,
+        needsReview: punches.needsReview,
+        source: punches.source,
+        employee: {
+          id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        },
+        reviewId: punchReviews.id,
+        correctionId: punchCorrections.id,
+      })
+      .from(punches)
+      .innerJoin(employees, eq(punches.employeeId, employees.id))
+      .leftJoin(punchReviews, eq(punches.id, punchReviews.punchId))
+      .leftJoin(punchCorrections, eq(punches.id, punchCorrections.originalPunchId))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(punches.timestamp))
+      .limit(options?.limit || 10000);
+
+    return results.map(r => ({
+      id: r.id,
+      employeeId: r.employeeId,
+      type: r.type,
+      timestamp: r.timestamp,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      accuracy: r.accuracy,
+      needsReview: r.needsReview,
+      source: r.source,
+      employee: r.employee,
+      reviewed: r.reviewId !== null,
+      corrected: r.correctionId !== null,
+    }));
+  }
+
   async createCorrection(correction: InsertPunchCorrection): Promise<PunchCorrection> {
     const [created] = await db.insert(punchCorrections).values(correction).returning();
     return created;
@@ -163,6 +228,81 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRefreshTokensByEmployee(employeeId: string): Promise<void> {
     await db.delete(refreshTokens).where(eq(refreshTokens.employeeId, employeeId));
+  }
+
+  async createPunchReview(review: InsertPunchReview): Promise<PunchReview> {
+    const [created] = await db.insert(punchReviews).values(review).returning();
+    return created;
+  }
+
+  async getPunchReview(punchId: string): Promise<PunchReview | undefined> {
+    const [review] = await db.select().from(punchReviews).where(eq(punchReviews.punchId, punchId));
+    return review || undefined;
+  }
+
+  async getPunchesNeedingReview() {
+    const results = await db
+      .select({
+        id: punches.id,
+        employeeId: punches.employeeId,
+        type: punches.type,
+        timestamp: punches.timestamp,
+        latitude: punches.latitude,
+        longitude: punches.longitude,
+        accuracy: punches.accuracy,
+        needsReview: punches.needsReview,
+        source: punches.source,
+        employee: {
+          id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        },
+        reviewId: punchReviews.id,
+        correctionId: punchCorrections.id,
+      })
+      .from(punches)
+      .innerJoin(employees, eq(punches.employeeId, employees.id))
+      .leftJoin(punchReviews, eq(punches.id, punchReviews.punchId))
+      .leftJoin(punchCorrections, eq(punches.id, punchCorrections.originalPunchId))
+      .where(eq(punches.needsReview, true))
+      .orderBy(desc(punches.timestamp));
+
+    return results.map(r => ({
+      id: r.id,
+      employeeId: r.employeeId,
+      type: r.type,
+      timestamp: r.timestamp,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      accuracy: r.accuracy,
+      needsReview: r.needsReview,
+      source: r.source,
+      employee: r.employee,
+      reviewed: r.reviewId !== null,
+      corrected: r.correctionId !== null,
+    }));
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [created] = await db.insert(auditLog).values(log).returning();
+    return created;
+  }
+
+  async getAuditLogs(options?: { limit?: number; targetType?: string; targetId?: string }): Promise<AuditLog[]> {
+    const conditions = [];
+    if (options?.targetType) {
+      conditions.push(eq(auditLog.targetType, options.targetType));
+    }
+    if (options?.targetId) {
+      conditions.push(eq(auditLog.targetId, options.targetId));
+    }
+
+    const query = db.select().from(auditLog).orderBy(desc(auditLog.createdAt));
+    
+    if (conditions.length > 0) {
+      return query.where(and(...conditions)).limit(options?.limit || 100);
+    }
+    return query.limit(options?.limit || 100);
   }
 
   async getStats() {

@@ -18,7 +18,8 @@ import {
   insertEmployeeSchema,
   punchRequestSchema,
   correctionRequestSchema,
-  exportQuerySchema
+  exportQuerySchema,
+  reviewRequestSchema
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
@@ -80,6 +81,15 @@ export async function registerRoutes(
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
+      await storage.createAuditLog({
+        action: "login",
+        actorId: employee.id,
+        targetType: "session",
+        targetId: employee.id,
+        details: JSON.stringify({ role: employee.role, method: "admin" }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
       const { password: _, ...userWithoutPassword } = employee;
       res.json({ user: userWithoutPassword });
     } catch (error) {
@@ -107,6 +117,16 @@ export async function registerRoutes(
       }
 
       const token = generateEmployeeToken(employee);
+
+      await storage.createAuditLog({
+        action: "login",
+        actorId: employee.id,
+        targetType: "session",
+        targetId: employee.id,
+        details: JSON.stringify({ role: employee.role, method: "employee-mobile" }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
       const { password: _, ...userWithoutPassword } = employee;
       
       res.json({ user: userWithoutPassword, token });
@@ -136,6 +156,16 @@ export async function registerRoutes(
 
       const lastPunch = await storage.getLastPunchByEmployee(employee.id);
       const token = generateEmployeeToken(employee);
+
+      await storage.createAuditLog({
+        action: "login",
+        actorId: employee.id,
+        targetType: "session",
+        targetId: employee.id,
+        details: JSON.stringify({ role: employee.role, method: "kiosk" }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
       const { password: _, ...userWithoutPassword } = employee;
       
       res.json({ 
@@ -285,7 +315,7 @@ export async function registerRoutes(
 
   app.patch("/api/employees/:id", authenticateAdminManager, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { firstName, lastName, email, pin, role, isActive, password } = req.body;
 
       const existing = await storage.getEmployee(id);
@@ -361,6 +391,15 @@ export async function registerRoutes(
         source,
       });
 
+      await storage.createAuditLog({
+        action: "create",
+        actorId: employee.id,
+        targetType: "punch",
+        targetId: punch.id,
+        details: JSON.stringify({ type, needsReview, source }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
       res.status(201).json({ punch });
     } catch (error) {
       console.error("Create punch error:", error);
@@ -426,9 +465,107 @@ export async function registerRoutes(
         newType,
       });
 
+      await storage.createAuditLog({
+        action: "correction",
+        actorId: admin.id,
+        targetType: "punch",
+        targetId: originalPunchId,
+        details: JSON.stringify({ reason, newTimestamp, newType }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
       res.status(201).json(correction);
     } catch (error) {
       console.error("Create correction error:", error);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/punches/:id/correct", authenticateAdminManager, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const { reason, newTimestamp, newType } = req.body;
+
+      if (!reason || reason.length < 10) {
+        return res.status(400).json({ message: "La raison doit contenir au moins 10 caractères" });
+      }
+
+      const admin = req.employee!;
+      const originalPunch = await storage.getPunchById(id);
+      
+      if (!originalPunch) {
+        return res.status(404).json({ message: "Pointage introuvable" });
+      }
+
+      const correction = await storage.createCorrection({
+        originalPunchId: id,
+        correctedById: admin.id,
+        reason,
+        newTimestamp: newTimestamp ? new Date(newTimestamp) : undefined,
+        newType,
+      });
+
+      await storage.createAuditLog({
+        action: "correction",
+        actorId: admin.id,
+        targetType: "punch",
+        targetId: id,
+        details: JSON.stringify({ reason, newTimestamp, newType }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
+      res.status(201).json(correction);
+    } catch (error) {
+      console.error("Correct punch error:", error);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  app.get("/api/punches/needs-review", authenticateAdminManager, async (req, res) => {
+    try {
+      const punches = await storage.getPunchesNeedingReview();
+      res.json(punches);
+    } catch (error) {
+      console.error("Get needs review error:", error);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/punches/:id/review", authenticateAdminManager, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const result = reviewRequestSchema.safeParse(req.body);
+      
+      const admin = req.employee!;
+      const punch = await storage.getPunchById(id);
+      
+      if (!punch) {
+        return res.status(404).json({ message: "Pointage introuvable" });
+      }
+
+      const existingReview = await storage.getPunchReview(id);
+      if (existingReview) {
+        return res.status(400).json({ message: "Ce pointage a déjà été révisé" });
+      }
+
+      const review = await storage.createPunchReview({
+        punchId: id,
+        reviewedById: admin.id,
+        note: result.success ? result.data.note : undefined,
+      });
+
+      await storage.createAuditLog({
+        action: "review",
+        actorId: admin.id,
+        targetType: "punch",
+        targetId: id,
+        details: JSON.stringify({ note: result.success ? result.data.note : null }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
+      res.status(201).json(review);
+    } catch (error) {
+      console.error("Review punch error:", error);
       res.status(500).json({ message: "Erreur serveur" });
     }
   });
@@ -451,42 +588,71 @@ export async function registerRoutes(
       }
 
       const { employeeId, startDate, endDate } = result.data;
+      const admin = req.employee!;
 
-      const punches = await storage.getAllPunches({
+      const punches = await storage.getAllPunchesForExport({
         employeeId,
         startDate: new Date(startDate),
         endDate: new Date(endDate + "T23:59:59"),
         limit: 10000,
       });
 
-      const data = punches.map((punch) => ({
-        "ID Pointage": punch.id,
-        "Employé": `${punch.employee.firstName} ${punch.employee.lastName}`,
-        "Type": punch.type === "IN" ? "Entrée" : "Sortie",
-        "Date": new Date(punch.timestamp).toLocaleDateString("fr-FR"),
-        "Heure": new Date(punch.timestamp).toLocaleTimeString("fr-FR"),
-        "Latitude": punch.latitude || "",
-        "Longitude": punch.longitude || "",
-        "Précision (m)": punch.accuracy || "",
-        "À vérifier": punch.needsReview ? "Oui" : "Non",
-        "Source": punch.source,
-      }));
-
-      const parser = new Parser({
-        fields: [
-          "ID Pointage",
-          "Employé",
-          "Type",
-          "Date",
-          "Heure",
-          "Latitude",
-          "Longitude",
-          "Précision (m)",
-          "À vérifier",
-          "Source",
-        ],
+      await storage.createAuditLog({
+        action: "export",
+        actorId: admin.id,
+        targetType: "punches",
+        targetId: "bulk",
+        details: JSON.stringify({ employeeId, startDate, endDate, count: punches.length }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
       });
 
+      const formatDate = (date: Date) => {
+        const d = new Date(date);
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      };
+
+      const formatTime = (date: Date) => {
+        const d = new Date(date);
+        const hours = d.getHours().toString().padStart(2, '0');
+        const minutes = d.getMinutes().toString().padStart(2, '0');
+        const seconds = d.getSeconds().toString().padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+      };
+
+      const data = punches.map((punch) => ({
+        "ID": punch.id,
+        "Empleado": `${punch.employee.firstName} ${punch.employee.lastName}`,
+        "Tipo": punch.type === "IN" ? "Entrada" : "Salida",
+        "Fecha": formatDate(punch.timestamp),
+        "Hora": formatTime(punch.timestamp),
+        "Latitud": punch.latitude || "",
+        "Longitud": punch.longitude || "",
+        "Precision_m": punch.accuracy || "",
+        "Requiere_Revision": punch.needsReview ? "Sí" : "No",
+        "Revisado": punch.reviewed ? "Sí" : "No",
+        "Corregido": punch.corrected ? "Sí" : "No",
+        "Fuente": punch.source,
+      }));
+
+      const fields = [
+        "ID",
+        "Empleado",
+        "Tipo",
+        "Fecha",
+        "Hora",
+        "Latitud",
+        "Longitud",
+        "Precision_m",
+        "Requiere_Revision",
+        "Revisado",
+        "Corregido",
+        "Fuente",
+      ];
+
+      const parser = new Parser({ fields, delimiter: ";" });
       const csv = parser.parse(data);
 
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
