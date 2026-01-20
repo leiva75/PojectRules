@@ -19,7 +19,8 @@ import {
   punchRequestSchema,
   correctionRequestSchema,
   exportQuerySchema,
-  reviewRequestSchema
+  reviewRequestSchema,
+  overtimeReviewRequestSchema
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
@@ -400,6 +401,57 @@ export async function registerRoutes(
         ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
       });
 
+      if (type === "OUT") {
+        const { calculateOvertime } = await import("./overtime");
+        const expectedDailyMinutes = parseInt(process.env.EXPECTED_DAILY_MINUTES || "480", 10);
+        const overtimeThreshold = parseInt(process.env.OVERTIME_MIN_THRESHOLD || "15", 10);
+        
+        const punchDate = punch.timestamp;
+        const dayPunches = await storage.getPunchesByEmployeeAndDate(employee.id, punchDate);
+        
+        const result = calculateOvertime(dayPunches, expectedDailyMinutes, overtimeThreshold);
+        
+        if (result.shouldCreateRequest) {
+          const punchDay = new Date(punchDate);
+          punchDay.setHours(0, 0, 0, 0);
+          
+          const existingRequest = await storage.getOvertimeRequestByDateAndEmployee(employee.id, punchDay);
+          
+          if (existingRequest) {
+            await storage.updateOvertimeRequest(existingRequest.id, {
+              minutes: result.overtimeMinutes,
+              reason: "AUTO",
+            });
+            
+            await storage.createAuditLog({
+              action: "overtime_create",
+              actorId: employee.id,
+              targetType: "overtime_request",
+              targetId: existingRequest.id,
+              details: JSON.stringify({ dailyMinutes: result.dailyMinutes, expectedDailyMinutes, overtimeMinutes: result.overtimeMinutes, updated: true }),
+              ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+            });
+          } else {
+            const overtimeRequest = await storage.createOvertimeRequest({
+              employeeId: employee.id,
+              date: punchDay,
+              minutes: result.overtimeMinutes,
+              reason: "AUTO",
+              status: "pending",
+            });
+            
+            await storage.createAuditLog({
+              action: "overtime_create",
+              actorId: employee.id,
+              targetType: "overtime_request",
+              targetId: overtimeRequest.id,
+              details: JSON.stringify({ dailyMinutes: result.dailyMinutes, expectedDailyMinutes, overtimeMinutes: result.overtimeMinutes, updated: false }),
+              ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+            });
+          }
+        }
+      }
+
       res.status(201).json({ punch });
     } catch (error) {
       console.error("Create punch error:", error);
@@ -597,6 +649,24 @@ export async function registerRoutes(
         limit: 10000,
       });
 
+      const overtimeRequests = await storage.getOvertimeRequests({ 
+        employeeId,
+        limit: 10000 
+      });
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      
+      const overtimeMap = new Map<string, { minutes: number; status: string }>();
+      overtimeRequests.forEach((ot) => {
+        const otDate = new Date(ot.date);
+        if (otDate >= startDateObj && otDate <= endDateObj) {
+          const dateKey = otDate.toISOString().split("T")[0];
+          const key = `${ot.employeeId}_${dateKey}`;
+          overtimeMap.set(key, { minutes: ot.minutes, status: ot.status });
+        }
+      });
+
       await storage.createAuditLog({
         action: "export",
         actorId: admin.id,
@@ -622,20 +692,34 @@ export async function registerRoutes(
         return `${hours}:${minutes}:${seconds}`;
       };
 
-      const data = punches.map((punch) => ({
-        "ID": punch.id,
-        "Empleado": `${punch.employee.firstName} ${punch.employee.lastName}`,
-        "Tipo": punch.type === "IN" ? "Entrada" : "Salida",
-        "Fecha": formatDate(punch.timestamp),
-        "Hora": formatTime(punch.timestamp),
-        "Latitud": punch.latitude || "",
-        "Longitud": punch.longitude || "",
-        "Precision_m": punch.accuracy || "",
-        "Requiere_Revision": punch.needsReview ? "Sí" : "No",
-        "Revisado": punch.reviewed ? "Sí" : "No",
-        "Corregido": punch.corrected ? "Sí" : "No",
-        "Fuente": punch.source,
-      }));
+      const data = punches.map((punch) => {
+        const punchDate = new Date(punch.timestamp).toISOString().split("T")[0];
+        const otKey = `${punch.employeeId}_${punchDate}`;
+        const overtime = overtimeMap.get(otKey);
+        
+        const statusMap: Record<string, string> = {
+          pending: "Pendiente",
+          approved: "Aprobado",
+          rejected: "Rechazado",
+        };
+
+        return {
+          "ID": punch.id,
+          "Empleado": `${punch.employee.firstName} ${punch.employee.lastName}`,
+          "Tipo": punch.type === "IN" ? "Entrada" : "Salida",
+          "Fecha": formatDate(punch.timestamp),
+          "Hora": formatTime(punch.timestamp),
+          "Latitud": punch.latitude || "",
+          "Longitud": punch.longitude || "",
+          "Precision_m": punch.accuracy || "",
+          "Requiere_Revision": punch.needsReview ? "Sí" : "No",
+          "Revisado": punch.reviewed ? "Sí" : "No",
+          "Corregido": punch.corrected ? "Sí" : "No",
+          "Fuente": punch.source,
+          "Overtime_Minutos": overtime?.minutes || 0,
+          "Overtime_Estado": overtime ? statusMap[overtime.status] || "" : "",
+        };
+      });
 
       const fields = [
         "ID",
@@ -650,6 +734,8 @@ export async function registerRoutes(
         "Revisado",
         "Corregido",
         "Fuente",
+        "Overtime_Minutos",
+        "Overtime_Estado",
       ];
 
       const parser = new Parser({ fields, delimiter: ";" });
@@ -660,6 +746,66 @@ export async function registerRoutes(
       res.send("\ufeff" + csv);
     } catch (error) {
       console.error("Export error:", error);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  app.get("/api/overtime-requests", authenticateAdminManager, async (req, res) => {
+    try {
+      const status = req.query.status as "pending" | "approved" | "rejected" | undefined;
+      const employeeId = req.query.employeeId as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+
+      const requests = await storage.getOvertimeRequests({ status, employeeId, limit });
+      res.json(requests);
+    } catch (error) {
+      console.error("Get overtime requests error:", error);
+      res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  app.post("/api/overtime-requests/:id/review", authenticateAdminManager, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = overtimeReviewRequestSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: "Données invalides", errors: result.error.errors });
+      }
+
+      const { status, comment } = result.data;
+      const admin = req.employee!;
+
+      const existingRequests = await storage.getOvertimeRequests({ limit: 1000 });
+      const existing = existingRequests.find(r => r.id === id);
+      
+      if (!existing) {
+        return res.status(404).json({ message: "Demande d'heures supplémentaires non trouvée" });
+      }
+
+      if (existing.status !== "pending") {
+        return res.status(400).json({ message: "Cette demande a déjà été traitée" });
+      }
+
+      await storage.updateOvertimeRequest(id, {
+        status,
+        reviewerId: admin.id,
+        reviewerComment: comment,
+        reviewedAt: new Date(),
+      });
+
+      await storage.createAuditLog({
+        action: "overtime_review",
+        actorId: admin.id,
+        targetType: "overtime_request",
+        targetId: id,
+        details: JSON.stringify({ status, comment, employeeId: existing.employeeId }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
+      res.json({ message: status === "approved" ? "Heures supplémentaires approuvées" : "Heures supplémentaires rejetées" });
+    } catch (error) {
+      console.error("Review overtime request error:", error);
       res.status(500).json({ message: "Erreur serveur" });
     }
   });

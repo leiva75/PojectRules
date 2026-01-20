@@ -1,10 +1,11 @@
 import { 
-  employees, punches, punchCorrections, refreshTokens, punchReviews, auditLog,
+  employees, punches, punchCorrections, refreshTokens, punchReviews, auditLog, overtimeRequests,
   type Employee, type InsertEmployee, 
   type Punch, type InsertPunch,
   type PunchCorrection, type InsertPunchCorrection,
   type RefreshToken, type PunchReview, type InsertPunchReview,
-  type AuditLog, type InsertAuditLog
+  type AuditLog, type InsertAuditLog,
+  type OvertimeRequest, type InsertOvertimeRequest
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, isNull } from "drizzle-orm";
@@ -38,6 +39,12 @@ export interface IStorage {
 
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   getAuditLogs(options?: { limit?: number; targetType?: string; targetId?: string }): Promise<AuditLog[]>;
+
+  createOvertimeRequest(request: InsertOvertimeRequest): Promise<OvertimeRequest>;
+  getOvertimeRequestByDateAndEmployee(employeeId: string, date: Date): Promise<OvertimeRequest | undefined>;
+  updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest>): Promise<OvertimeRequest | undefined>;
+  getOvertimeRequests(options?: { status?: "pending" | "approved" | "rejected"; employeeId?: string; limit?: number }): Promise<(OvertimeRequest & { employee: { id: string; firstName: string; lastName: string }; reviewer?: { id: string; firstName: string; lastName: string } | null })[]>;
+  getPunchesByEmployeeAndDate(employeeId: string, date: Date): Promise<Punch[]>;
 
   getStats(): Promise<{ totalEmployees: number; activeToday: number; currentlyIn: number; needsReview: number }>;
 }
@@ -303,6 +310,101 @@ export class DatabaseStorage implements IStorage {
       return query.where(and(...conditions)).limit(options?.limit || 100);
     }
     return query.limit(options?.limit || 100);
+  }
+
+  async createOvertimeRequest(request: InsertOvertimeRequest): Promise<OvertimeRequest> {
+    const [created] = await db.insert(overtimeRequests).values(request).returning();
+    return created;
+  }
+
+  async getOvertimeRequestByDateAndEmployee(employeeId: string, date: Date): Promise<OvertimeRequest | undefined> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const [request] = await db.select().from(overtimeRequests)
+      .where(and(
+        eq(overtimeRequests.employeeId, employeeId),
+        gte(overtimeRequests.date, startOfDay),
+        lte(overtimeRequests.date, endOfDay)
+      ));
+    return request || undefined;
+  }
+
+  async updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest>): Promise<OvertimeRequest | undefined> {
+    const [updated] = await db.update(overtimeRequests).set(data).where(eq(overtimeRequests.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async getOvertimeRequests(options?: { status?: "pending" | "approved" | "rejected"; employeeId?: string; limit?: number }) {
+    const conditions = [];
+    if (options?.status) {
+      conditions.push(eq(overtimeRequests.status, options.status));
+    }
+    if (options?.employeeId) {
+      conditions.push(eq(overtimeRequests.employeeId, options.employeeId));
+    }
+
+    const reviewerAlias = db.select({
+      id: employees.id,
+      firstName: employees.firstName,
+      lastName: employees.lastName,
+    }).from(employees).as("reviewer");
+
+    const results = await db
+      .select({
+        id: overtimeRequests.id,
+        employeeId: overtimeRequests.employeeId,
+        date: overtimeRequests.date,
+        minutes: overtimeRequests.minutes,
+        reason: overtimeRequests.reason,
+        status: overtimeRequests.status,
+        reviewerId: overtimeRequests.reviewerId,
+        reviewerComment: overtimeRequests.reviewerComment,
+        createdAt: overtimeRequests.createdAt,
+        reviewedAt: overtimeRequests.reviewedAt,
+        employee: {
+          id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        },
+      })
+      .from(overtimeRequests)
+      .innerJoin(employees, eq(overtimeRequests.employeeId, employees.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(overtimeRequests.date))
+      .limit(options?.limit || 100);
+
+    const resultWithReviewer = await Promise.all(results.map(async (r) => {
+      let reviewer = null;
+      if (r.reviewerId) {
+        const [rev] = await db.select({
+          id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        }).from(employees).where(eq(employees.id, r.reviewerId));
+        reviewer = rev || null;
+      }
+      return { ...r, reviewer };
+    }));
+
+    return resultWithReviewer;
+  }
+
+  async getPunchesByEmployeeAndDate(employeeId: string, date: Date): Promise<Punch[]> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return db.select().from(punches)
+      .where(and(
+        eq(punches.employeeId, employeeId),
+        gte(punches.timestamp, startOfDay),
+        lte(punches.timestamp, endOfDay)
+      ))
+      .orderBy(punches.timestamp);
   }
 
   async getStats() {

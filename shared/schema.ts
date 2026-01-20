@@ -56,7 +56,22 @@ export const punchReviews = pgTable("punch_reviews", {
   note: text("note"),
 });
 
-export const auditActionEnum = pgEnum("audit_action", ["correction", "review", "create", "login", "export"]);
+export const auditActionEnum = pgEnum("audit_action", ["correction", "review", "create", "login", "export", "overtime_create", "overtime_review"]);
+
+export const overtimeStatusEnum = pgEnum("overtime_status", ["pending", "approved", "rejected"]);
+
+export const overtimeRequests = pgTable("overtime_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").notNull().references(() => employees.id),
+  date: timestamp("date").notNull(),
+  minutes: integer("minutes").notNull(),
+  reason: text("reason").notNull().default("AUTO"),
+  status: overtimeStatusEnum("status").notNull().default("pending"),
+  reviewerId: varchar("reviewer_id").references(() => employees.id),
+  reviewerComment: text("reviewer_comment"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+});
 
 export const auditLog = pgTable("audit_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -75,6 +90,21 @@ export const employeesRelations = relations(employees, ({ many }) => ({
   refreshTokens: many(refreshTokens),
   reviews: many(punchReviews, { relationName: "reviewedBy" }),
   auditLogs: many(auditLog, { relationName: "actor" }),
+  overtimeRequests: many(overtimeRequests, { relationName: "employeeOvertime" }),
+  overtimeReviews: many(overtimeRequests, { relationName: "overtimeReviewer" }),
+}));
+
+export const overtimeRequestsRelations = relations(overtimeRequests, ({ one }) => ({
+  employee: one(employees, {
+    fields: [overtimeRequests.employeeId],
+    references: [employees.id],
+    relationName: "employeeOvertime",
+  }),
+  reviewer: one(employees, {
+    fields: [overtimeRequests.reviewerId],
+    references: [employees.id],
+    relationName: "overtimeReviewer",
+  }),
 }));
 
 export const punchesRelations = relations(punches, ({ one, many }) => ({
@@ -184,6 +214,17 @@ export const reviewRequestSchema = z.object({
   note: z.string().optional(),
 });
 
+export const insertOvertimeRequestSchema = createInsertSchema(overtimeRequests).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+
+export const overtimeReviewRequestSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  comment: z.string().min(5, "Le commentaire doit contenir au moins 5 caractères"),
+});
+
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type Punch = typeof punches.$inferSelect;
@@ -201,3 +242,6 @@ export type PunchRequest = z.infer<typeof punchRequestSchema>;
 export type CorrectionRequest = z.infer<typeof correctionRequestSchema>;
 export type ExportQuery = z.infer<typeof exportQuerySchema>;
 export type ReviewRequest = z.infer<typeof reviewRequestSchema>;
+export type OvertimeRequest = typeof overtimeRequests.$inferSelect;
+export type InsertOvertimeRequest = z.infer<typeof insertOvertimeRequestSchema>;
+export type OvertimeReviewRequest = z.infer<typeof overtimeReviewRequestSchema>;

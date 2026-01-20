@@ -40,3 +40,9 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_database:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+EXPECTED_DAILY_MINUTES = "480"
+OVERTIME_MIN_THRESHOLD = "15"

@@ -37,7 +37,14 @@ import {
   TrendingUp,
   ClipboardCheck,
   Eye,
+  Timer,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Employee, Punch } from "@shared/schema";
 import { EmployeeDialog } from "@/components/employee-dialog";
 import { ExportDialog } from "@/components/export-dialog";
@@ -58,13 +65,39 @@ interface PunchWithEmployee extends Punch {
   };
 }
 
+interface OvertimeRequestWithDetails {
+  id: string;
+  employeeId: string;
+  date: string;
+  minutes: number;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  reviewerId: string | null;
+  reviewerComment: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  employee: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  reviewer?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+}
+
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "exports">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports">("dashboard");
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
+  const [selectedOvertime, setSelectedOvertime] = useState<OvertimeRequestWithDetails | null>(null);
+  const [overtimeComment, setOvertimeComment] = useState("");
+  const [overtimeFilter, setOvertimeFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const { toast } = useToast();
 
   const { data: stats } = useQuery<DashboardStats>({
@@ -113,6 +146,34 @@ export default function AdminPage() {
     },
   });
 
+  const { data: overtimeRequests, isLoading: overtimeLoading } = useQuery<OvertimeRequestWithDetails[]>({
+    queryKey: ["/api/overtime-requests", { status: overtimeFilter === "all" ? undefined : overtimeFilter }],
+  });
+
+  const overtimeReviewMutation = useMutation({
+    mutationFn: async ({ id, status, comment }: { id: string; status: "approved" | "rejected"; comment: string }) => {
+      return apiRequest("POST", `/api/overtime-requests/${id}/review`, { status, comment });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/overtime-requests"] });
+      setSelectedOvertime(null);
+      setOvertimeComment("");
+      toast({
+        title: variables.status === "approved" ? "Approuvé" : "Rejeté",
+        description: variables.status === "approved" 
+          ? "Les heures supplémentaires ont été approuvées" 
+          : "Les heures supplémentaires ont été rejetées",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de traiter la demande",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleLogout = async () => {
     await logout();
     setLocation("/");
@@ -130,6 +191,7 @@ export default function AdminPage() {
     { id: "employees", label: "Employés", icon: Users },
     { id: "punches", label: "Pointages", icon: Clock },
     { id: "revision", label: "Révision", icon: ClipboardCheck },
+    { id: "overtime", label: "Heures Sup", icon: Timer },
     { id: "exports", label: "Exports", icon: FileText },
   ];
 
@@ -619,6 +681,129 @@ export default function AdminPage() {
               </Card>
             )}
 
+            {activeTab === "overtime" && (
+              <Card className="border-card-border">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Timer className="h-5 w-5" />
+                        Demandes d'Heures Supplémentaires
+                      </CardTitle>
+                      <CardDescription>
+                        Validez ou rejetez les demandes d'heures supplémentaires
+                      </CardDescription>
+                    </div>
+                    <Select value={overtimeFilter} onValueChange={(v) => setOvertimeFilter(v as typeof overtimeFilter)}>
+                      <SelectTrigger className="w-40" data-testid="select-overtime-filter">
+                        <SelectValue placeholder="Filtrer par statut" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toutes</SelectItem>
+                        <SelectItem value="pending">En attente</SelectItem>
+                        <SelectItem value="approved">Approuvées</SelectItem>
+                        <SelectItem value="rejected">Rejetées</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {overtimeLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="h-16 bg-muted/50 animate-pulse rounded-md" />
+                      ))}
+                    </div>
+                  ) : overtimeRequests && overtimeRequests.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Employé</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Minutes</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Raison</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Statut</th>
+                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {overtimeRequests.map((request) => (
+                            <tr key={request.id} className="border-b last:border-0">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarFallback className="text-xs bg-orange-100 text-orange-700">
+                                      {request.employee.firstName[0]}{request.employee.lastName[0]}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-medium">
+                                    {request.employee.firstName} {request.employee.lastName}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 font-mono text-sm">
+                                {new Date(request.date).toLocaleDateString("fr-FR")}
+                              </td>
+                              <td className="py-3 px-4">
+                                <Badge variant="outline" className="font-mono">
+                                  {request.minutes} min
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-muted-foreground">
+                                {request.reason}
+                              </td>
+                              <td className="py-3 px-4">
+                                {request.status === "pending" && (
+                                  <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                    En attente
+                                  </Badge>
+                                )}
+                                {request.status === "approved" && (
+                                  <Badge className="bg-green-100 text-green-700">
+                                    <ThumbsUp className="h-3 w-3 mr-1" />
+                                    Approuvé
+                                  </Badge>
+                                )}
+                                {request.status === "rejected" && (
+                                  <Badge className="bg-red-100 text-red-700">
+                                    <ThumbsDown className="h-3 w-3 mr-1" />
+                                    Rejeté
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                {request.status === "pending" ? (
+                                  <div className="flex gap-2 justify-end">
+                                    <Button 
+                                      size="sm"
+                                      onClick={() => setSelectedOvertime(request)}
+                                      data-testid={`button-review-overtime-${request.id}`}
+                                    >
+                                      Traiter
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    {request.reviewer && `Par ${request.reviewer.firstName} ${request.reviewer.lastName}`}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Timer className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                      <p>Aucune demande d'heures supplémentaires</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {activeTab === "exports" && (
               <Card className="border-card-border">
                 <CardHeader>
@@ -659,6 +844,71 @@ export default function AdminPage() {
         onOpenChange={(open) => !open && setSelectedPunchForCorrection(null)}
         punch={selectedPunchForCorrection}
       />
+
+      <Dialog open={!!selectedOvertime} onOpenChange={(open) => !open && setSelectedOvertime(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Traiter la demande d'heures supplémentaires</DialogTitle>
+            <DialogDescription>
+              {selectedOvertime && (
+                <>
+                  Demande de <strong>{selectedOvertime.employee.firstName} {selectedOvertime.employee.lastName}</strong> pour{" "}
+                  <strong>{selectedOvertime.minutes} minutes</strong> le{" "}
+                  {new Date(selectedOvertime.date).toLocaleDateString("fr-FR")}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="overtime-comment">Commentaire (obligatoire)</Label>
+              <Textarea
+                id="overtime-comment"
+                placeholder="Justification de la décision..."
+                value={overtimeComment}
+                onChange={(e) => setOvertimeComment(e.target.value)}
+                className="mt-2"
+                data-testid="input-overtime-comment"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (selectedOvertime && overtimeComment.length >= 5) {
+                  overtimeReviewMutation.mutate({
+                    id: selectedOvertime.id,
+                    status: "rejected",
+                    comment: overtimeComment,
+                  });
+                }
+              }}
+              disabled={overtimeComment.length < 5 || overtimeReviewMutation.isPending}
+              data-testid="button-reject-overtime"
+            >
+              <ThumbsDown className="h-4 w-4 mr-2" />
+              Rejeter
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedOvertime && overtimeComment.length >= 5) {
+                  overtimeReviewMutation.mutate({
+                    id: selectedOvertime.id,
+                    status: "approved",
+                    comment: overtimeComment,
+                  });
+                }
+              }}
+              disabled={overtimeComment.length < 5 || overtimeReviewMutation.isPending}
+              data-testid="button-approve-overtime"
+            >
+              <ThumbsUp className="h-4 w-4 mr-2" />
+              Approuver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }
