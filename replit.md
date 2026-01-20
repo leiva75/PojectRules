@@ -56,11 +56,26 @@ npm run db:push      # Push schema to database
 npx tsx server/seed.ts  # Seed database
 ```
 
-## Docker Deployment
+## Docker Production Deployment
 ```bash
-docker-compose up -d --build
+# Copy environment template
+cp .env.production.example .env.production
+# Edit with secure secrets (see commands in .env.production.example)
+nano .env.production
+# Build and start
+docker compose up -d --build
+# Apply migrations
+docker compose exec app npm run db:push
+# Seed initial data (optional)
+docker compose exec app npx tsx server/seed.ts
 ```
 
-Environment variables needed:
-- `DB_PASSWORD`: PostgreSQL password
-- `SESSION_SECRET`: JWT signing secret
+Environment variables (production):
+- `DATABASE_URL`: PostgreSQL connection string
+- `JWT_ACCESS_SECRET`: 64+ char secret for access tokens
+- `JWT_REFRESH_SECRET`: 64+ char secret for refresh tokens
+- `SESSION_SECRET`: 64+ char session secret
+- `KIOSK_KEY`: 32+ char key for kiosk mode
+- `CORS_ORIGIN`: Allowed origin (not "*" in production)
+
+See README_PRODUCCION.md for complete VPS deployment guide.
