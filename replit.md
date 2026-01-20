@@ -32,8 +32,17 @@ A full-stack TypeScript time-tracking application with:
 - **Append-only punches**: No edits/deletes, only corrections
 - **Geolocation capture**: Lat/lon rounded to 4 decimals
 - **Dual auth**: Admin/Manager (httpOnly cookies) vs Employee (localStorage JWT)
-- **CSV exports**: By employee and date range
+- **CSV exports**: By employee and date range with overtime columns
 - **Kiosk mode**: Shared terminal with PIN login
+- **Overtime management**: Automatic calculation on OUT punch, admin approval workflow
+
+## Overtime System
+- Automatic calculation: On each OUT punch, daily minutes are calculated from all IN->OUT pairs
+- Configurable threshold: OVERTIME_MIN_THRESHOLD (default: 15 minutes) before creating request
+- Expected daily minutes: EXPECTED_DAILY_MINUTES (default: 480 = 8 hours)
+- Admin workflow: Filter by status (pending/approved/rejected), mandatory comment for approval/rejection
+- Audit trail: All overtime_create and overtime_review actions logged
+- CSV export includes Overtime_Minutos and Overtime_Estado columns
 
 ## Test Accounts
 - Admin: `admin@pointeuse.fr` / `admin123` (PIN: 000000)
