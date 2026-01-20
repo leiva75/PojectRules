@@ -1,12 +1,13 @@
 # Pointeuse Hybride - Guía de Producción (VPS)
 
-Esta guía explica cómo desplegar la aplicación en un servidor VPS sin depender de Replit.
+Esta guía explica cómo desplegar la aplicación en un servidor VPS con Docker.
 
 ## Requisitos Previos
 
 - Ubuntu 20.04+ o Debian 11+
 - Docker y Docker Compose instalados
-- Un dominio configurado (opcional pero recomendado para HTTPS)
+- Un dominio configurado (recomendado para HTTPS)
+- Mínimo 1GB RAM, 10GB disco
 
 ## 1. Instalación de Docker
 
@@ -19,16 +20,14 @@ curl -fsSL https://get.docker.com | sh
 
 # Agregar usuario al grupo docker
 sudo usermod -aG docker $USER
-
-# Instalar Docker Compose
-sudo apt install docker-compose-plugin -y
+newgrp docker
 
 # Verificar instalación
 docker --version
 docker compose version
 ```
 
-## 2. Configuración del Proyecto
+## 2. Clonar y Configurar
 
 ### Clonar el repositorio
 ```bash
@@ -38,37 +37,84 @@ cd pointeuse
 
 ### Crear archivo de configuración
 ```bash
-cp .env.example .env
+cp .env.production.example .env
 nano .env
 ```
 
-### Variables de entorno requeridas
+### Variables de Entorno Requeridas
 
 | Variable | Descripción | Ejemplo |
 |----------|-------------|---------|
-| `DB_PASSWORD` | Contraseña de PostgreSQL | `mi_password_seguro_123` |
-| `SESSION_SECRET` | Clave secreta para JWT (min 32 caracteres) | `abc123...` |
-| `CORS_ORIGIN` | URL del frontend | `https://mi-dominio.com` |
-| `NODE_ENV` | Entorno de ejecución | `production` |
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL | `MySecureP@ss123!` |
+| `JWT_ACCESS_SECRET` | Clave para tokens de acceso (min 32 chars) | `openssl rand -base64 32` |
+| `JWT_REFRESH_SECRET` | Clave para tokens de refresco (min 32 chars) | `openssl rand -base64 32` |
+| `KIOSK_KEY` | Clave de acceso al modo kiosko (min 16 chars) | `openssl rand -base64 16` |
+| `CORS_ORIGIN` | URL del frontend | `https://fichaje.miempresa.com` |
+
+### Generar Secrets Seguros
+```bash
+# Generar JWT_ACCESS_SECRET
+echo "JWT_ACCESS_SECRET=$(openssl rand -base64 32)"
+
+# Generar JWT_REFRESH_SECRET
+echo "JWT_REFRESH_SECRET=$(openssl rand -base64 32)"
+
+# Generar KIOSK_KEY
+echo "KIOSK_KEY=$(openssl rand -base64 16)"
+
+# Generar POSTGRES_PASSWORD
+echo "POSTGRES_PASSWORD=$(openssl rand -base64 24)"
+```
 
 ## 3. Despliegue con Docker Compose
 
+### Construir e Iniciar
 ```bash
 # Construir y arrancar en segundo plano
 docker compose up -d --build
 
-# Ver logs
+# Ver logs en tiempo real
 docker compose logs -f
 
-# Verificar estado
+# Verificar estado de los servicios
 docker compose ps
 ```
 
-La aplicación estará disponible en el puerto 5000.
+La aplicación estará disponible en el puerto 3000.
 
-## 4. Configuración de HTTPS con Caddy
+### Verificar Salud de la Aplicación
+```bash
+curl http://localhost:3000/api/health
+```
 
-Caddy es un servidor web moderno que obtiene certificados SSL automáticamente.
+Respuesta esperada:
+```json
+{"status":"ok","db":true,"version":"1.0.0","env":"production"}
+```
+
+## 4. Migraciones de Base de Datos
+
+### Aplicar Migraciones (Primera Vez o Cambios de Schema)
+```bash
+# Comando principal para sincronizar schema
+docker compose exec app npm run db:push
+
+# En caso de conflictos, usar --force (con precaución)
+docker compose exec app npm run db:push -- --force
+```
+
+**Nota:** `db:push` es el comando equivalente a `migrate:prod` para Drizzle ORM.
+
+### Cargar Datos Iniciales (Seed)
+```bash
+docker compose exec app npx tsx server/seed.ts
+```
+
+**Nota:** El seed crea usuarios de prueba. Cambiar contraseñas después del primer login.
+
+## 5. Configuración de HTTPS con Caddy
+
+Caddy obtiene certificados SSL automáticamente.
 
 ### Instalar Caddy
 ```bash
@@ -86,8 +132,8 @@ sudo nano /etc/caddy/Caddyfile
 
 Contenido:
 ```
-mi-dominio.com {
-    reverse_proxy localhost:5000
+fichaje.miempresa.com {
+    reverse_proxy localhost:3000
 }
 ```
 
@@ -97,44 +143,54 @@ sudo systemctl restart caddy
 sudo systemctl enable caddy
 ```
 
-Caddy obtendrá automáticamente un certificado Let's Encrypt.
+## 6. Backups de Base de Datos
 
-## 5. Backups de la Base de Datos
-
-### Backup manual
+### Backup Manual
 ```bash
-docker compose exec app /bin/bash -c "./scripts/backup.sh"
+./ops/backup.sh
 ```
 
-### Configurar backup automático (cron)
+Los backups se guardan en `./backups/` con el formato `backup_YYYY-MM-DD_HHMM.dump`.
+
+### Configurar Backup Automático (Cron)
+
 ```bash
 crontab -e
 ```
 
-Agregar línea para backup diario a las 3 AM:
+Agregar línea para backup diario a las 3:00 AM:
 ```
-0 3 * * * cd /ruta/al/proyecto && docker compose exec -T app ./scripts/backup.sh >> /var/log/pointeuse-backup.log 2>&1
+0 3 * * * cd /ruta/a/pointeuse && ./ops/backup.sh >> /var/log/pointeuse-backup.log 2>&1
 ```
 
-Los backups se guardan en `/backups` con retención de 30 días.
+### Rotación de Backups
 
-## 6. Restaurar Base de Datos
-
-### Desde un backup
+El script de backup elimina automáticamente backups con más de 30 días.
+Para cambiar la retención:
 ```bash
-# Listar backups disponibles
-ls -la /backups/
-
-# Restaurar (reemplazar TIMESTAMP con la fecha del backup)
-gunzip -c /backups/pointeuse_TIMESTAMP.sql.gz | docker compose exec -T db psql -U postgres pointeuse
+RETENTION_DAYS=60 ./ops/backup.sh
 ```
 
-### Restaurar datos de seed (datos iniciales)
+## 7. Restaurar Base de Datos
+
+### Listar Backups Disponibles
 ```bash
-docker compose exec app npx tsx server/seed.ts
+ls -lh backups/
 ```
 
-## 7. Comandos Útiles
+### Restaurar desde Backup
+```bash
+./ops/restore.sh backups/backup_2024-01-15_0300.dump
+```
+
+**ADVERTENCIA:** La restauración elimina todos los datos actuales y los reemplaza con el backup.
+
+Después de restaurar, reiniciar la aplicación:
+```bash
+docker compose restart app
+```
+
+## 8. Comandos Útiles
 
 ```bash
 # Ver logs de la aplicación
@@ -149,7 +205,7 @@ docker compose restart
 # Detener todo
 docker compose down
 
-# Detener y eliminar volúmenes (PRECAUCIÓN: borra datos)
+# Detener y eliminar volúmenes (BORRA DATOS)
 docker compose down -v
 
 # Actualizar aplicación
@@ -157,23 +213,33 @@ git pull
 docker compose up -d --build
 ```
 
-## 8. Monitoreo
+## 9. Monitoreo
 
-### Verificar estado de la aplicación
+### Health Check Automático
+Docker reinicia automáticamente los contenedores si fallan los health checks.
+
+### Verificar Estado
 ```bash
-curl http://localhost:5000/api/health
+# Estado de contenedores
+docker compose ps
+
+# Health de la aplicación
+curl http://localhost:3000/api/health
+
+# Uso de recursos
+docker stats
 ```
 
-### Ver página de estado (requiere login admin)
-Navegar a: `https://mi-dominio.com/admin` → pestaña "Estado"
+### Página de Estado (Admin)
+Navegar a: `https://tu-dominio.com/admin` → pestaña "Estado"
 
 Muestra:
 - Versión de la aplicación
 - Entorno (dev/prod)
 - Estado de la base de datos
-- Número de empleados y sitios
+- Número de empleados
 
-## 9. Solución de Problemas
+## 10. Solución de Problemas
 
 ### La aplicación no arranca
 ```bash
@@ -181,7 +247,7 @@ Muestra:
 docker compose logs app
 
 # Verificar variables de entorno
-docker compose exec app env | grep -E "(DATABASE|SESSION|CORS)"
+docker compose config
 ```
 
 ### Error de conexión a la base de datos
@@ -193,25 +259,41 @@ docker compose ps db
 docker compose exec db psql -U postgres -c "SELECT 1"
 ```
 
-### Certificado SSL no funciona
+### Reiniciar desde cero
 ```bash
-# Ver logs de Caddy
-sudo journalctl -u caddy -f
-
-# Verificar DNS
-nslookup mi-dominio.com
+docker compose down -v
+docker compose up -d --build
+docker compose exec app npm run db:push
+docker compose exec app npx tsx server/seed.ts
 ```
 
-## 10. Seguridad
+## 11. Seguridad
 
-- Cambiar contraseñas por defecto antes del primer uso
-- Usar contraseñas fuertes (min 16 caracteres)
+- Cambiar todas las contraseñas por defecto antes del primer uso
+- Usar contraseñas fuertes (mínimo 16 caracteres)
 - Mantener Docker y el sistema actualizados
-- Configurar firewall (UFW):
-  ```bash
-  sudo ufw allow 22    # SSH
-  sudo ufw allow 80    # HTTP
-  sudo ufw allow 443   # HTTPS
-  sudo ufw enable
-  ```
-- No exponer el puerto 5000 directamente (usar Caddy como proxy)
+- No exponer el puerto 3000 directamente (usar Caddy como proxy)
+
+### Configurar Firewall
+```bash
+sudo ufw allow 22    # SSH
+sudo ufw allow 80    # HTTP
+sudo ufw allow 443   # HTTPS
+sudo ufw enable
+```
+
+## 12. Actualizaciones
+
+```bash
+# Hacer backup antes de actualizar
+./ops/backup.sh
+
+# Obtener cambios
+git pull
+
+# Reconstruir y reiniciar
+docker compose up -d --build
+
+# Aplicar migraciones si hay cambios de schema
+docker compose exec app npm run db:push
+```

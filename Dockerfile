@@ -1,26 +1,56 @@
-FROM node:20-alpine AS base
+# ================================
+# Stage 1: Dependencies
+# ================================
+FROM node:18-alpine AS deps
 WORKDIR /app
-
-FROM base AS deps
 COPY package*.json ./
 RUN npm ci
 
-FROM base AS builder
+# ================================
+# Stage 2: Build
+# ================================
+FROM node:18-alpine AS builder
+WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Build client (Vite) and server (esbuild bundle to dist/index.cjs)
 RUN npm run build
 
-FROM base AS production-deps
+# ================================
+# Stage 3: Production Dependencies
+# ================================
+FROM node:18-alpine AS production-deps
+WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-FROM base AS runner
-ENV NODE_ENV=production
+# ================================
+# Stage 4: Runtime
+# ================================
+FROM node:18-alpine AS runner
+WORKDIR /app
 
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Copy production dependencies
 COPY --from=production-deps /app/node_modules ./node_modules
+
+# Copy built assets (client static files + server bundle)
 COPY --from=builder /app/dist ./dist
+
+# Copy package files for npm start
 COPY package*.json ./
 
-EXPOSE 5000
+# Create backups directory
+RUN mkdir -p /backups && chmod 755 /backups
 
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+
+# Start: runs "node dist/index.cjs" via npm run start
 CMD ["npm", "run", "start"]

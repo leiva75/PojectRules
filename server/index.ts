@@ -13,18 +13,34 @@ const isProd = process.env.NODE_ENV === "production";
 function validateConfig() {
   const errors: string[] = [];
 
-  if (!process.env.SESSION_SECRET) {
-    errors.push("SESSION_SECRET es obligatorio");
-  } else if (process.env.SESSION_SECRET.length < 32) {
-    errors.push("SESSION_SECRET debe tener al menos 32 caracteres");
-  }
-
-  if (isProd && !process.env.CORS_ORIGIN) {
-    errors.push("CORS_ORIGIN es obligatorio en producción");
-  }
-
   if (!process.env.DATABASE_URL) {
     errors.push("DATABASE_URL es obligatorio");
+  }
+
+  if (isProd) {
+    if (!process.env.JWT_ACCESS_SECRET) {
+      errors.push("JWT_ACCESS_SECRET es obligatorio en producción");
+    } else if (process.env.JWT_ACCESS_SECRET.length < 32) {
+      errors.push("JWT_ACCESS_SECRET debe tener al menos 32 caracteres");
+    }
+
+    if (!process.env.JWT_REFRESH_SECRET) {
+      errors.push("JWT_REFRESH_SECRET es obligatorio en producción");
+    } else if (process.env.JWT_REFRESH_SECRET.length < 32) {
+      errors.push("JWT_REFRESH_SECRET debe tener al menos 32 caracteres");
+    }
+
+    if (!process.env.CORS_ORIGIN) {
+      errors.push("CORS_ORIGIN es obligatorio en producción");
+    } else if (process.env.CORS_ORIGIN === "*") {
+      errors.push("CORS_ORIGIN no puede ser '*' en producción");
+    }
+
+    if (!process.env.KIOSK_KEY) {
+      errors.push("KIOSK_KEY es obligatorio en producción");
+    } else if (process.env.KIOSK_KEY.length < 16) {
+      errors.push("KIOSK_KEY debe tener al menos 16 caracteres");
+    }
   }
 
   if (errors.length > 0) {
@@ -32,7 +48,7 @@ function validateConfig() {
     process.exit(1);
   }
 
-  logInfo("Configuración validada correctamente");
+  logInfo("Configuración validada correctamente", { env: isProd ? "production" : "development" });
 }
 
 validateConfig();
@@ -85,6 +101,12 @@ app.use((req, res, next) => {
 
   next();
 });
+
+export const cookieOptions = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: (isProd ? "strict" : "lax") as "strict" | "lax",
+};
 
 (async () => {
   await registerRoutes(httpServer, app);
