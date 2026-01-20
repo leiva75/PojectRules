@@ -1,0 +1,100 @@
+OBJECTIF: préparer la mise en production sur un VPS (indépendant de Replit) avec Docker + sauvegardes + sécurité "fail fast".
+IMPORTANT: Ne pas exécuter Docker sur Replit. Seulement générer les fichiers.
+
+A) PRODUCTION HARDENING (server)
+1) Ajouter une validation au démarrage (server) :
+- Refuser de démarrer en mode production si les variables suivantes manquent:
+  DATABASE_URL
+  JWT_ACCESS_SECRET
+  JWT_REFRESH_SECRET
+  CORS_ORIGIN
+  KIOSK_KEY
+- En prod, imposer cookies secure=true et sameSite='lax' ou 'strict' selon usage.
+- En prod, refuser CORS_ORIGIN="*".
+
+2) Ajouter /api/health (public) :
+- retourne JSON { status:"ok", db:true/false, version, env }
+- db:true si une requête simple passe (ex: SELECT 1)
+
+B) DOCKER (prod)
+3) Générer Dockerfile(s) pour une prod simple :
+- Un seul conteneur "app" qui sert:
+  - API Express
+  - le build du client en statique (vite build)
+- Multi-stage build recommandé:
+  - stage 1: build client + build server (tsc)
+  - stage 2: node:18-alpine runtime
+- Exposer PORT=3000 (ou 5000 si déjà utilisé, mais standardiser à 3000 si possible)
+- Utiliser NODE_ENV=production
+
+4) Générer docker-compose.yml :
+Services:
+- db: postgres:16
+  - volumes: postgres_data
+  - env: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+  - healthcheck
+- app:
+  - build: .
+  - ports: "3000:3000"
+  - depends_on: db (healthcheck)
+  - env:
+    DATABASE_URL=postgres://...
+    CORS_ORIGIN=https://TON_DOMAINE
+    JWT_ACCESS_SECRET=...
+    JWT_REFRESH_SECRET=...
+    KIOSK_KEY=...
+    EXPECTED_DAILY_MINUTES=480
+    OVERTIME_MIN_THRESHOLD=15
+    GEO_DECIMALS=4
+  - restart: unless-stopped
+Volumes:
+- postgres_data
+
+5) Ajouter un fichier .env.production.example (ne pas mettre de secrets réels) avec:
+- POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+- DATABASE_URL (exemple)
+- CORS_ORIGIN (ex: https://fichaje.tugym.com)
+- JWT_ACCESS_SECRET, JWT_REFRESH_SECRET
+- KIOSK_KEY
+- EXPECTED_DAILY_MINUTES, OVERTIME_MIN_THRESHOLD, GEO_DECIMALS
+- PORT=3000
+
+C) BACKUPS (scripts + documentation)
+6) Ajouter un dossier /ops avec scripts shell POSIX (ASCII) :
+- ops/backup.sh :
+  - crée ./backups si absent
+  - fait un pg_dump (format custom ou plain) depuis le conteneur db
+  - nom de fichier: backup_YYYY-MM-DD_HHMM.dump
+  - garde uniquement les 30 derniers backups (rotation)
+- ops/restore.sh :
+  - restaurer un dump dans db (avec confirmation)
+IMPORTANT:
+- Scripts doivent fonctionner sur un VPS Linux avec docker compose
+- Ne pas utiliser des outils non standard.
+
+7) Documenter dans README (en espagnol) :
+- Pré-requis VPS: Docker + Docker Compose
+- Clone repo, copie .env.production.example -> .env
+- docker compose up -d --build
+- Lancer migrations/seed en prod (expliquer clairement la commande)
+- Utilisation des backups:
+  - ./ops/backup.sh
+  - ./ops/restore.sh backups/xxx.dump
+- Recommandation: configurer un cron (exemple de ligne cron) pour backup quotidien.
+
+D) MIGRATIONS EN PROD
+8) Ajouter une commande "npm run migrate:prod" côté server (ou script) qui exécute drizzle migrate au démarrage OU via commande manuelle.
+Préférence: commande manuelle documentée (plus safe).
+- Exemple doc: docker compose exec app npm run migrate
+
+E) LIVRABLES
+9) À la fin, lister les fichiers créés/modifiés:
+- Dockerfile
+- docker-compose.yml
+- .env.production.example
+- ops/backup.sh
+- ops/restore.sh
+- README (section Producción)
+- server start validation + /api/health
+
+NE PAS CASSER: build et preview doivent continuer de fonctionner sur Replit après ces changements.
