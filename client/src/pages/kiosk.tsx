@@ -1,0 +1,285 @@
+import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { PunchButton } from "@/components/punch-button";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, X, Delete, Loader2 } from "lucide-react";
+import type { Employee, PunchRequest } from "@shared/schema";
+
+const IDLE_TIMEOUT = 30000;
+
+export default function KioskPage() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [pin, setPin] = useState("");
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [kioskToken, setKioskToken] = useState<string | null>(null);
+  const [lastPunchType, setLastPunchType] = useState<"IN" | "OUT" | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (employee) {
+      const timeout = setTimeout(() => {
+        resetKiosk();
+      }, IDLE_TIMEOUT);
+      return () => clearTimeout(timeout);
+    }
+  }, [employee]);
+
+  const resetKiosk = useCallback(() => {
+    setEmployee(null);
+    setKioskToken(null);
+    setLastPunchType(null);
+    setPin("");
+  }, []);
+
+  const handlePinChange = (value: string) => {
+    setPin(value);
+    if (value.length === 6) {
+      authenticateEmployee(value);
+    }
+  };
+
+  const authenticateEmployee = async (pinValue: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/kiosk-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinValue }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "PIN invalide");
+      }
+
+      const data = await response.json();
+      setEmployee(data.user);
+      setKioskToken(data.token);
+      setLastPunchType(data.lastPunchType);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "PIN invalide",
+        variant: "destructive",
+      });
+      setPin("");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const punchMutation = useMutation({
+    mutationFn: async (data: PunchRequest) => {
+      if (!kioskToken) throw new Error("Non authentifié");
+      
+      const response = await fetch("/api/punches", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${kioskToken}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Échec du pointage");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: data.punch.type === "IN" ? "Entrée enregistrée" : "Sortie enregistrée",
+        description: `À ${new Date(data.punch.timestamp).toLocaleTimeString("fr-FR")}`,
+      });
+      setTimeout(resetKiosk, 3000);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Échec du pointage",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleKeypadPress = (digit: string) => {
+    if (pin.length < 6) {
+      const newPin = pin + digit;
+      setPin(newPin);
+      if (newPin.length === 6) {
+        authenticateEmployee(newPin);
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    setPin(pin.slice(0, -1));
+  };
+
+  const nextPunchType = lastPunchType === "IN" ? "OUT" : "IN";
+  const initials = employee ? `${employee.firstName?.[0] || ""}${employee.lastName?.[0] || ""}`.toUpperCase() : "";
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Clock className="h-8 w-8 text-primary" />
+          <span className="text-xl font-semibold">Pointeuse Hybride</span>
+        </div>
+        <div className="text-right">
+          <div className="text-3xl font-mono font-medium">
+            {currentTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {currentTime.toLocaleDateString("fr-FR", { 
+              weekday: "long", 
+              day: "numeric", 
+              month: "long", 
+              year: "numeric" 
+            })}
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 flex items-center justify-center p-8">
+        {!employee ? (
+          <Card className="w-full max-w-md border-card-border">
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="text-xl">Entrez votre code PIN</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center space-y-6">
+              <InputOTP 
+                value={pin} 
+                onChange={handlePinChange}
+                maxLength={6}
+                disabled={isLoading}
+                data-testid="input-kiosk-pin"
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+
+              {isLoading && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Vérification...</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-3 w-full max-w-[280px]">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+                  <Button
+                    key={digit}
+                    variant="outline"
+                    className="h-16 text-2xl font-medium"
+                    onClick={() => handleKeypadPress(digit)}
+                    disabled={isLoading || pin.length >= 6}
+                    data-testid={`button-kiosk-${digit}`}
+                  >
+                    {digit}
+                  </Button>
+                ))}
+                <div />
+                <Button
+                  variant="outline"
+                  className="h-16 text-2xl font-medium"
+                  onClick={() => handleKeypadPress("0")}
+                  disabled={isLoading || pin.length >= 6}
+                  data-testid="button-kiosk-0"
+                >
+                  0
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="h-16"
+                  onClick={handleDelete}
+                  disabled={isLoading || pin.length === 0}
+                  data-testid="button-kiosk-delete"
+                >
+                  <Delete className="h-6 w-6" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="w-full max-w-lg border-card-border">
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                  <AvatarFallback className="text-2xl bg-primary/10 text-primary font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <CardTitle className="text-2xl">
+                    {employee.firstName} {employee.lastName}
+                  </CardTitle>
+                  <p className="text-muted-foreground capitalize">{employee.role}</p>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={resetKiosk}
+                data-testid="button-kiosk-cancel"
+              >
+                <X className="h-6 w-6" />
+              </Button>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center py-8 space-y-6">
+              <p className="text-lg text-muted-foreground">
+                {lastPunchType === "IN" 
+                  ? "Vous êtes actuellement pointé(e) comme présent(e)" 
+                  : "Vous n'êtes pas pointé(e) comme présent(e)"}
+              </p>
+              
+              <PunchButton
+                type={nextPunchType}
+                onPunch={punchMutation.mutateAsync}
+                source="kiosk"
+                disabled={punchMutation.isPending}
+                size="large"
+              />
+
+              <p className="text-sm text-muted-foreground">
+                Retour automatique dans 30 secondes
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+
+      <footer className="border-t bg-card px-6 py-3 flex justify-center">
+        <Button 
+          variant="ghost"
+          onClick={() => setLocation("/")}
+          data-testid="button-exit-kiosk"
+        >
+          Quitter le mode borne
+        </Button>
+      </footer>
+    </div>
+  );
+}

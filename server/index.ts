@@ -2,6 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import helmet from "helmet";
+import cors from "cors";
+import cookieParser from "cookie-parser";
 
 const app = express();
 const httpServer = createServer(app);
@@ -11,6 +14,17 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
+}));
+
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
+app.use(cookieParser());
 
 app.use(
   express.json({
