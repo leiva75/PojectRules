@@ -40,6 +40,7 @@ import {
   Timer,
   ThumbsUp,
   ThumbsDown,
+  Activity,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -88,10 +89,106 @@ interface OvertimeRequestWithDetails {
   } | null;
 }
 
+interface EstadoData {
+  version: string;
+  environment: string;
+  database: {
+    status: string;
+    connection: string;
+  };
+  stats: {
+    employees: number;
+    sites: number;
+  };
+  uptime: number;
+  timestamp: string;
+}
+
+function EstadoTab() {
+  const { data: estado, isLoading, error } = useQuery<EstadoData>({
+    queryKey: ["/api/estado"],
+    refetchInterval: 30000,
+  });
+
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-card-border">
+        <CardContent className="py-12 text-center">
+          <Activity className="h-8 w-8 mx-auto animate-pulse text-muted-foreground" />
+          <p className="mt-4 text-muted-foreground">Chargement...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !estado) {
+    return (
+      <Card className="border-card-border">
+        <CardContent className="py-12 text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto text-destructive" />
+          <p className="mt-4 text-destructive">Erreur de connexion</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-card-border">
+        <CardHeader>
+          <CardTitle data-testid="text-estado-title">Estado del Sistema</CardTitle>
+          <CardDescription>Información de diagnóstico para debug</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="p-4 rounded-lg bg-muted/50">
+              <div className="text-sm text-muted-foreground mb-1">Version</div>
+              <div className="text-lg font-semibold" data-testid="text-estado-version">{estado.version}</div>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <div className="text-sm text-muted-foreground mb-1">Entorno</div>
+              <Badge variant={estado.environment === "production" ? "default" : "secondary"} data-testid="badge-estado-env">
+                {estado.environment}
+              </Badge>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <div className="text-sm text-muted-foreground mb-1">Base de datos</div>
+              <Badge variant={estado.database.status === "ok" ? "default" : "destructive"} data-testid="badge-estado-db">
+                {estado.database.connection}
+              </Badge>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <div className="text-sm text-muted-foreground mb-1">Empleados</div>
+              <div className="text-lg font-semibold" data-testid="text-estado-employees">{estado.stats.employees}</div>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <div className="text-sm text-muted-foreground mb-1">Empleados activos</div>
+              <div className="text-lg font-semibold" data-testid="text-estado-sites">{estado.stats.sites}</div>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/50">
+              <div className="text-sm text-muted-foreground mb-1">Uptime</div>
+              <div className="text-lg font-semibold" data-testid="text-estado-uptime">{formatUptime(estado.uptime)}</div>
+            </div>
+          </div>
+          <div className="mt-4 text-xs text-muted-foreground">
+            Última actualización: {new Date(estado.timestamp).toLocaleString("es-ES")}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports" | "estado">("dashboard");
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
@@ -193,6 +290,7 @@ export default function AdminPage() {
     { id: "revision", label: "Révision", icon: ClipboardCheck },
     { id: "overtime", label: "Heures Sup", icon: Timer },
     { id: "exports", label: "Exports", icon: FileText },
+    { id: "estado", label: "Estado", icon: Activity },
   ];
 
   return (
@@ -824,6 +922,8 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             )}
+
+            {activeTab === "estado" && <EstadoTab />}
           </main>
         </div>
       </div>

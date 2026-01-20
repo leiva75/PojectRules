@@ -5,6 +5,37 @@ import { createServer } from "http";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { logger, logInfo, logError } from "./logger";
+import { ApiError } from "./errors";
+
+const isProd = process.env.NODE_ENV === "production";
+
+function validateConfig() {
+  const errors: string[] = [];
+
+  if (!process.env.SESSION_SECRET) {
+    errors.push("SESSION_SECRET es obligatorio");
+  } else if (process.env.SESSION_SECRET.length < 32) {
+    errors.push("SESSION_SECRET debe tener al menos 32 caracteres");
+  }
+
+  if (isProd && !process.env.CORS_ORIGIN) {
+    errors.push("CORS_ORIGIN es obligatorio en producción");
+  }
+
+  if (!process.env.DATABASE_URL) {
+    errors.push("DATABASE_URL es obligatorio");
+  }
+
+  if (errors.length > 0) {
+    logger.error({ errors }, "Error de configuración - la aplicación no puede iniciar");
+    process.exit(1);
+  }
+
+  logInfo("Configuración validada correctamente");
+}
+
+validateConfig();
 
 const app = express();
 const httpServer = createServer(app);
@@ -15,14 +46,19 @@ declare module "http" {
   }
 }
 
-app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: isProd ? undefined : false,
+  })
+);
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
+const corsOrigin = process.env.CORS_ORIGIN || true;
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
 
 app.use(cookieParser());
 
@@ -31,42 +67,19 @@ app.use(
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
-  }),
+  })
 );
 
 app.use(express.urlencoded({ extended: false }));
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+      logInfo(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
@@ -76,33 +89,36 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof ApiError) {
+      return res.status(err.statusCode).json(err.toResponse());
+    }
 
-    console.error("Internal Server Error:", err);
+    const status = (err as { status?: number; statusCode?: number }).status ||
+      (err as { status?: number; statusCode?: number }).statusCode || 500;
+    const message = (err as Error).message || "Error interno del servidor";
+
+    logError("Error interno del servidor", err);
 
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    return res.status(status).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: isProd ? "Error interno del servidor" : message,
+      },
+    });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
+  if (isProd) {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {
@@ -111,7 +127,10 @@ app.use((req, res, next) => {
       reusePort: true,
     },
     () => {
-      log(`serving on port ${port}`);
-    },
+      logInfo(`Servidor iniciado en puerto ${port}`, {
+        env: process.env.NODE_ENV || "development",
+        port,
+      });
+    }
   );
 })();

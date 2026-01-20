@@ -31,10 +31,59 @@ const authLimiter = rateLimit({
   message: { message: "Trop de tentatives, réessayez plus tard" },
 });
 
+const APP_VERSION = "1.0.0";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await storage.getAllEmployees();
+      res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
+    } catch {
+      res.status(503).json({ status: "error", db: "disconnected" });
+    }
+  });
+
+  app.get("/api/estado", authenticateAdminManager, async (_req, res) => {
+    try {
+      const employees = await storage.getAllEmployees();
+      
+      let dbStatus = "ok";
+      try {
+        await storage.getAllEmployees();
+      } catch {
+        dbStatus = "error";
+      }
+
+      const activeEmployees = employees.filter(e => e.isActive).length;
+
+      res.json({
+        version: APP_VERSION,
+        environment: process.env.NODE_ENV || "development",
+        database: {
+          status: dbStatus,
+          connection: dbStatus === "ok" ? "conectado" : "desconectado",
+        },
+        stats: {
+          employees: employees.length,
+          sites: activeEmployees,
+        },
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Estado error:", error);
+      res.status(500).json({ 
+        error: { 
+          code: "INTERNAL_ERROR", 
+          message: "Error al obtener estado" 
+        } 
+      });
+    }
+  });
 
   app.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
