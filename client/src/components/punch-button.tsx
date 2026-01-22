@@ -42,8 +42,8 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         } catch {
           setGeoStatus("denied");
           toast({
-            title: "Géolocalisation refusée",
-            description: "Le pointage sera marqué pour vérification",
+            title: "Geolocalización rechazada",
+            description: "El fichaje será marcado para verificación",
             variant: "destructive",
           });
         }
@@ -60,13 +60,13 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
       });
 
       toast({
-        title: type === "IN" ? "Entrée enregistrée" : "Sortie enregistrée",
-        description: latitude ? "Position capturée avec succès" : "Sans position GPS",
+        title: type === "IN" ? "Entrada registrada" : "Salida registrada",
+        description: latitude ? "Posición capturada con éxito" : "Sin posición GPS",
       });
     } catch (error) {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Échec du pointage",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Fallo al fichar",
         variant: "destructive",
       });
     } finally {
@@ -95,7 +95,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         {isPending ? (
           <Loader2 className={`animate-spin ${isLarge ? "w-10 h-10" : "w-6 h-6"}`} />
         ) : (
-          <span>{type === "IN" ? "ENTRÉE" : "SORTIE"}</span>
+          <span>{type === "IN" ? "ENTRADA" : "SALIDA"}</span>
         )}
       </Button>
       
@@ -104,19 +104,19 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
           {geoStatus === "loading" && (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span className="text-muted-foreground">Localisation...</span>
+              <span className="text-muted-foreground">Localizando...</span>
             </>
           )}
           {geoStatus === "success" && (
             <>
               <MapPin className="w-4 h-4 text-green-600" />
-              <span className="text-green-600">Position capturée</span>
+              <span className="text-green-600">Posición capturada</span>
             </>
           )}
           {geoStatus === "denied" && (
             <>
               <MapPinOff className="w-4 h-4 text-red-600" />
-              <span className="text-red-600">Sans position</span>
+              <span className="text-red-600">Sin posición</span>
             </>
           )}
         </div>

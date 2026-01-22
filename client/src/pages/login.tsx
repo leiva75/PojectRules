@@ -13,8 +13,8 @@ import { Loader2, Users } from "lucide-react";
 import logoPath from "@/assets/logo-cronos.png";
 
 const loginSchema = z.object({
-  email: z.string().email("Email invalide"),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -38,14 +38,14 @@ export default function LoginPage() {
     try {
       await login(data.email, data.password);
       toast({
-        title: "Connexion réussie",
-        description: "Bienvenue dans votre espace",
+        title: "Conexión exitosa",
+        description: "Bienvenido a su espacio",
       });
       setLocation("/admin");
     } catch (error) {
       toast({
-        title: "Erreur de connexion",
-        description: error instanceof Error ? error.message : "Identifiants incorrects",
+        title: "Error de conexión",
+        description: error instanceof Error ? error.message : "Credenciales incorrectas",
         variant: "destructive",
       });
     } finally {
@@ -63,14 +63,14 @@ export default function LoginPage() {
             className="w-24 h-24 mx-auto object-contain mb-2"
             data-testid="img-logo"
           />
-          <h1 className="text-2xl font-semibold tracking-tight">Pointeuse Hybride</h1>
-          <p className="text-muted-foreground">Connectez-vous pour accéder à votre espace</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Control de Asistencia</h1>
+          <p className="text-muted-foreground">Inicie sesión para acceder a su espacio</p>
         </div>
 
         <Card className="border-card-border">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl">Connexion Admin / Manager</CardTitle>
-            <CardDescription>Entrez vos identifiants pour continuer</CardDescription>
+            <CardTitle className="text-xl">Acceso Admin / Gerente</CardTitle>
+            <CardDescription>Ingrese sus credenciales para continuar</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -80,7 +80,7 @@ export default function LoginPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>Correo electrónico</FormLabel>
                       <FormControl>
                         <Input 
                           type="email" 
@@ -100,7 +100,7 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Mot de passe</FormLabel>
+                      <FormLabel>Contraseña</FormLabel>
                       <FormControl>
                         <Input 
                           type="password" 
@@ -124,10 +124,10 @@ export default function LoginPage() {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Connexion...
+                      Conectando...
                     </>
                   ) : (
-                    "Se connecter"
+                    "Iniciar sesión"
                   )}
                 </Button>
               </form>
@@ -143,7 +143,7 @@ export default function LoginPage() {
             data-testid="button-employee-login"
           >
             <Users className="mr-2 h-4 w-4" />
-            Accès Employé (PIN)
+            Acceso Empleado (PIN)
           </Button>
           
           <Button 
@@ -152,7 +152,7 @@ export default function LoginPage() {
             onClick={() => setLocation("/kiosk")}
             data-testid="button-kiosk-mode"
           >
-            Mode Borne
+            Modo Quiosco
           </Button>
         </div>
       </div>

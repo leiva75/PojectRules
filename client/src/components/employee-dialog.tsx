@@ -32,12 +32,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 const employeeFormSchema = z.object({
-  email: z.string().email("Email invalide"),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
-  firstName: z.string().min(1, "Le prénom est requis"),
-  lastName: z.string().min(1, "Le nom est requis"),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  firstName: z.string().min(1, "El nombre es obligatorio"),
+  lastName: z.string().min(1, "El apellido es obligatorio"),
   role: z.enum(["admin", "manager", "employee"]),
-  pin: z.string().length(6, "Le PIN doit contenir 6 chiffres").optional().or(z.literal("")),
+  pin: z.string().length(6, "El PIN debe tener 6 dígitos").optional().or(z.literal("")),
 });
 
 type EmployeeFormData = z.infer<typeof employeeFormSchema>;
@@ -73,16 +73,16 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
-        title: "Employé créé",
-        description: "Le compte a été créé avec succès",
+        title: "Empleado creado",
+        description: "La cuenta se ha creado con éxito",
       });
       form.reset();
       onOpenChange(false);
     },
     onError: (error) => {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Échec de la création",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Fallo en la creación",
         variant: "destructive",
       });
     },
@@ -96,9 +96,9 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Ajouter un employé</DialogTitle>
+          <DialogTitle>Añadir un empleado</DialogTitle>
           <DialogDescription>
-            Créez un nouveau compte employé avec accès au système de pointage
+            Cree una nueva cuenta de empleado con acceso al sistema de fichaje
           </DialogDescription>
         </DialogHeader>
 
@@ -110,9 +110,9 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prénom</FormLabel>
+                    <FormLabel>Nombre</FormLabel>
                     <FormControl>
-                      <Input placeholder="Jean" data-testid="input-first-name" {...field} />
+                      <Input placeholder="Juan" data-testid="input-first-name" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -123,9 +123,9 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nom</FormLabel>
+                    <FormLabel>Apellido</FormLabel>
                     <FormControl>
-                      <Input placeholder="Dupont" data-testid="input-last-name" {...field} />
+                      <Input placeholder="García" data-testid="input-last-name" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -138,11 +138,11 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>Correo electrónico</FormLabel>
                   <FormControl>
                     <Input 
                       type="email" 
-                      placeholder="jean.dupont@example.com" 
+                      placeholder="juan.garcia@ejemplo.com" 
                       data-testid="input-employee-email"
                       {...field} 
                     />
@@ -157,7 +157,7 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mot de passe</FormLabel>
+                  <FormLabel>Contraseña</FormLabel>
                   <FormControl>
                     <Input 
                       type="password" 
@@ -176,17 +176,17 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Rôle</FormLabel>
+                  <FormLabel>Rol</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-role">
-                        <SelectValue placeholder="Sélectionnez un rôle" />
+                        <SelectValue placeholder="Seleccione un rol" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="employee">Employé</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Administrateur</SelectItem>
+                      <SelectItem value="employee">Empleado</SelectItem>
+                      <SelectItem value="manager">Gerente</SelectItem>
+                      <SelectItem value="admin">Administrador</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -199,7 +199,7 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
               name="pin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Code PIN (optionnel)</FormLabel>
+                  <FormLabel>Código PIN (opcional)</FormLabel>
                   <FormControl>
                     <Input 
                       type="text" 
@@ -221,7 +221,7 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
                 onClick={() => onOpenChange(false)}
                 data-testid="button-cancel-employee"
               >
-                Annuler
+                Cancelar
               </Button>
               <Button 
                 type="submit" 
@@ -231,10 +231,10 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
                 {createMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Création...
+                    Creando...
                   </>
                 ) : (
-                  "Créer"
+                  "Crear"
                 )}
               </Button>
             </DialogFooter>

@@ -35,7 +35,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import type { Punch } from "@shared/schema";
 
 const correctionFormSchema = z.object({
-  reason: z.string().min(10, "La raison doit contenir au moins 10 caractères"),
+  reason: z.string().min(10, "El motivo debe tener al menos 10 caracteres"),
   newTimestamp: z.string().optional(),
   newType: z.enum(["IN", "OUT"]).optional(),
 });
@@ -70,7 +70,7 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
 
   const correctionMutation = useMutation({
     mutationFn: async (data: CorrectionFormData) => {
-      if (!punch) throw new Error("Aucun pointage sélectionné");
+      if (!punch) throw new Error("Ningún fichaje seleccionado");
       
       return apiRequest("POST", "/api/corrections", {
         originalPunchId: punch.id,
@@ -83,16 +83,16 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
       queryClient.invalidateQueries({ queryKey: ["/api/punches"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
-        title: "Correction enregistrée",
-        description: "La correction a été ajoutée avec succès",
+        title: "Corrección registrada",
+        description: "La corrección se ha añadido con éxito",
       });
       form.reset();
       onOpenChange(false);
     },
     onError: (error) => {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Échec de la correction",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Fallo en la corrección",
         variant: "destructive",
       });
     },
@@ -110,11 +110,11 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Corriger un pointage</DialogTitle>
+          <DialogTitle>Corregir un fichaje</DialogTitle>
           <DialogDescription>
             {punch.employee && (
               <span>
-                Pointage de {punch.employee.firstName} {punch.employee.lastName}
+                Fichaje de {punch.employee.firstName} {punch.employee.lastName}
               </span>
             )}
           </DialogDescription>
@@ -123,23 +123,23 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
         <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-amber-800 dark:text-amber-200">
-            Mode append-only : le pointage original reste inchangé. Une nouvelle entrée de correction sera créée.
+            Modo append-only: el fichaje original permanece sin cambios. Se creará una nueva entrada de corrección.
           </AlertDescription>
         </Alert>
 
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Type actuel :</span>
-            <span className="font-medium">{punch.type === "IN" ? "Entrée" : "Sortie"}</span>
+            <span className="text-muted-foreground">Tipo actual:</span>
+            <span className="font-medium">{punch.type === "IN" ? "Entrada" : "Salida"}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Horodatage actuel :</span>
-            <span className="font-mono">{new Date(punch.timestamp).toLocaleString("fr-FR")}</span>
+            <span className="text-muted-foreground">Fecha/hora actual:</span>
+            <span className="font-mono">{new Date(punch.timestamp).toLocaleString("es-ES")}</span>
           </div>
           {punch.needsReview && (
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Statut :</span>
-              <span className="text-red-600 font-medium">À vérifier (sans géolocalisation)</span>
+              <span className="text-muted-foreground">Estado:</span>
+              <span className="text-red-600 font-medium">Por verificar (sin geolocalización)</span>
             </div>
           )}
         </div>
@@ -151,10 +151,10 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
               name="reason"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Raison de la correction *</FormLabel>
+                  <FormLabel>Motivo de la corrección *</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Décrivez la raison de cette correction (min. 10 caractères)"
+                      placeholder="Describa el motivo de esta corrección (mín. 10 caracteres)"
                       className="resize-none"
                       rows={3}
                       data-testid="input-correction-reason"
@@ -171,16 +171,16 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
               name="newType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nouveau type (optionnel)</FormLabel>
+                  <FormLabel>Nuevo tipo (opcional)</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-new-type">
-                        <SelectValue placeholder="Garder le type actuel" />
+                        <SelectValue placeholder="Mantener tipo actual" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="IN">Entrée</SelectItem>
-                      <SelectItem value="OUT">Sortie</SelectItem>
+                      <SelectItem value="IN">Entrada</SelectItem>
+                      <SelectItem value="OUT">Salida</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -193,7 +193,7 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
               name="newTimestamp"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nouvel horodatage (optionnel)</FormLabel>
+                  <FormLabel>Nueva fecha/hora (opcional)</FormLabel>
                   <FormControl>
                     <Input 
                       type="datetime-local" 
@@ -214,7 +214,7 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
                 onClick={() => onOpenChange(false)}
                 data-testid="button-cancel-correction"
               >
-                Annuler
+                Cancelar
               </Button>
               <Button 
                 type="submit" 
@@ -224,10 +224,10 @@ export function CorrectionDialog({ open, onOpenChange, punch }: CorrectionDialog
                 {correctionMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enregistrement...
+                    Guardando...
                   </>
                 ) : (
-                  "Enregistrer la correction"
+                  "Guardar corrección"
                 )}
               </Button>
             </DialogFooter>

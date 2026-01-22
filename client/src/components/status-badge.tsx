@@ -10,31 +10,31 @@ interface StatusBadgeProps {
 
 const statusConfig: Record<StatusType, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode; className: string }> = {
   IN: {
-    label: "Entré",
+    label: "Entrada",
     variant: "default",
     icon: <CheckCircle className="w-3 h-3" />,
     className: "bg-green-600 hover:bg-green-700 text-white border-green-700",
   },
   OUT: {
-    label: "Sorti",
+    label: "Salida",
     variant: "secondary",
     icon: <LogOut className="w-3 h-3" />,
     className: "bg-orange-500 hover:bg-orange-600 text-white border-orange-600",
   },
   NEEDS_REVIEW: {
-    label: "À vérifier",
+    label: "Por verificar",
     variant: "destructive",
     icon: <AlertTriangle className="w-3 h-3" />,
     className: "bg-red-600 hover:bg-red-700 text-white border-red-700",
   },
   ACTIVE: {
-    label: "Actif",
+    label: "Activo",
     variant: "default",
     icon: <CheckCircle className="w-3 h-3" />,
     className: "bg-green-600 hover:bg-green-700 text-white border-green-700",
   },
   INACTIVE: {
-    label: "Inactif",
+    label: "Inactivo",
     variant: "secondary",
     icon: null,
     className: "bg-gray-400 hover:bg-gray-500 text-white border-gray-500",
@@ -66,7 +66,7 @@ export function GeoBadge({ hasLocation, needsReview }: GeoBadgeProps) {
     return (
       <Badge variant="destructive" className="gap-1 text-xs bg-red-600 text-white">
         <AlertTriangle className="w-3 h-3" />
-        Sans position
+        Sin posición
       </Badge>
     );
   }
@@ -75,7 +75,7 @@ export function GeoBadge({ hasLocation, needsReview }: GeoBadgeProps) {
     return (
       <Badge variant="outline" className="gap-1 text-xs text-green-700 border-green-600">
         <MapPin className="w-3 h-3" />
-        Géolocalisé
+        Geolocalizado
       </Badge>
     );
   }
@@ -98,11 +98,11 @@ export function TimeBadge({ time, showRelative = false }: TimeBadgeProps) {
   let displayText: string;
   
   if (showRelative && diffMins < 60) {
-    displayText = diffMins <= 1 ? "À l'instant" : `Il y a ${diffMins} min`;
+    displayText = diffMins <= 1 ? "Ahora mismo" : `Hace ${diffMins} min`;
   } else if (showRelative && diffHours < 24) {
-    displayText = `Il y a ${diffHours}h`;
+    displayText = `Hace ${diffHours}h`;
   } else {
-    displayText = date.toLocaleTimeString("fr-FR", { 
+    displayText = date.toLocaleTimeString("es-ES", { 
       hour: "2-digit", 
       minute: "2-digit" 
     });

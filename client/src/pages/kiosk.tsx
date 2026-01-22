@@ -73,8 +73,8 @@ export default function KioskPage() {
       setLastPunchType(data.lastPunchType);
     } catch (error) {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "PIN invalide",
+        title: "Error",
+        description: error instanceof Error ? error.message : "PIN inválido",
         variant: "destructive",
       });
       setPin("");
@@ -105,15 +105,15 @@ export default function KioskPage() {
     },
     onSuccess: (data) => {
       toast({
-        title: data.punch.type === "IN" ? "Entrée enregistrée" : "Sortie enregistrée",
-        description: `À ${new Date(data.punch.timestamp).toLocaleTimeString("fr-FR")}`,
+        title: data.punch.type === "IN" ? "Entrada registrada" : "Salida registrada",
+        description: `A las ${new Date(data.punch.timestamp).toLocaleTimeString("es-ES")}`,
       });
       setTimeout(resetKiosk, 3000);
     },
     onError: (error) => {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Échec du pointage",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Fallo al fichar",
         variant: "destructive",
       });
     },
@@ -150,10 +150,10 @@ export default function KioskPage() {
         </div>
         <div className="text-right">
           <div className="text-3xl font-mono font-medium">
-            {currentTime.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            {currentTime.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
           </div>
           <div className="text-sm text-muted-foreground">
-            {currentTime.toLocaleDateString("fr-FR", { 
+            {currentTime.toLocaleDateString("es-ES", { 
               weekday: "long", 
               day: "numeric", 
               month: "long", 
@@ -167,7 +167,7 @@ export default function KioskPage() {
         {!employee ? (
           <Card className="w-full max-w-md border-card-border">
             <CardHeader className="text-center pb-4">
-              <CardTitle className="text-xl">Entrez votre code PIN</CardTitle>
+              <CardTitle className="text-xl">Ingrese su código PIN</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-6">
               <InputOTP 
@@ -190,7 +190,7 @@ export default function KioskPage() {
               {isLoading && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Vérification...</span>
+                  <span>Verificando...</span>
                 </div>
               )}
 
@@ -257,8 +257,8 @@ export default function KioskPage() {
             <CardContent className="flex flex-col items-center py-8 space-y-6">
               <p className="text-lg text-muted-foreground">
                 {lastPunchType === "IN" 
-                  ? "Vous êtes actuellement pointé(e) comme présent(e)" 
-                  : "Vous n'êtes pas pointé(e) comme présent(e)"}
+                  ? "Actualmente está fichado/a como presente" 
+                  : "No está fichado/a como presente"}
               </p>
               
               <PunchButton
@@ -270,7 +270,7 @@ export default function KioskPage() {
               />
 
               <p className="text-sm text-muted-foreground">
-                Retour automatique dans 30 secondes
+                Retorno automático en 30 segundos
               </p>
             </CardContent>
           </Card>
@@ -283,7 +283,7 @@ export default function KioskPage() {
           onClick={() => setLocation("/")}
           data-testid="button-exit-kiosk"
         >
-          Quitter le mode borne
+          Salir del modo quiosco
         </Button>
       </footer>
     </div>

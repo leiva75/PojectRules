@@ -45,7 +45,7 @@ export default function MobilePage() {
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Échec du pointage");
+        throw new Error(error.message || "Fallo al fichar");
       }
       return res.json();
     },
@@ -89,25 +89,25 @@ export default function MobilePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
-              État actuel
+              Estado actual
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Dernier pointage</span>
+              <span className="text-muted-foreground">Último fichaje</span>
               {lastPunch ? (
                 <div className="flex items-center gap-2">
                   <StatusBadge status={lastPunch.type as "IN" | "OUT"} />
                   <TimeBadge time={lastPunch.timestamp} showRelative />
                 </div>
               ) : (
-                <span className="text-sm text-muted-foreground">Aucun pointage</span>
+                <span className="text-sm text-muted-foreground">Sin fichajes</span>
               )}
             </div>
             
             {lastPunch && (
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Position</span>
+                <span className="text-muted-foreground">Posición</span>
                 <GeoBadge 
                   hasLocation={!!(lastPunch.latitude && lastPunch.longitude)} 
                   needsReview={lastPunch.needsReview} 
@@ -131,7 +131,7 @@ export default function MobilePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <History className="h-5 w-5 text-primary" />
-              Historique récent
+              Historial reciente
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -153,7 +153,7 @@ export default function MobilePage() {
                       <StatusBadge status={punch.type as "IN" | "OUT"} />
                       <div className="text-sm">
                         <p className="font-mono">
-                          {new Date(punch.timestamp).toLocaleDateString("fr-FR", {
+                          {new Date(punch.timestamp).toLocaleDateString("es-ES", {
                             weekday: "short",
                             day: "numeric",
                             month: "short",
@@ -173,7 +173,7 @@ export default function MobilePage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <History className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p>Aucun pointage aujourd'hui</p>
+                <p>Sin fichajes hoy</p>
               </div>
             )}
           </CardContent>
@@ -183,15 +183,15 @@ export default function MobilePage() {
       <nav className="border-t bg-card px-4 py-2 flex justify-around">
         <Button variant="ghost" className="flex-col gap-1 h-auto py-2" data-testid="nav-home">
           <Clock className="h-5 w-5" />
-          <span className="text-xs">Accueil</span>
+          <span className="text-xs">Inicio</span>
         </Button>
         <Button variant="ghost" className="flex-col gap-1 h-auto py-2" data-testid="nav-history">
           <History className="h-5 w-5" />
-          <span className="text-xs">Historique</span>
+          <span className="text-xs">Historial</span>
         </Button>
         <Button variant="ghost" className="flex-col gap-1 h-auto py-2" data-testid="nav-profile">
           <User className="h-5 w-5" />
-          <span className="text-xs">Profil</span>
+          <span className="text-xs">Perfil</span>
         </Button>
       </nav>
     </div>

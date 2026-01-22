@@ -122,7 +122,7 @@ function EstadoTab() {
       <Card className="border-card-border">
         <CardContent className="py-12 text-center">
           <Activity className="h-8 w-8 mx-auto animate-pulse text-muted-foreground" />
-          <p className="mt-4 text-muted-foreground">Chargement...</p>
+          <p className="mt-4 text-muted-foreground">Cargando...</p>
         </CardContent>
       </Card>
     );
@@ -133,7 +133,7 @@ function EstadoTab() {
       <Card className="border-card-border">
         <CardContent className="py-12 text-center">
           <AlertTriangle className="h-8 w-8 mx-auto text-destructive" />
-          <p className="mt-4 text-destructive">Erreur de connexion</p>
+          <p className="mt-4 text-destructive">Error de conexión</p>
         </CardContent>
       </Card>
     );
@@ -231,14 +231,14 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/punches/needs-review"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
-        title: "Pointage révisé",
-        description: "Le pointage a été marqué comme révisé",
+        title: "Fichaje revisado",
+        description: "El fichaje ha sido marcado como revisado",
       });
     },
     onError: () => {
       toast({
-        title: "Erreur",
-        description: "Impossible de réviser le pointage",
+        title: "Error",
+        description: "No se pudo revisar el fichaje",
         variant: "destructive",
       });
     },
@@ -257,16 +257,16 @@ export default function AdminPage() {
       setSelectedOvertime(null);
       setOvertimeComment("");
       toast({
-        title: variables.status === "approved" ? "Approuvé" : "Rejeté",
+        title: variables.status === "approved" ? "Aprobado" : "Rechazado",
         description: variables.status === "approved" 
-          ? "Les heures supplémentaires ont été approuvées" 
-          : "Les heures supplémentaires ont été rejetées",
+          ? "Las horas extra han sido aprobadas" 
+          : "Las horas extra han sido rechazadas",
       });
     },
     onError: () => {
       toast({
-        title: "Erreur",
-        description: "Impossible de traiter la demande",
+        title: "Error",
+        description: "No se pudo procesar la solicitud",
         variant: "destructive",
       });
     },
@@ -285,12 +285,12 @@ export default function AdminPage() {
   } as React.CSSProperties;
 
   const menuItems = [
-    { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
-    { id: "employees", label: "Employés", icon: Users },
-    { id: "punches", label: "Pointages", icon: Clock },
-    { id: "revision", label: "Révision", icon: ClipboardCheck },
-    { id: "overtime", label: "Heures Sup", icon: Timer },
-    { id: "exports", label: "Exports", icon: FileText },
+    { id: "dashboard", label: "Panel de control", icon: LayoutDashboard },
+    { id: "employees", label: "Empleados", icon: Users },
+    { id: "punches", label: "Fichajes", icon: Clock },
+    { id: "revision", label: "Revisión", icon: ClipboardCheck },
+    { id: "overtime", label: "Horas Extra", icon: Timer },
+    { id: "exports", label: "Exportaciones", icon: FileText },
     { id: "estado", label: "Estado", icon: Activity },
   ];
 
@@ -311,7 +311,7 @@ export default function AdminPage() {
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+              <SidebarGroupLabel>Navegación</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {menuItems.map((item) => (
@@ -351,7 +351,7 @@ export default function AdminPage() {
               data-testid="button-admin-logout"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Déconnexion
+              Cerrar sesión
             </Button>
           </SidebarFooter>
         </Sidebar>
@@ -368,13 +368,13 @@ export default function AdminPage() {
               {activeTab === "employees" && (
                 <Button onClick={() => setShowEmployeeDialog(true)} data-testid="button-add-employee">
                   <Plus className="h-4 w-4 mr-2" />
-                  Ajouter
+                  Añadir
                 </Button>
               )}
               {activeTab === "exports" && (
                 <Button onClick={() => setShowExportDialog(true)} data-testid="button-export">
                   <Download className="h-4 w-4 mr-2" />
-                  Exporter CSV
+                  Exportar CSV
                 </Button>
               )}
             </div>
@@ -387,7 +387,7 @@ export default function AdminPage() {
                   <Card className="border-card-border">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Total Employés
+                        Total Empleados
                       </CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
@@ -399,7 +399,7 @@ export default function AdminPage() {
                   <Card className="border-card-border">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Actifs Aujourd'hui
+                        Activos Hoy
                       </CardTitle>
                       <TrendingUp className="h-4 w-4 text-green-600" />
                     </CardHeader>
@@ -411,7 +411,7 @@ export default function AdminPage() {
                   <Card className="border-card-border">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Présents Actuellement
+                        Presentes Actualmente
                       </CardTitle>
                       <CheckCircle className="h-4 w-4 text-primary" />
                     </CardHeader>
@@ -423,7 +423,7 @@ export default function AdminPage() {
                   <Card className="border-card-border">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
-                        À Vérifier
+                        Por Verificar
                       </CardTitle>
                       <AlertTriangle className="h-4 w-4 text-red-600" />
                     </CardHeader>
@@ -436,8 +436,8 @@ export default function AdminPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card className="border-card-border">
                     <CardHeader>
-                      <CardTitle className="text-lg">Pointages Récents</CardTitle>
-                      <CardDescription>Les 10 derniers pointages</CardDescription>
+                      <CardTitle className="text-lg">Fichajes Recientes</CardTitle>
+                      <CardDescription>Los 10 últimos fichajes</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {punchesLoading ? (
@@ -472,7 +472,7 @@ export default function AdminPage() {
                         </div>
                       ) : (
                         <p className="text-center py-8 text-muted-foreground">
-                          Aucun pointage récent
+                          Ningún fichaje reciente
                         </p>
                       )}
                     </CardContent>
@@ -482,9 +482,9 @@ export default function AdminPage() {
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <AlertTriangle className="h-5 w-5 text-red-600" />
-                        À Vérifier
+                        Por Verificar
                       </CardTitle>
-                      <CardDescription>Pointages nécessitant une vérification</CardDescription>
+                      <CardDescription>Fichajes que requieren verificación</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {flaggedPunches && flaggedPunches.length > 0 ? (
@@ -513,7 +513,7 @@ export default function AdminPage() {
                                 onClick={() => setSelectedPunchForCorrection(punch)}
                                 data-testid={`button-review-${punch.id}`}
                               >
-                                Corriger
+                                Corregir
                               </Button>
                             </div>
                           ))}
@@ -521,7 +521,7 @@ export default function AdminPage() {
                       ) : (
                         <p className="text-center py-8 text-muted-foreground">
                           <CheckCircle className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                          Aucun pointage à vérifier
+                          Ningún fichaje por verificar
                         </p>
                       )}
                     </CardContent>
@@ -533,8 +533,8 @@ export default function AdminPage() {
             {activeTab === "employees" && (
               <Card className="border-card-border">
                 <CardHeader>
-                  <CardTitle>Liste des Employés</CardTitle>
-                  <CardDescription>Gérez les comptes employés</CardDescription>
+                  <CardTitle>Lista de Empleados</CardTitle>
+                  <CardDescription>Gestione las cuentas de empleados</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {employeesLoading ? (
@@ -576,7 +576,7 @@ export default function AdminPage() {
                   ) : (
                     <p className="text-center py-8 text-muted-foreground">
                       <Users className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                      Aucun employé
+                      Ningún empleado
                     </p>
                   )}
                 </CardContent>
@@ -586,8 +586,8 @@ export default function AdminPage() {
             {activeTab === "punches" && (
               <Card className="border-card-border">
                 <CardHeader>
-                  <CardTitle>Historique des Pointages</CardTitle>
-                  <CardDescription>Tous les pointages récents</CardDescription>
+                  <CardTitle>Historial de Fichajes</CardTitle>
+                  <CardDescription>Todos los fichajes recientes</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {punchesLoading ? (
@@ -601,12 +601,12 @@ export default function AdminPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Employé</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Type</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date/Heure</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Position</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Source</th>
-                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Empleado</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tipo</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fecha/Hora</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Posición</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fuente</th>
+                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -628,7 +628,7 @@ export default function AdminPage() {
                                 <StatusBadge status={punch.type as "IN" | "OUT"} />
                               </td>
                               <td className="py-3 px-4 font-mono text-sm">
-                                {new Date(punch.timestamp).toLocaleString("fr-FR")}
+                                {new Date(punch.timestamp).toLocaleString("es-ES")}
                               </td>
                               <td className="py-3 px-4">
                                 <GeoBadge 
@@ -648,7 +648,7 @@ export default function AdminPage() {
                                   onClick={() => setSelectedPunchForCorrection(punch)}
                                   data-testid={`button-correct-${punch.id}`}
                                 >
-                                  Corriger
+                                  Corregir
                                 </Button>
                               </td>
                             </tr>
@@ -659,7 +659,7 @@ export default function AdminPage() {
                   ) : (
                     <p className="text-center py-8 text-muted-foreground">
                       <Clock className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                      Aucun pointage
+                      Ningún fichaje
                     </p>
                   )}
                 </CardContent>
@@ -671,10 +671,10 @@ export default function AdminPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ClipboardCheck className="h-5 w-5" />
-                    Pointages à Réviser
+                    Fichajes por Revisar
                   </CardTitle>
                   <CardDescription>
-                    Pointages nécessitant une vérification manuelle (sans géolocalisation)
+                    Fichajes que requieren verificación manual (sin geolocalización)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -689,12 +689,12 @@ export default function AdminPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Employé</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Type</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date/Heure</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Position</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Statut</th>
-                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Empleado</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tipo</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fecha/Hora</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Posición</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Estado</th>
+                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -716,7 +716,7 @@ export default function AdminPage() {
                                 <StatusBadge status={punch.type as "IN" | "OUT"} />
                               </td>
                               <td className="py-3 px-4 font-mono text-sm">
-                                {new Date(punch.timestamp).toLocaleString("fr-FR")}
+                                {new Date(punch.timestamp).toLocaleString("es-ES")}
                               </td>
                               <td className="py-3 px-4">
                                 <GeoBadge 
@@ -729,17 +729,17 @@ export default function AdminPage() {
                                   {punch.reviewed && (
                                     <Badge className="bg-green-100 text-green-700 text-xs">
                                       <Eye className="h-3 w-3 mr-1" />
-                                      Révisé
+                                      Revisado
                                     </Badge>
                                   )}
                                   {punch.corrected && (
                                     <Badge className="bg-blue-100 text-blue-700 text-xs">
-                                      Corrigé
+                                      Corregido
                                     </Badge>
                                   )}
                                   {!punch.reviewed && !punch.corrected && (
                                     <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
-                                      En attente
+                                      Pendiente
                                     </Badge>
                                   )}
                                 </div>
@@ -755,7 +755,7 @@ export default function AdminPage() {
                                       data-testid={`button-mark-reviewed-${punch.id}`}
                                     >
                                       <CheckCircle className="h-4 w-4 mr-1" />
-                                      Valider
+                                      Validar
                                     </Button>
                                   )}
                                   <Button 
@@ -764,7 +764,7 @@ export default function AdminPage() {
                                     onClick={() => setSelectedPunchForCorrection(punch)}
                                     data-testid={`button-correct-review-${punch.id}`}
                                   >
-                                    Corriger
+                                    Corregir
                                   </Button>
                                 </div>
                               </td>
@@ -777,7 +777,7 @@ export default function AdminPage() {
                     <div className="text-center py-12">
                       <CheckCircle className="h-16 w-16 mx-auto mb-4 text-green-500 opacity-50" />
                       <p className="text-muted-foreground">
-                        Tous les pointages ont été révisés
+                        Todos los fichajes han sido revisados
                       </p>
                     </div>
                   )}
@@ -792,21 +792,21 @@ export default function AdminPage() {
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <Timer className="h-5 w-5" />
-                        Demandes d'Heures Supplémentaires
+                        Solicitudes de Horas Extra
                       </CardTitle>
                       <CardDescription>
-                        Validez ou rejetez les demandes d'heures supplémentaires
+                        Valide o rechace las solicitudes de horas extra
                       </CardDescription>
                     </div>
                     <Select value={overtimeFilter} onValueChange={(v) => setOvertimeFilter(v as typeof overtimeFilter)}>
                       <SelectTrigger className="w-40" data-testid="select-overtime-filter">
-                        <SelectValue placeholder="Filtrer par statut" />
+                        <SelectValue placeholder="Filtrar por estado" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Toutes</SelectItem>
-                        <SelectItem value="pending">En attente</SelectItem>
-                        <SelectItem value="approved">Approuvées</SelectItem>
-                        <SelectItem value="rejected">Rejetées</SelectItem>
+                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="pending">Pendientes</SelectItem>
+                        <SelectItem value="approved">Aprobadas</SelectItem>
+                        <SelectItem value="rejected">Rechazadas</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -823,12 +823,12 @@ export default function AdminPage() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Employé</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Minutes</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Raison</th>
-                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Statut</th>
-                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Empleado</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fecha</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Minutos</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Motivo</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Estado</th>
+                            <th className="text-right py-3 px-4 font-medium text-muted-foreground">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -847,7 +847,7 @@ export default function AdminPage() {
                                 </div>
                               </td>
                               <td className="py-3 px-4 font-mono text-sm">
-                                {new Date(request.date).toLocaleDateString("fr-FR")}
+                                {new Date(request.date).toLocaleDateString("es-ES")}
                               </td>
                               <td className="py-3 px-4">
                                 <Badge variant="outline" className="font-mono">
@@ -860,19 +860,19 @@ export default function AdminPage() {
                               <td className="py-3 px-4">
                                 {request.status === "pending" && (
                                   <Badge variant="outline" className="text-amber-600 border-amber-300">
-                                    En attente
+                                    Pendiente
                                   </Badge>
                                 )}
                                 {request.status === "approved" && (
                                   <Badge className="bg-green-100 text-green-700">
                                     <ThumbsUp className="h-3 w-3 mr-1" />
-                                    Approuvé
+                                    Aprobado
                                   </Badge>
                                 )}
                                 {request.status === "rejected" && (
                                   <Badge className="bg-red-100 text-red-700">
                                     <ThumbsDown className="h-3 w-3 mr-1" />
-                                    Rejeté
+                                    Rechazado
                                   </Badge>
                                 )}
                               </td>
@@ -884,12 +884,12 @@ export default function AdminPage() {
                                       onClick={() => setSelectedOvertime(request)}
                                       data-testid={`button-review-overtime-${request.id}`}
                                     >
-                                      Traiter
+                                      Procesar
                                     </Button>
                                   </div>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">
-                                    {request.reviewer && `Par ${request.reviewer.firstName} ${request.reviewer.lastName}`}
+                                    {request.reviewer && `Por ${request.reviewer.firstName} ${request.reviewer.lastName}`}
                                   </span>
                                 )}
                               </td>
@@ -901,7 +901,7 @@ export default function AdminPage() {
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">
                       <Timer className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                      <p>Aucune demande d'heures supplémentaires</p>
+                      <p>Ninguna solicitud de horas extra</p>
                     </div>
                   )}
                 </CardContent>
@@ -911,19 +911,19 @@ export default function AdminPage() {
             {activeTab === "exports" && (
               <Card className="border-card-border">
                 <CardHeader>
-                  <CardTitle>Exports CSV</CardTitle>
+                  <CardTitle>Exportaciones CSV</CardTitle>
                   <CardDescription>
-                    Exportez les données de pointage par employé et période
+                    Exporte los datos de fichajes por empleado y período
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center py-12">
                   <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
                   <p className="text-muted-foreground mb-6">
-                    Sélectionnez une période et les employés pour générer un export CSV
+                    Seleccione un período y los empleados para generar una exportación CSV
                   </p>
                   <Button onClick={() => setShowExportDialog(true)} data-testid="button-start-export">
                     <Download className="h-4 w-4 mr-2" />
-                    Créer un export
+                    Crear exportación
                   </Button>
                 </CardContent>
               </Card>
@@ -954,23 +954,23 @@ export default function AdminPage() {
       <Dialog open={!!selectedOvertime} onOpenChange={(open) => !open && setSelectedOvertime(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Traiter la demande d'heures supplémentaires</DialogTitle>
+            <DialogTitle>Procesar solicitud de horas extra</DialogTitle>
             <DialogDescription>
               {selectedOvertime && (
                 <>
-                  Demande de <strong>{selectedOvertime.employee.firstName} {selectedOvertime.employee.lastName}</strong> pour{" "}
-                  <strong>{selectedOvertime.minutes} minutes</strong> le{" "}
-                  {new Date(selectedOvertime.date).toLocaleDateString("fr-FR")}
+                  Solicitud de <strong>{selectedOvertime.employee.firstName} {selectedOvertime.employee.lastName}</strong> por{" "}
+                  <strong>{selectedOvertime.minutes} minutos</strong> el{" "}
+                  {new Date(selectedOvertime.date).toLocaleDateString("es-ES")}
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label htmlFor="overtime-comment">Commentaire (obligatoire)</Label>
+              <Label htmlFor="overtime-comment">Comentario (obligatorio)</Label>
               <Textarea
                 id="overtime-comment"
-                placeholder="Justification de la décision..."
+                placeholder="Justificación de la decisión..."
                 value={overtimeComment}
                 onChange={(e) => setOvertimeComment(e.target.value)}
                 className="mt-2"
@@ -994,7 +994,7 @@ export default function AdminPage() {
               data-testid="button-reject-overtime"
             >
               <ThumbsDown className="h-4 w-4 mr-2" />
-              Rejeter
+              Rechazar
             </Button>
             <Button
               onClick={() => {
@@ -1010,7 +1010,7 @@ export default function AdminPage() {
               data-testid="button-approve-overtime"
             >
               <ThumbsUp className="h-4 w-4 mr-2" />
-              Approuver
+              Aprobar
             </Button>
           </DialogFooter>
         </DialogContent>

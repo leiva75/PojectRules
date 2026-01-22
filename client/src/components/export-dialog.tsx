@@ -33,8 +33,8 @@ import type { Employee } from "@shared/schema";
 
 const exportFormSchema = z.object({
   employeeId: z.string().optional(),
-  startDate: z.string().min(1, "La date de début est requise"),
-  endDate: z.string().min(1, "La date de fin est requise"),
+  startDate: z.string().min(1, "La fecha de inicio es obligatoria"),
+  endDate: z.string().min(1, "La fecha de fin es obligatoria"),
 });
 
 type ExportFormData = z.infer<typeof exportFormSchema>;
@@ -81,28 +81,28 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Erreur lors de l'export");
+        throw new Error(error.message || "Error en la exportación");
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pointages_${data.startDate}_${data.endDate}.csv`;
+      a.download = `fichajes_${data.startDate}_${data.endDate}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
       toast({
-        title: "Export réussi",
-        description: "Le fichier CSV a été téléchargé",
+        title: "Exportación exitosa",
+        description: "El archivo CSV se ha descargado",
       });
       onOpenChange(false);
     } catch (error) {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Échec de l'export",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Fallo en la exportación",
         variant: "destructive",
       });
     } finally {
@@ -114,9 +114,9 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Exporter les pointages</DialogTitle>
+          <DialogTitle>Exportar fichajes</DialogTitle>
           <DialogDescription>
-            Sélectionnez une période et optionnellement un employé pour générer un export CSV
+            Seleccione un período y opcionalmente un empleado para generar una exportación CSV
           </DialogDescription>
         </DialogHeader>
 
@@ -127,15 +127,15 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
               name="employeeId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Employé</FormLabel>
+                  <FormLabel>Empleado</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-export-employee">
-                        <SelectValue placeholder="Tous les employés" />
+                        <SelectValue placeholder="Todos los empleados" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="all">Tous les employés</SelectItem>
+                      <SelectItem value="all">Todos los empleados</SelectItem>
                       {employees.map((emp) => (
                         <SelectItem key={emp.id} value={emp.id}>
                           {emp.firstName} {emp.lastName}
@@ -154,7 +154,7 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date de début</FormLabel>
+                    <FormLabel>Fecha de inicio</FormLabel>
                     <FormControl>
                       <Input 
                         type="date" 
@@ -171,7 +171,7 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
                 name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date de fin</FormLabel>
+                    <FormLabel>Fecha de fin</FormLabel>
                     <FormControl>
                       <Input 
                         type="date" 
@@ -192,7 +192,7 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
                 onClick={() => onOpenChange(false)}
                 data-testid="button-cancel-export"
               >
-                Annuler
+                Cancelar
               </Button>
               <Button 
                 type="submit" 
@@ -202,12 +202,12 @@ export function ExportDialog({ open, onOpenChange, employees }: ExportDialogProp
                 {isExporting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Export...
+                    Exportando...
                   </>
                 ) : (
                   <>
                     <Download className="mr-2 h-4 w-4" />
-                    Télécharger CSV
+                    Descargar CSV
                   </>
                 )}
               </Button>

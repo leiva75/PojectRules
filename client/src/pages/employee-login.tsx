@@ -29,14 +29,14 @@ export default function EmployeeLoginPage() {
     try {
       await employeeLogin(pinValue);
       toast({
-        title: "Connexion réussie",
-        description: "Bienvenue !",
+        title: "Conexión exitosa",
+        description: "¡Bienvenido!",
       });
       setLocation("/mobile");
     } catch (error) {
       toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "PIN invalide",
+        title: "Error",
+        description: error instanceof Error ? error.message : "PIN inválido",
         variant: "destructive",
       });
       setPin("");
@@ -69,7 +69,7 @@ export default function EmployeeLoginPage() {
           data-testid="button-back"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Retour
+          Volver
         </Button>
 
         <div className="text-center space-y-2">
@@ -79,14 +79,14 @@ export default function EmployeeLoginPage() {
             className="w-20 h-20 mx-auto object-contain mb-2"
             data-testid="img-logo-employee"
           />
-          <h1 className="text-2xl font-semibold tracking-tight">Accès Employé</h1>
-          <p className="text-muted-foreground">Entrez votre code PIN à 6 chiffres</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Acceso Empleado</h1>
+          <p className="text-muted-foreground">Ingrese su código PIN de 6 dígitos</p>
         </div>
 
         <Card className="border-card-border">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-lg">Code PIN</CardTitle>
-            <CardDescription>Saisissez votre code personnel</CardDescription>
+            <CardTitle className="text-lg">Código PIN</CardTitle>
+            <CardDescription>Ingrese su código personal</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-6">
             <InputOTP 
@@ -109,7 +109,7 @@ export default function EmployeeLoginPage() {
             {isLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Vérification...</span>
+                <span>Verificando...</span>
               </div>
             )}
 
