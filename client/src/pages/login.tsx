@@ -9,7 +9,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Loader2, Users } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
+import logoPath from "@/assets/logo-cronos.png";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -56,9 +57,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Clock className="w-8 h-8 text-primary" />
-          </div>
+          <img 
+            src={logoPath} 
+            alt="Cronos Gimnasio" 
+            className="w-24 h-24 mx-auto object-contain mb-2"
+            data-testid="img-logo"
+          />
           <h1 className="text-2xl font-semibold tracking-tight">Pointeuse Hybride</h1>
           <p className="text-muted-foreground">Connectez-vous pour accéder à votre espace</p>
         </div>

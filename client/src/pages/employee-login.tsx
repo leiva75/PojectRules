@@ -4,8 +4,9 @@ import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Delete, ArrowLeft, Loader2 } from "lucide-react";
+import { Delete, ArrowLeft, Loader2 } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import logoPath from "@/assets/logo-cronos.png";
 
 export default function EmployeeLoginPage() {
   const [, setLocation] = useLocation();
@@ -72,9 +73,12 @@ export default function EmployeeLoginPage() {
         </Button>
 
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-            <Clock className="w-8 h-8 text-primary" />
-          </div>
+          <img 
+            src={logoPath} 
+            alt="Cronos Gimnasio" 
+            className="w-20 h-20 mx-auto object-contain mb-2"
+            data-testid="img-logo-employee"
+          />
           <h1 className="text-2xl font-semibold tracking-tight">Accès Employé</h1>
           <p className="text-muted-foreground">Entrez votre code PIN à 6 chiffres</p>
         </div>

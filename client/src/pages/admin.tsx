@@ -50,6 +50,7 @@ import type { Employee, Punch } from "@shared/schema";
 import { EmployeeDialog } from "@/components/employee-dialog";
 import { ExportDialog } from "@/components/export-dialog";
 import { CorrectionDialog } from "@/components/correction-dialog";
+import logoPath from "@/assets/logo-cronos.png";
 
 interface DashboardStats {
   totalEmployees: number;
@@ -299,8 +300,13 @@ export default function AdminPage() {
         <Sidebar>
           <SidebarHeader className="p-4 border-b">
             <div className="flex items-center gap-3">
-              <Clock className="h-8 w-8 text-primary" />
-              <span className="font-semibold text-lg">Pointeuse</span>
+              <img 
+                src={logoPath} 
+                alt="Cronos Gimnasio" 
+                className="h-10 w-10 object-contain"
+                data-testid="img-logo-admin"
+              />
+              <span className="font-semibold text-lg">Cronos</span>
             </div>
           </SidebarHeader>
           <SidebarContent>

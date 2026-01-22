@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PunchButton } from "@/components/punch-button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, X, Delete, Loader2 } from "lucide-react";
+import { X, Delete, Loader2 } from "lucide-react";
 import type { Employee, PunchRequest } from "@shared/schema";
+import logoPath from "@/assets/logo-cronos.png";
 
 const IDLE_TIMEOUT = 30000;
 
@@ -139,8 +140,13 @@ export default function KioskPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Clock className="h-8 w-8 text-primary" />
-          <span className="text-xl font-semibold">Pointeuse Hybride</span>
+          <img 
+            src={logoPath} 
+            alt="Cronos Gimnasio" 
+            className="h-12 w-12 object-contain"
+            data-testid="img-logo-kiosk"
+          />
+          <span className="text-xl font-semibold">Cronos Gimnasio</span>
         </div>
         <div className="text-right">
           <div className="text-3xl font-mono font-medium">
