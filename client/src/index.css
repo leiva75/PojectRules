@@ -175,6 +175,15 @@
   }
 }
 
+/* Blue-black gradient background for kiosk/main screens */
+.bg-gradient-kiosk {
+  background: linear-gradient(135deg, #0a1628 0%, #1a365d 25%, #0d47a1 50%, #1a365d 75%, #0a1628 100%);
+}
+
+.bg-gradient-kiosk-radial {
+  background: radial-gradient(ellipse at center, #1a365d 0%, #0d2137 40%, #0a1628 70%, #050d14 100%);
+}
+
 /**
  * Using the elevate system.
  * Automatic contrast adjustment.
