@@ -1,7 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, MapPin, MapPinOff, AlertTriangle } from "lucide-react";
+import { Loader2, MapPin, AlertTriangle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface PunchButtonProps {
   type: "IN" | "OUT";
@@ -11,11 +12,40 @@ interface PunchButtonProps {
   size?: "default" | "large";
 }
 
+type PermissionState = "prompt" | "granted" | "denied" | "unsupported" | "checking";
+
 export function PunchButton({ type, onPunch, source = "mobile", disabled = false, size = "default" }: PunchButtonProps) {
   const [isPending, setIsPending] = useState(false);
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "success" | "denied" | "error">("idle");
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [permissionState, setPermissionState] = useState<PermissionState>("checking");
   const { toast } = useToast();
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (!("geolocation" in navigator)) {
+        setPermissionState("unsupported");
+        return;
+      }
+
+      if ("permissions" in navigator) {
+        try {
+          const result = await navigator.permissions.query({ name: "geolocation" });
+          setPermissionState(result.state as PermissionState);
+          
+          result.addEventListener("change", () => {
+            setPermissionState(result.state as PermissionState);
+          });
+        } catch {
+          setPermissionState("prompt");
+        }
+      } else {
+        setPermissionState("prompt");
+      }
+    };
+
+    checkPermission();
+  }, []);
 
   const handlePunch = useCallback(async () => {
     setIsPending(true);
@@ -43,7 +73,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           const timeoutId = setTimeout(() => {
             reject(new Error("TIMEOUT"));
-          }, 8000);
+          }, 15000);
           
           navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -56,7 +86,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
             },
             {
               enableHighAccuracy: true,
-              timeout: 8000,
+              timeout: 15000,
               maximumAge: 30000,
             }
           );
@@ -66,6 +96,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         longitude = Math.round(position.coords.longitude * 10000) / 10000;
         accuracy = Math.round(position.coords.accuracy * 100) / 100;
         setGeoStatus("success");
+        setPermissionState("granted");
       } catch (geoErr) {
         setGeoStatus("denied");
         
@@ -73,17 +104,18 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         if (geoErr instanceof GeolocationPositionError) {
           switch (geoErr.code) {
             case geoErr.PERMISSION_DENIED:
-              errorMessage = "Permiso de ubicación denegado. Active la geolocalización en su navegador.";
+              errorMessage = "Permiso de ubicación denegado. Siga las instrucciones abajo para activarlo.";
+              setPermissionState("denied");
               break;
             case geoErr.POSITION_UNAVAILABLE:
-              errorMessage = "Posición no disponible. Verifique que el GPS esté activado.";
+              errorMessage = "Posición no disponible. Verifique que el GPS/WiFi esté activado en su dispositivo.";
               break;
             case geoErr.TIMEOUT:
-              errorMessage = "Tiempo de espera agotado. Intente de nuevo en un lugar con mejor señal.";
+              errorMessage = "Tiempo de espera agotado (15s). Intente de nuevo o active el GPS de su dispositivo.";
               break;
           }
         } else if (geoErr instanceof Error && geoErr.message === "TIMEOUT") {
-          errorMessage = "Tiempo de espera agotado. Intente de nuevo.";
+          errorMessage = "Tiempo de espera agotado. Active el GPS y vuelva a intentar.";
         }
         
         setGeoError(errorMessage);
@@ -132,11 +164,58 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
     ? "bg-green-600 hover:bg-green-700 text-white border-green-700"
     : "bg-orange-500 hover:bg-orange-600 text-white border-orange-600";
 
+  const getPermissionHelpMessage = () => {
+    if (permissionState === "denied") {
+      return {
+        title: "Ubicación bloqueada",
+        description: (
+          <div className="space-y-2">
+            <p>La geolocalización está bloqueada. Para activarla:</p>
+            <ul className="list-disc list-inside text-xs space-y-1">
+              <li><strong>iPhone/Safari:</strong> Ajustes → Safari → Ubicación → Permitir</li>
+              <li><strong>Android/Chrome:</strong> Toque el candado 🔒 en la barra de direcciones → Permisos → Ubicación → Permitir</li>
+              <li><strong>PC/Mac:</strong> Haga clic en el icono de candado junto a la URL y active la ubicación</li>
+            </ul>
+            <p className="text-xs mt-2">Luego recargue la página.</p>
+          </div>
+        ),
+      };
+    }
+    if (permissionState === "prompt") {
+      return {
+        title: "Permiso de ubicación requerido",
+        description: (
+          <div className="space-y-2">
+            <p>Al pulsar el botón, su navegador le pedirá permiso para acceder a su ubicación.</p>
+            <p className="text-xs"><strong>Debe aceptar</strong> para poder fichar.</p>
+          </div>
+        ),
+      };
+    }
+    if (permissionState === "unsupported") {
+      return {
+        title: "Navegador no compatible",
+        description: "Su navegador no soporta geolocalización. Use Chrome, Safari o Firefox.",
+      };
+    }
+    return null;
+  };
+
+  const helpMessage = getPermissionHelpMessage();
+
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-4">
+      {helpMessage && (
+        <Alert variant={permissionState === "denied" ? "destructive" : "default"} className="max-w-sm">
+          <Settings className="h-4 w-4" />
+          <AlertTitle>{helpMessage.title}</AlertTitle>
+          <AlertDescription>{helpMessage.description}</AlertDescription>
+        </Alert>
+      )}
+
       <Button
         onClick={handlePunch}
-        disabled={disabled || isPending}
+        disabled={disabled || isPending || permissionState === "unsupported"}
         className={`${baseClasses} ${typeClasses}`}
         data-testid={`button-punch-${type.toLowerCase()}`}
       >
@@ -152,7 +231,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
           {geoStatus === "loading" && (
             <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span className="text-muted-foreground">Obteniendo posición GPS...</span>
+              <span className="text-muted-foreground">Obteniendo posición GPS... (hasta 15s)</span>
             </div>
           )}
           {geoStatus === "success" && (
