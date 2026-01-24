@@ -56,26 +56,47 @@ npm run db:push      # Push schema to database
 npx tsx server/seed.ts  # Seed database
 ```
 
-## Docker Production Deployment
+## Production Deployment
+
+### DigitalOcean App Platform (Recommended)
+
+**Build Command:**
 ```bash
-# Copy environment template
+npm ci && npm run build && npm run db:push
+```
+
+**Run Command:**
+```bash
+npm start
+```
+
+**Required Environment Variables:**
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string (with `?sslmode=require`) |
+| `NODE_ENV` | `production` |
+| `JWT_ACCESS_SECRET` | Min 32 chars (`openssl rand -base64 48`) |
+| `JWT_REFRESH_SECRET` | Min 32 chars (`openssl rand -base64 48`) |
+| `KIOSK_KEY` | Min 16 chars (`openssl rand -base64 24`) |
+| `CORS_ORIGIN` | Frontend URL (e.g., `https://app.example.com`) |
+
+**Optional - DigitalOcean Spaces (for signatures):**
+| Variable | Description |
+|----------|-------------|
+| `DO_SPACES_KEY` | Spaces access key |
+| `DO_SPACES_SECRET` | Spaces secret key |
+| `DO_SPACES_REGION` | Bucket region (e.g., `ams3`) |
+| `DO_SPACES_BUCKET` | Bucket name |
+
+See `BUILD.md` for detailed deployment instructions.
+
+### Docker Deployment
+```bash
 cp .env.production.example .env.production
-# Edit with secure secrets (see commands in .env.production.example)
 nano .env.production
-# Build and start
 docker compose up -d --build
-# Apply migrations
 docker compose exec app npm run db:push
-# Seed initial data (optional)
 docker compose exec app npx tsx server/seed.ts
 ```
 
-Environment variables (production):
-- `DATABASE_URL`: PostgreSQL connection string
-- `JWT_ACCESS_SECRET`: 64+ char secret for access tokens
-- `JWT_REFRESH_SECRET`: 64+ char secret for refresh tokens
-- `SESSION_SECRET`: 64+ char session secret
-- `KIOSK_KEY`: 32+ char key for kiosk mode
-- `CORS_ORIGIN`: Allowed origin (not "*" in production)
-
-See README_PRODUCCION.md for complete VPS deployment guide.
+See README_PRODUCCION.md for VPS deployment guide.
