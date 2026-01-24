@@ -7,6 +7,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { logger, logInfo, logError } from "./logger";
 import { ApiError } from "./errors";
+import { initSpaces, isSpacesConfigured } from "./spaces";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -52,6 +53,10 @@ function validateConfig() {
 }
 
 validateConfig();
+
+if (isSpacesConfigured()) {
+  initSpaces();
+}
 
 const app = express();
 const httpServer = createServer(app);
