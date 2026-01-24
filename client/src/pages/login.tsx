@@ -83,7 +83,7 @@ export default function LoginPage() {
     
     setIsPinLoading(true);
     try {
-      const response = await fetch("/api/auth/kiosk", {
+      const response = await fetch("/api/auth/kiosk-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: pinValue }),
