@@ -33,8 +33,17 @@ A full-stack TypeScript time-tracking application with:
 - **Geolocation capture**: Lat/lon rounded to 4 decimals
 - **Dual auth**: Admin/Manager (httpOnly cookies) vs Employee (localStorage JWT)
 - **CSV exports**: By employee and date range with overtime columns
-- **Kiosk mode**: Shared terminal with PIN login
+- **Kiosk mode**: Shared terminal with PIN login + digital signature capture
 - **Overtime management**: Automatic calculation on OUT punch, admin approval workflow
+- **Kiosk Device Management**: Admin can enroll/disable kiosk devices with secure tokens
+
+## Kiosk Device System
+- **Device enrollment**: Admin creates kiosk devices, receives one-time token URL
+- **Token security**: Tokens are SHA-256 hashed before storage, never stored plaintext
+- **X-KIOSK-TOKEN header**: Kiosk devices authenticate via header, not JWT
+- **Digital signatures**: When DigitalOcean Spaces is configured, punches require signature
+- **Signature storage**: Signatures uploaded to S3-compatible storage with SHA-256 checksum
+- **Audit trail**: Each signature records device ID, user agent, and IP address
 
 ## Overtime System
 - Automatic calculation: On each OUT punch, daily minutes are calculated from all IN->OUT pairs
