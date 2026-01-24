@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, MapPin, MapPinOff } from "lucide-react";
+import { Loader2, MapPin, MapPinOff, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface PunchButtonProps {
   type: "IN" | "OUT";
-  onPunch: (data: { type: "IN" | "OUT"; latitude?: number; longitude?: number; accuracy?: number; source: "mobile" | "kiosk" }) => Promise<void>;
+  onPunch: (data: { type: "IN" | "OUT"; latitude: number; longitude: number; accuracy?: number; source: "mobile" | "kiosk" }) => Promise<void>;
   source?: "mobile" | "kiosk";
   disabled?: boolean;
   size?: "default" | "large";
@@ -13,51 +13,87 @@ interface PunchButtonProps {
 
 export function PunchButton({ type, onPunch, source = "mobile", disabled = false, size = "default" }: PunchButtonProps) {
   const [isPending, setIsPending] = useState(false);
-  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "success" | "denied">("idle");
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "success" | "denied" | "error">("idle");
+  const [geoError, setGeoError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handlePunch = useCallback(async () => {
     setIsPending(true);
     setGeoStatus("loading");
+    setGeoError(null);
 
     try {
-      let latitude: number | undefined;
-      let longitude: number | undefined;
+      let latitude: number;
+      let longitude: number;
       let accuracy: number | undefined;
 
-      if ("geolocation" in navigator) {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-              reject(new Error("Tiempo agotado"));
-            }, 5000);
-            
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                clearTimeout(timeoutId);
-                resolve(pos);
-              },
-              (err) => {
-                clearTimeout(timeoutId);
-                reject(err);
-              },
-              {
-                enableHighAccuracy: false,
-                timeout: 5000,
-                maximumAge: 60000,
-              }
-            );
-          });
+      if (!("geolocation" in navigator)) {
+        setGeoStatus("error");
+        setGeoError("Su navegador no soporta geolocalización");
+        toast({
+          title: "GPS no disponible",
+          description: "Su navegador no soporta geolocalización. El fichaje requiere posición GPS.",
+          variant: "destructive",
+        });
+        setIsPending(false);
+        return;
+      }
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error("TIMEOUT"));
+          }, 8000);
           
-          latitude = Math.round(position.coords.latitude * 10000) / 10000;
-          longitude = Math.round(position.coords.longitude * 10000) / 10000;
-          accuracy = Math.round(position.coords.accuracy * 100) / 100;
-          setGeoStatus("success");
-        } catch {
-          setGeoStatus("denied");
-        }
-      } else {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              clearTimeout(timeoutId);
+              resolve(pos);
+            },
+            (err) => {
+              clearTimeout(timeoutId);
+              reject(err);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 8000,
+              maximumAge: 30000,
+            }
+          );
+        });
+        
+        latitude = Math.round(position.coords.latitude * 10000) / 10000;
+        longitude = Math.round(position.coords.longitude * 10000) / 10000;
+        accuracy = Math.round(position.coords.accuracy * 100) / 100;
+        setGeoStatus("success");
+      } catch (geoErr) {
         setGeoStatus("denied");
+        
+        let errorMessage = "Geolocalización denegada";
+        if (geoErr instanceof GeolocationPositionError) {
+          switch (geoErr.code) {
+            case geoErr.PERMISSION_DENIED:
+              errorMessage = "Permiso de ubicación denegado. Active la geolocalización en su navegador.";
+              break;
+            case geoErr.POSITION_UNAVAILABLE:
+              errorMessage = "Posición no disponible. Verifique que el GPS esté activado.";
+              break;
+            case geoErr.TIMEOUT:
+              errorMessage = "Tiempo de espera agotado. Intente de nuevo en un lugar con mejor señal.";
+              break;
+          }
+        } else if (geoErr instanceof Error && geoErr.message === "TIMEOUT") {
+          errorMessage = "Tiempo de espera agotado. Intente de nuevo.";
+        }
+        
+        setGeoError(errorMessage);
+        toast({
+          title: "Posición GPS requerida",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setIsPending(false);
+        return;
       }
 
       await onPunch({
@@ -70,7 +106,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
 
       toast({
         title: type === "IN" ? "Entrada registrada" : "Salida registrada",
-        description: latitude ? "Posición capturada con éxito" : "Sin posición GPS",
+        description: `Posición capturada (precisión: ${accuracy}m)`,
       });
     } catch (error) {
       toast({
@@ -80,7 +116,10 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
       });
     } finally {
       setIsPending(false);
-      setTimeout(() => setGeoStatus("idle"), 2000);
+      setTimeout(() => {
+        setGeoStatus("idle");
+        setGeoError(null);
+      }, 5000);
     }
   }, [type, onPunch, source, toast]);
 
@@ -109,24 +148,29 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
       </Button>
       
       {geoStatus !== "idle" && (
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-col items-center gap-1 text-sm max-w-xs text-center">
           {geoStatus === "loading" && (
-            <>
+            <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span className="text-muted-foreground">Localizando...</span>
-            </>
+              <span className="text-muted-foreground">Obteniendo posición GPS...</span>
+            </div>
           )}
           {geoStatus === "success" && (
-            <>
+            <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-green-600" />
               <span className="text-green-600">Posición capturada</span>
-            </>
+            </div>
           )}
-          {geoStatus === "denied" && (
-            <>
-              <MapPinOff className="w-4 h-4 text-red-600" />
-              <span className="text-red-600">Sin posición</span>
-            </>
+          {(geoStatus === "denied" || geoStatus === "error") && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="w-4 h-4" />
+                <span>GPS requerido</span>
+              </div>
+              {geoError && (
+                <p className="text-xs text-red-500">{geoError}</p>
+              )}
+            </div>
           )}
         </div>
       )}
