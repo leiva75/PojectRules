@@ -1,11 +1,12 @@
 import { 
-  employees, punches, punchCorrections, refreshTokens, punchReviews, auditLog, overtimeRequests,
+  employees, punches, punchCorrections, refreshTokens, punchReviews, auditLog, overtimeRequests, kioskDevices,
   type Employee, type InsertEmployee, 
   type Punch, type InsertPunch,
   type PunchCorrection, type InsertPunchCorrection,
   type RefreshToken, type PunchReview, type InsertPunchReview,
   type AuditLog, type InsertAuditLog,
-  type OvertimeRequest, type InsertOvertimeRequest
+  type OvertimeRequest, type InsertOvertimeRequest,
+  type KioskDevice, type InsertKioskDevice
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, isNull } from "drizzle-orm";
@@ -47,6 +48,16 @@ export interface IStorage {
   getPunchesByEmployeeAndDate(employeeId: string, date: Date): Promise<Punch[]>;
 
   getStats(): Promise<{ totalEmployees: number; activeToday: number; currentlyIn: number; needsReview: number }>;
+
+  createKioskDevice(device: InsertKioskDevice): Promise<KioskDevice>;
+  getKioskDeviceByTokenHash(tokenHash: string): Promise<KioskDevice | undefined>;
+  getKioskDevice(id: string): Promise<KioskDevice | undefined>;
+  getAllKioskDevices(): Promise<KioskDevice[]>;
+  updateKioskDevice(id: string, data: Partial<InsertKioskDevice>): Promise<KioskDevice | undefined>;
+  updateKioskDeviceLastUsed(id: string): Promise<void>;
+  deleteKioskDevice(id: string): Promise<void>;
+
+  updatePunchSignature(punchId: string, data: { signatureUrl: string; signatureSha256: string; kioskDeviceId?: string; kioskUserAgent?: string; kioskIp?: string }): Promise<Punch | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -442,6 +453,51 @@ export class DatabaseStorage implements IStorage {
       currentlyIn: Number(currentlyInResult[0]?.count || 0),
       needsReview: Number(needsReviewResult?.count || 0),
     };
+  }
+
+  async createKioskDevice(device: InsertKioskDevice): Promise<KioskDevice> {
+    const [created] = await db.insert(kioskDevices).values(device).returning();
+    return created;
+  }
+
+  async getKioskDeviceByTokenHash(tokenHash: string): Promise<KioskDevice | undefined> {
+    const [device] = await db.select().from(kioskDevices).where(eq(kioskDevices.tokenHash, tokenHash));
+    return device || undefined;
+  }
+
+  async getKioskDevice(id: string): Promise<KioskDevice | undefined> {
+    const [device] = await db.select().from(kioskDevices).where(eq(kioskDevices.id, id));
+    return device || undefined;
+  }
+
+  async getAllKioskDevices(): Promise<KioskDevice[]> {
+    return db.select().from(kioskDevices).orderBy(desc(kioskDevices.createdAt));
+  }
+
+  async updateKioskDevice(id: string, data: Partial<InsertKioskDevice>): Promise<KioskDevice | undefined> {
+    const [updated] = await db.update(kioskDevices).set(data).where(eq(kioskDevices.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async updateKioskDeviceLastUsed(id: string): Promise<void> {
+    await db.update(kioskDevices).set({ lastUsedAt: new Date() }).where(eq(kioskDevices.id, id));
+  }
+
+  async deleteKioskDevice(id: string): Promise<void> {
+    await db.delete(kioskDevices).where(eq(kioskDevices.id, id));
+  }
+
+  async updatePunchSignature(punchId: string, data: { signatureUrl: string; signatureSha256: string; kioskDeviceId?: string; kioskUserAgent?: string; kioskIp?: string }): Promise<Punch | undefined> {
+    const [updated] = await db.update(punches).set({
+      signatureUrl: data.signatureUrl,
+      signatureSha256: data.signatureSha256,
+      signatureSignedAt: new Date(),
+      kioskDeviceId: data.kioskDeviceId,
+      kioskUserAgent: data.kioskUserAgent,
+      kioskIp: data.kioskIp,
+      status: "SIGNED",
+    }).where(eq(punches.id, punchId)).returning();
+    return updated || undefined;
   }
 }
 

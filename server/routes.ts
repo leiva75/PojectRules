@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { createHash } from "crypto";
+import multer from "multer";
 import { storage } from "./storage";
 import { 
   hashPassword, 
@@ -12,6 +14,9 @@ import {
   authenticateAdminManager,
   authenticateEmployee 
 } from "./auth";
+import { authenticateKiosk, generateKioskToken, hashToken, getClientIp } from "./kiosk";
+import { uploadSignature, isSpacesConfigured, getSignedDownloadUrl } from "./spaces";
+import { logInfo, logError } from "./logger";
 import { 
   loginSchema, 
   employeeLoginSchema, 
@@ -20,10 +25,16 @@ import {
   correctionRequestSchema,
   exportQuerySchema,
   reviewRequestSchema,
-  overtimeReviewRequestSchema
+  overtimeReviewRequestSchema,
+  kioskPunchRequestSchema
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }
+});
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -868,6 +879,229 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Review overtime request error:", error);
       res.status(500).json({ message: "Erreur serveur" });
+    }
+  });
+
+  // ==================== KIOSK DEVICE MANAGEMENT (Admin) ====================
+
+  app.get("/api/admin/kiosk-devices", authenticateAdminManager, async (_req, res) => {
+    try {
+      const devices = await storage.getAllKioskDevices();
+      res.json(devices.map(d => ({ ...d, tokenHash: undefined })));
+    } catch (error) {
+      logError("Get kiosk devices error", error);
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Error al obtener dispositivos" } });
+    }
+  });
+
+  app.post("/api/admin/kiosk-devices", authenticateAdminManager, async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: { code: "INVALID_NAME", message: "Nombre requerido" } });
+      }
+
+      const token = generateKioskToken();
+      const tokenHash = hashToken(token);
+
+      const device = await storage.createKioskDevice({
+        name,
+        tokenHash,
+        enabled: true,
+      });
+
+      logInfo("Kiosk device created", { deviceId: device.id, name });
+
+      res.status(201).json({
+        id: device.id,
+        name: device.name,
+        token,
+        enabled: device.enabled,
+        createdAt: device.createdAt,
+        message: "Guarde el token, no se mostrará de nuevo",
+      });
+    } catch (error) {
+      logError("Create kiosk device error", error);
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Error al crear dispositivo" } });
+    }
+  });
+
+  app.patch("/api/admin/kiosk-devices/:id", authenticateAdminManager, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, enabled } = req.body;
+
+      const updates: { name?: string; enabled?: boolean } = {};
+      if (typeof name === "string") updates.name = name;
+      if (typeof enabled === "boolean") updates.enabled = enabled;
+
+      const device = await storage.updateKioskDevice(id, updates);
+      if (!device) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Dispositivo no encontrado" } });
+      }
+
+      logInfo("Kiosk device updated", { deviceId: id, updates });
+      res.json({ ...device, tokenHash: undefined });
+    } catch (error) {
+      logError("Update kiosk device error", error);
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Error al actualizar dispositivo" } });
+    }
+  });
+
+  app.delete("/api/admin/kiosk-devices/:id", authenticateAdminManager, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteKioskDevice(id);
+      logInfo("Kiosk device deleted", { deviceId: id });
+      res.json({ message: "Dispositivo eliminado" });
+    } catch (error) {
+      logError("Delete kiosk device error", error);
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Error al eliminar dispositivo" } });
+    }
+  });
+
+  // ==================== KIOSK PUNCH ROUTES ====================
+
+  app.post("/api/kiosk/punch", authenticateKiosk, async (req, res) => {
+    try {
+      const parseResult = kioskPunchRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: { code: "INVALID_REQUEST", message: "Datos inválidos" } });
+      }
+
+      const { pin } = req.body;
+      if (!pin || typeof pin !== "string" || pin.length !== 6) {
+        return res.status(400).json({ error: { code: "INVALID_PIN", message: "PIN inválido" } });
+      }
+
+      const employee = await storage.getEmployeeByPin(pin);
+      if (!employee) {
+        return res.status(404).json({ error: { code: "EMPLOYEE_NOT_FOUND", message: "Empleado no encontrado" } });
+      }
+
+      if (!employee.isActive) {
+        return res.status(403).json({ error: { code: "EMPLOYEE_INACTIVE", message: "Empleado inactivo" } });
+      }
+
+      const { type, latitude, longitude, accuracy } = parseResult.data;
+
+      const punch = await storage.createPunch({
+        employeeId: employee.id,
+        type,
+        latitude: latitude?.toString(),
+        longitude: longitude?.toString(),
+        accuracy: accuracy?.toString(),
+        source: "kiosk",
+        needsReview: false,
+      });
+
+      logInfo("Kiosk punch created", { 
+        punchId: punch.id, 
+        employeeId: employee.id, 
+        type, 
+        status: punch.status,
+        kioskDeviceId: req.kioskDevice?.id 
+      });
+
+      res.status(201).json({
+        id: punch.id,
+        type: punch.type,
+        timestamp: punch.timestamp,
+        status: punch.status,
+        requiresSignature: isSpacesConfigured(),
+        employee: {
+          id: employee.id,
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+        },
+      });
+    } catch (error) {
+      logError("Kiosk punch error", error);
+      res.status(500).json({ error: { code: "PUNCH_ERROR", message: "Error al registrar pointage" } });
+    }
+  });
+
+  app.post("/api/kiosk/punches/:id/signature", authenticateKiosk, upload.single("signature"), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!isSpacesConfigured()) {
+        return res.status(503).json({ 
+          error: { code: "SPACES_NOT_CONFIGURED", message: "Almacenamiento de firmas no configurado" } 
+        });
+      }
+
+      const punch = await storage.getPunchById(id);
+      if (!punch) {
+        return res.status(404).json({ error: { code: "PUNCH_NOT_FOUND", message: "Pointage no encontrado" } });
+      }
+
+      if (punch.status === "SIGNED") {
+        return res.status(400).json({ error: { code: "ALREADY_SIGNED", message: "Pointage ya firmado" } });
+      }
+
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ error: { code: "EMPTY_SIGNATURE", message: "Firma vacía" } });
+      }
+
+      if (req.file.size < 500) {
+        return res.status(400).json({ error: { code: "EMPTY_SIGNATURE", message: "Firma muy pequeña" } });
+      }
+
+      const signatureBuffer = req.file.buffer;
+      const sha256 = createHash("sha256").update(signatureBuffer).digest("hex");
+
+      const signatureKey = await uploadSignature(parseInt(id), signatureBuffer.toString("base64"));
+
+      const updated = await storage.updatePunchSignature(id, {
+        signatureUrl: signatureKey,
+        signatureSha256: sha256,
+        kioskDeviceId: req.kioskDevice?.id,
+        kioskUserAgent: req.headers["user-agent"],
+        kioskIp: getClientIp(req),
+      });
+
+      logInfo("Signature uploaded", { 
+        punchId: id, 
+        sha256, 
+        size: req.file.size,
+        kioskDeviceId: req.kioskDevice?.id 
+      });
+
+      res.json({
+        ok: true,
+        punchId: id,
+        signedAt: updated?.signatureSignedAt,
+        status: updated?.status,
+      });
+    } catch (error) {
+      logError("Signature upload error", error);
+      res.status(500).json({ error: { code: "SIGNATURE_ERROR", message: "Error al guardar firma" } });
+    }
+  });
+
+  app.get("/api/admin/punches/:id/signature-url", authenticateAdminManager, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const punch = await storage.getPunchById(id);
+
+      if (!punch) {
+        return res.status(404).json({ error: { code: "PUNCH_NOT_FOUND", message: "Pointage no encontrado" } });
+      }
+
+      if (!punch.signatureUrl) {
+        return res.status(404).json({ error: { code: "NO_SIGNATURE", message: "Sin firma" } });
+      }
+
+      if (!isSpacesConfigured()) {
+        return res.status(503).json({ error: { code: "SPACES_NOT_CONFIGURED", message: "Almacenamiento no configurado" } });
+      }
+
+      const signedUrl = await getSignedDownloadUrl(punch.signatureUrl, 3600);
+      res.json({ signatureUrl: signedUrl, sha256: punch.signatureSha256 });
+    } catch (error) {
+      logError("Get signature URL error", error);
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Error al obtener firma" } });
     }
   });
 
