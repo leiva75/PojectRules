@@ -18,6 +18,8 @@ export const employees = pgTable("employees", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const punchStatusEnum = pgEnum("punch_status", ["PENDING_SIGNATURE", "SIGNED"]);
+
 export const punches = pgTable("punches", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   employeeId: varchar("employee_id").notNull().references(() => employees.id),
@@ -28,6 +30,22 @@ export const punches = pgTable("punches", {
   accuracy: decimal("accuracy", { precision: 10, scale: 2 }),
   needsReview: boolean("needs_review").notNull().default(false),
   source: text("source").notNull().default("mobile"),
+  signatureUrl: text("signature_url"),
+  signatureSha256: text("signature_sha256"),
+  signatureSignedAt: timestamp("signature_signed_at"),
+  kioskDeviceId: text("kiosk_device_id"),
+  kioskUserAgent: text("kiosk_user_agent"),
+  kioskIp: text("kiosk_ip"),
+  status: punchStatusEnum("status").notNull().default("SIGNED"),
+});
+
+export const kioskDevices = pgTable("kiosk_devices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
 });
 
 export const punchCorrections = pgTable("punch_corrections", {
@@ -225,6 +243,23 @@ export const overtimeReviewRequestSchema = z.object({
   comment: z.string().min(5, "Le commentaire doit contenir au moins 5 caractères"),
 });
 
+export const insertKioskDeviceSchema = createInsertSchema(kioskDevices).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+});
+
+export const kioskPunchRequestSchema = z.object({
+  type: z.enum(["IN", "OUT"]),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  accuracy: z.number().optional(),
+});
+
+export const signatureUploadSchema = z.object({
+  punchId: z.string().uuid(),
+});
+
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type Punch = typeof punches.$inferSelect;
@@ -245,3 +280,6 @@ export type ReviewRequest = z.infer<typeof reviewRequestSchema>;
 export type OvertimeRequest = typeof overtimeRequests.$inferSelect;
 export type InsertOvertimeRequest = z.infer<typeof insertOvertimeRequestSchema>;
 export type OvertimeReviewRequest = z.infer<typeof overtimeReviewRequestSchema>;
+export type KioskDevice = typeof kioskDevices.$inferSelect;
+export type InsertKioskDevice = z.infer<typeof insertKioskDeviceSchema>;
+export type KioskPunchRequest = z.infer<typeof kioskPunchRequestSchema>;
