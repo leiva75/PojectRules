@@ -633,7 +633,9 @@ export default function AdminPage() {
                               <td className="py-3 px-4">
                                 <GeoBadge 
                                   hasLocation={!!(punch.latitude && punch.longitude)} 
-                                  needsReview={punch.needsReview} 
+                                  needsReview={punch.needsReview}
+                                  latitude={punch.latitude}
+                                  longitude={punch.longitude}
                                 />
                               </td>
                               <td className="py-3 px-4">
@@ -721,7 +723,9 @@ export default function AdminPage() {
                               <td className="py-3 px-4">
                                 <GeoBadge 
                                   hasLocation={!!(punch.latitude && punch.longitude)} 
-                                  needsReview={punch.needsReview} 
+                                  needsReview={punch.needsReview}
+                                  latitude={punch.latitude}
+                                  longitude={punch.longitude}
                                 />
                               </td>
                               <td className="py-3 px-4">

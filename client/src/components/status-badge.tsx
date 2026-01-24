@@ -58,16 +58,42 @@ export function StatusBadge({ status, className = "" }: StatusBadgeProps) {
 
 interface GeoBadgeProps {
   hasLocation: boolean;
-  needsReview: boolean;
+  needsReview?: boolean;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 }
 
-export function GeoBadge({ hasLocation, needsReview }: GeoBadgeProps) {
+export function GeoBadge({ hasLocation, needsReview, latitude, longitude }: GeoBadgeProps) {
   if (needsReview) {
     return (
       <Badge variant="destructive" className="gap-1 text-xs bg-red-600 text-white">
         <AlertTriangle className="w-3 h-3" />
         Sin posición
       </Badge>
+    );
+  }
+  
+  if (hasLocation && latitude && longitude) {
+    const lat = typeof latitude === "string" ? parseFloat(latitude) : latitude;
+    const lon = typeof longitude === "string" ? parseFloat(longitude) : longitude;
+    const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+    
+    return (
+      <a 
+        href={mapsUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="inline-flex"
+        data-testid="link-geo-location"
+      >
+        <Badge 
+          variant="outline" 
+          className="gap-1 text-xs text-green-700 border-green-600 cursor-pointer hover:bg-green-50"
+        >
+          <MapPin className="w-3 h-3" />
+          {lat.toFixed(4)}, {lon.toFixed(4)}
+        </Badge>
+      </a>
     );
   }
   

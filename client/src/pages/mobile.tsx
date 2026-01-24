@@ -110,7 +110,9 @@ export default function MobilePage() {
                 <span className="text-muted-foreground">Posición</span>
                 <GeoBadge 
                   hasLocation={!!(lastPunch.latitude && lastPunch.longitude)} 
-                  needsReview={lastPunch.needsReview} 
+                  needsReview={lastPunch.needsReview}
+                  latitude={lastPunch.latitude}
+                  longitude={lastPunch.longitude}
                 />
               </div>
             )}
