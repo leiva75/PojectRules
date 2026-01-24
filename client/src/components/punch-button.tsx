@@ -28,11 +28,25 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
       if ("geolocation" in navigator) {
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 0,
-            });
+            const timeoutId = setTimeout(() => {
+              reject(new Error("Tiempo agotado"));
+            }, 5000);
+            
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                clearTimeout(timeoutId);
+                resolve(pos);
+              },
+              (err) => {
+                clearTimeout(timeoutId);
+                reject(err);
+              },
+              {
+                enableHighAccuracy: false,
+                timeout: 5000,
+                maximumAge: 60000,
+              }
+            );
           });
           
           latitude = Math.round(position.coords.latitude * 10000) / 10000;
@@ -41,11 +55,6 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
           setGeoStatus("success");
         } catch {
           setGeoStatus("denied");
-          toast({
-            title: "Geolocalización rechazada",
-            description: "El fichaje será marcado para verificación",
-            variant: "destructive",
-          });
         }
       } else {
         setGeoStatus("denied");
