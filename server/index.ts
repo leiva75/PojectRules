@@ -56,6 +56,12 @@ validateConfig();
 const app = express();
 const httpServer = createServer(app);
 
+// Trust proxy for PaaS deployments (Render, Heroku, etc.)
+// Required for correct client IP detection behind load balancers
+if (isProd) {
+  app.set("trust proxy", 1);
+}
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
@@ -67,6 +73,15 @@ app.use(
     contentSecurityPolicy: isProd ? undefined : false,
   })
 );
+
+// Health check endpoint for PaaS platforms
+app.get("/health", (_req, res) => {
+  res.status(200).json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || "1.0.0"
+  });
+});
 
 const corsOrigin = process.env.CORS_ORIGIN || true;
 app.use(
