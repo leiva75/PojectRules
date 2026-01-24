@@ -41,9 +41,14 @@ import {
   ThumbsUp,
   ThumbsDown,
   Activity,
+  Monitor,
+  Copy,
+  Trash2,
+  Power,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Employee, Punch } from "@shared/schema";
@@ -186,16 +191,28 @@ function EstadoTab() {
   );
 }
 
+interface KioskDevice {
+  id: string;
+  name: string;
+  enabled: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+  token?: string;
+}
+
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports" | "estado">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports" | "estado" | "kiosks">("dashboard");
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
   const [selectedOvertime, setSelectedOvertime] = useState<OvertimeRequestWithDetails | null>(null);
   const [overtimeComment, setOvertimeComment] = useState("");
   const [overtimeFilter, setOvertimeFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [showAddKioskDialog, setShowAddKioskDialog] = useState(false);
+  const [newKioskName, setNewKioskName] = useState("");
+  const [newKioskToken, setNewKioskToken] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: stats } = useQuery<DashboardStats>({
@@ -272,6 +289,81 @@ export default function AdminPage() {
     },
   });
 
+  const { data: kioskDevices, isLoading: kiosksLoading } = useQuery<KioskDevice[]>({
+    queryKey: ["/api/admin/kiosk-devices"],
+    enabled: activeTab === "kiosks",
+  });
+
+  const createKioskMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const response = await apiRequest("POST", "/api/admin/kiosk-devices", { name });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/kiosk-devices"] });
+      setNewKioskToken(data.token);
+      setNewKioskName("");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo crear el dispositivo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleKioskMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      return apiRequest("PATCH", `/api/admin/kiosk-devices/${id}`, { enabled });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/kiosk-devices"] });
+      toast({
+        title: "Estado actualizado",
+        description: "El dispositivo ha sido actualizado",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el dispositivo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteKioskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/admin/kiosk-devices/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/kiosk-devices"] });
+      toast({
+        title: "Dispositivo eliminado",
+        description: "El dispositivo ha sido eliminado",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el dispositivo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyKioskUrl = (deviceId: string) => {
+    if (newKioskToken) {
+      const url = `${window.location.origin}/kiosk?token=${newKioskToken}`;
+      navigator.clipboard.writeText(url);
+      toast({
+        title: "URL copiada",
+        description: "La URL del quiosco se ha copiado al portapapeles",
+      });
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     setLocation("/");
@@ -291,6 +383,7 @@ export default function AdminPage() {
     { id: "revision", label: "Revisión", icon: ClipboardCheck },
     { id: "overtime", label: "Horas Extra", icon: Timer },
     { id: "exports", label: "Exportaciones", icon: FileText },
+    { id: "kiosks", label: "Quioscos", icon: Monitor },
     { id: "estado", label: "Estado", icon: Activity },
   ];
 
@@ -375,6 +468,12 @@ export default function AdminPage() {
                 <Button onClick={() => setShowExportDialog(true)} data-testid="button-export">
                   <Download className="h-4 w-4 mr-2" />
                   Exportar CSV
+                </Button>
+              )}
+              {activeTab === "kiosks" && (
+                <Button onClick={() => setShowAddKioskDialog(true)} data-testid="button-add-kiosk">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Añadir quiosco
                 </Button>
               )}
             </div>
@@ -933,6 +1032,74 @@ export default function AdminPage() {
               </Card>
             )}
 
+            {activeTab === "kiosks" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Dispositivos quiosco</CardTitle>
+                    <CardDescription>
+                      Gestione los dispositivos autorizados para fichar
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {kiosksLoading ? (
+                      <p className="text-muted-foreground">Cargando...</p>
+                    ) : kioskDevices && kioskDevices.length > 0 ? (
+                      <div className="space-y-4">
+                        {kioskDevices.map((device) => (
+                          <div
+                            key={device.id}
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                            data-testid={`kiosk-device-${device.id}`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <Monitor className="h-8 w-8 text-muted-foreground" />
+                              <div>
+                                <p className="font-medium">{device.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Creado: {new Date(device.createdAt).toLocaleDateString("es-ES")}
+                                  {device.lastUsedAt && (
+                                    <> | Último uso: {new Date(device.lastUsedAt).toLocaleString("es-ES")}</>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={device.enabled ? "default" : "secondary"}>
+                                {device.enabled ? "Activo" : "Inactivo"}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleKioskMutation.mutate({ id: device.id, enabled: !device.enabled })}
+                                disabled={toggleKioskMutation.isPending}
+                                data-testid={`button-toggle-kiosk-${device.id}`}
+                              >
+                                <Power className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteKioskMutation.mutate(device.id)}
+                                disabled={deleteKioskMutation.isPending}
+                                data-testid={`button-delete-kiosk-${device.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-center py-8">
+                        No hay dispositivos quiosco registrados
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {activeTab === "estado" && <EstadoTab />}
           </main>
         </div>
@@ -1016,6 +1183,91 @@ export default function AdminPage() {
               <ThumbsUp className="h-4 w-4 mr-2" />
               Aprobar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={showAddKioskDialog} 
+        onOpenChange={(open) => {
+          setShowAddKioskDialog(open);
+          if (!open) {
+            setNewKioskName("");
+            setNewKioskToken(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {newKioskToken ? "Quiosco creado" : "Añadir dispositivo quiosco"}
+            </DialogTitle>
+            <DialogDescription>
+              {newKioskToken 
+                ? "Guarde esta URL - no se mostrará de nuevo"
+                : "Registre un nuevo terminal para fichar"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          {!newKioskToken ? (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="kiosk-name">Nombre del dispositivo</Label>
+                <Input
+                  id="kiosk-name"
+                  value={newKioskName}
+                  onChange={(e) => setNewKioskName(e.target.value)}
+                  placeholder="Ej: Recepción principal"
+                  data-testid="input-kiosk-name"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>URL del quiosco</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={`${window.location.origin}/kiosk?token=${newKioskToken}`}
+                    className="font-mono text-xs"
+                    data-testid="input-kiosk-url"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => copyKioskUrl("")}
+                    data-testid="button-copy-kiosk-url"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Abra esta URL en el navegador del dispositivo quiosco. El token será guardado automáticamente.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            {!newKioskToken ? (
+              <>
+                <Button variant="outline" onClick={() => setShowAddKioskDialog(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => createKioskMutation.mutate(newKioskName)}
+                  disabled={!newKioskName.trim() || createKioskMutation.isPending}
+                  data-testid="button-create-kiosk"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear quiosco
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setShowAddKioskDialog(false)} data-testid="button-close-kiosk-dialog">
+                Cerrar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
