@@ -61,11 +61,10 @@ if (isSpacesConfigured()) {
 const app = express();
 const httpServer = createServer(app);
 
-// Trust proxy for PaaS deployments (Render, Heroku, etc.)
+// Trust proxy for PaaS deployments (Render, Heroku, DigitalOcean, Replit, etc.)
 // Required for correct client IP detection behind load balancers
-if (isProd) {
-  app.set("trust proxy", 1);
-}
+// Also enabled in dev for Replit which proxies requests
+app.set("trust proxy", 1);
 
 declare module "http" {
   interface IncomingMessage {
