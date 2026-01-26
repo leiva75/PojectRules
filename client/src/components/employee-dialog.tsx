@@ -37,7 +37,7 @@ const employeeFormSchema = z.object({
   firstName: z.string().min(1, "El nombre es obligatorio"),
   lastName: z.string().min(1, "El apellido es obligatorio"),
   role: z.enum(["admin", "manager", "employee"]),
-  pin: z.string().length(6, "El PIN debe tener 6 dígitos").optional().or(z.literal("")),
+  pin: z.string().length(6, "El PIN debe tener exactamente 6 dígitos").regex(/^\d{6}$/, "El PIN debe contener solo números"),
 });
 
 type EmployeeFormData = z.infer<typeof employeeFormSchema>;
@@ -64,10 +64,7 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
 
   const createMutation = useMutation({
     mutationFn: async (data: EmployeeFormData) => {
-      return apiRequest("POST", "/api/employees", {
-        ...data,
-        pin: data.pin || undefined,
-      });
+      return apiRequest("POST", "/api/employees", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
@@ -199,7 +196,7 @@ export function EmployeeDialog({ open, onOpenChange }: EmployeeDialogProps) {
               name="pin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Código PIN (opcional)</FormLabel>
+                  <FormLabel>Código PIN (obligatorio para quiosco)</FormLabel>
                   <FormControl>
                     <Input 
                       type="text" 
