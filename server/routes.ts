@@ -838,7 +838,7 @@ export async function registerRoutes(
 
   app.post("/api/overtime-requests/:id/review", authenticateAdminManager, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const result = overtimeReviewRequestSchema.safeParse(req.body);
       
       if (!result.success) {
@@ -928,7 +928,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/kiosk-devices/:id", authenticateAdminManager, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { name, enabled } = req.body;
 
       const updates: { name?: string; enabled?: boolean } = {};
@@ -950,7 +950,7 @@ export async function registerRoutes(
 
   app.delete("/api/admin/kiosk-devices/:id", authenticateAdminManager, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       await storage.deleteKioskDevice(id);
       logInfo("Kiosk device deleted", { deviceId: id });
       res.json({ message: "Dispositivo eliminado" });
@@ -1023,7 +1023,7 @@ export async function registerRoutes(
 
   app.post("/api/kiosk/punches/:id/signature", authenticateKiosk, upload.single("signature"), async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       if (!isSpacesConfigured()) {
         return res.status(503).json({ 
@@ -1082,7 +1082,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/punches/:id/signature-url", authenticateAdminManager, async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const punch = await storage.getPunchById(id);
 
       if (!punch) {

@@ -168,19 +168,21 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(data.email, data.password);
+      setShowAdminDialog(false);
       toast({
         title: "Conexión exitosa",
         description: "Bienvenido a su espacio",
       });
-      setShowAdminDialog(false);
-      setLocation("/admin");
+      // Use setTimeout to ensure state updates complete before navigation
+      setTimeout(() => {
+        window.location.href = "/admin";
+      }, 100);
     } catch (error) {
       toast({
         title: "Error de conexión",
         description: error instanceof Error ? error.message : "Credenciales incorrectas",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };

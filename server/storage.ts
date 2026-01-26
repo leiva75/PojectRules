@@ -43,7 +43,7 @@ export interface IStorage {
 
   createOvertimeRequest(request: InsertOvertimeRequest): Promise<OvertimeRequest>;
   getOvertimeRequestByDateAndEmployee(employeeId: string, date: Date): Promise<OvertimeRequest | undefined>;
-  updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest>): Promise<OvertimeRequest | undefined>;
+  updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest> & { reviewedAt?: Date }): Promise<OvertimeRequest | undefined>;
   getOvertimeRequests(options?: { status?: "pending" | "approved" | "rejected"; employeeId?: string; limit?: number }): Promise<(OvertimeRequest & { employee: { id: string; firstName: string; lastName: string }; reviewer?: { id: string; firstName: string; lastName: string } | null })[]>;
   getPunchesByEmployeeAndDate(employeeId: string, date: Date): Promise<Punch[]>;
 
@@ -343,7 +343,7 @@ export class DatabaseStorage implements IStorage {
     return request || undefined;
   }
 
-  async updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest>): Promise<OvertimeRequest | undefined> {
+  async updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest> & { reviewedAt?: Date }): Promise<OvertimeRequest | undefined> {
     const [updated] = await db.update(overtimeRequests).set(data).where(eq(overtimeRequests.id, id)).returning();
     return updated || undefined;
   }
