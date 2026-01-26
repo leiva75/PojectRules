@@ -445,11 +445,11 @@ export async function registerRoutes(
       const lastPunch = await storage.getLastPunchByEmployee(employee.id);
       
       if (type === "IN" && lastPunch?.type === "IN") {
-        return res.status(400).json({ message: "Vous êtes déjà pointé comme présent. Effectuez une sortie d'abord." });
+        return res.status(400).json({ message: "Ya está fichado como presente. Realice una salida primero." });
       }
 
       if (type === "OUT" && (!lastPunch || lastPunch.type === "OUT")) {
-        return res.status(400).json({ message: "Vous n'êtes pas pointé comme présent. Effectuez une entrée d'abord." });
+        return res.status(400).json({ message: "No está fichado como presente. Realice una entrada primero." });
       }
 
       const needsReview = !latitude || !longitude;
