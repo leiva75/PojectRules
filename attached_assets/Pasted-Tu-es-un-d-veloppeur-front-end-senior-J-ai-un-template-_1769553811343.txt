@@ -1,0 +1,142 @@
+Tu es un développeur front-end senior. J’ai un template de rapport (HTML/CSS) pour l’export / impression (PDF ou print) des fichages. Le rendu s’est amélioré mais :
+
+le rapport n’occupe pas toute la largeur utile de la page
+
+la police est trop petite et trop fine → lecture pénible
+
+il manque du contraste (fond, lignes, texte)
+
+les signatures sont trop petites / pas assez mises en valeur
+
+je ne veux aucune dépendance lourde : pas de librairie PDF supplémentaire, pas de Google Fonts, pas d’assets énormes → garder le téléchargement rapide
+
+Objectifs (priorité)
+
+Utiliser toute la page (A4) avec une mise en page propre :
+
+réduire marges excessives
+
+tableau pleine largeur
+
+colonnes mieux réparties
+
+Améliorer lisibilité :
+
+police plus grande + légèrement plus épaisse
+
+interlignage et padding plus généreux
+
+Contraste “rapport entreprise” :
+
+header tableau plus sombre
+
+zébrage des lignes plus marqué (mais élégant)
+
+séparateurs visibles
+
+Signatures :
+
+cellule signature plus grande
+
+image signature affichée en grand, nette, centrée, sans écrasement
+
+Contraintes techniques (important)
+
+CSS only (aucune nouvelle dépendance).
+
+Utiliser uniquement des polices système : system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif.
+
+Pas d’images redimensionnées côté serveur : juste du CSS (max-height, object-fit: contain).
+
+Ne pas toucher à la logique métier ni au backend (uniquement template + CSS).
+
+Spécifications CSS demandées
+Page & layout
+
+@page { size: A4; margin: 10mm 10mm; } (ou proche)
+
+Wrapper du rapport en largeur max :
+
+width: 100%
+
+pas de max-width trop petit
+
+Header du rapport : aligné, aéré, pas minuscule
+
+Typographie
+
+Corps : 13–14px (minimum), poids 500 si possible
+
+Titres : 22–26px, gras
+
+Entête colonnes tableau : 13–14px, gras, uppercase léger optionnel
+
+Couleur texte : quasi noir (#0f172a ou proche)
+
+Tableau
+
+table { width: 100%; border-collapse: collapse; }
+
+Entête : fond navy plus sombre, texte blanc, bordure basse marquée
+
+Lignes : zébrage plus visible (gris bleuté clair)
+
+Cellules : padding vertical augmenté (10–12px), bordures fines
+
+Dates alignées proprement, texte pas tassé
+
+Signatures
+
+Colonnes “Firma Ent.” et “Firma Sal.” :
+
+largeur dédiée (ex: 110–140px selon place)
+
+Dans les cellules de signature :
+
+un cadre léger (border)
+
+un fond blanc (pour contraste)
+
+image :
+
+display:block; margin:auto;
+
+height: 48–64px (selon place)
+
+width: 100%; object-fit: contain;
+
+Si pas de signature : afficher — centré (pas un petit tiret perdu)
+
+Liens “Ver mapa”
+
+Convertir en style “badge” discret (CSS) :
+
+petit fond gris bleuté + bordure
+
+pas bleu criard
+
+imprimable (couleur stable en print)
+
+Print (éviter les coupures moches)
+
+thead { display: table-header-group; } pour répéter l’entête à chaque page
+
+tr { page-break-inside: avoid; }
+
+éviter les gros espaces vides en bas
+
+Livraison attendue
+
+Identifier le fichier CSS du rapport (ou en créer un dédié report.css) et l’appliquer aux deux rapports (général + employé).
+
+Modifier le HTML si nécessaire uniquement pour ajouter des classes (ex: report, report-table, sig-cell, etc.).
+
+Aucun ajout de dépendances, aucun gros asset.
+
+Résultat attendu (à valider visuellement)
+
+Sur une capture A4 : tableau lisible, texte net, contraste clair, signatures visibles.
+
+Le rapport doit “remplir” la page sans paraître étouffé.
+
+⚠️ Ne fais pas d’autres changements non demandés. Juste : pleine page + typo + contraste + signatures + print propre, en léger.
