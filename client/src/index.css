@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE - PREMIUM DESIGN SYSTEM */
+/* LIGHT MODE - PREMIUM DESIGN SYSTEM - ICY INDIGO PALETTE */
 :root {
   --button-outline: rgba(0,0,0, .12);
   --badge-outline: rgba(0,0,0, .08);
@@ -10,17 +10,37 @@
   --elevate-1: rgba(0,0,0, .04);
   --elevate-2: rgba(0,0,0, .10);
   
-  /* Premium Background - Slightly warm white with blue tint */
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
+  /* === ICY INDIGO DESIGN TOKENS === */
+  /* App background - Pale indigo tint, not pure white */
+  --bg-app: 226 100% 97%;
+  /* Surface - Cards/panels - slightly lighter than app bg */
+  --bg-surface: 220 60% 99%;
+  /* Surface secondary - Zebra stripes, alt rows */
+  --bg-surface-2: 226 100% 94%;
+  /* Subtle borders */
+  --border-subtle: 226 100% 90%;
+  
+  /* Form inputs */
+  --input-bg: 0 0% 100%;
+  --input-border: 226 73% 80%;
+  --input-focus: 217 91% 40%;
+  
+  /* Text hierarchy */
+  --text-primary: 222 47% 11%;
+  --text-secondary: 215 20% 40%;
+  --text-tertiary: 215 16% 57%;
+  
+  /* Main backgrounds using new tokens */
+  --background: var(--bg-app);
+  --foreground: var(--text-primary);
   
   /* Richer borders */
-  --border: 214 32% 91%;
+  --border: var(--border-subtle);
   
-  /* Cards with subtle depth */
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  /* Cards with subtle depth - lighter than bg-app for contrast */
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --card-border: var(--border-subtle);
   
   /* Dark sidebar for premium feel */
   --sidebar: 222 47% 11%;
@@ -138,15 +158,35 @@
   --elevate-1: rgba(255,255,255, .05);
   --elevate-2: rgba(255,255,255, .12);
   
-  /* Dark mode premium */
-  --background: 222 47% 8%;
-  --foreground: 210 40% 98%;
+  /* === ICY INDIGO DARK MODE TOKENS === */
+  /* App background - Deep indigo */
+  --bg-app: 222 47% 8%;
+  /* Surface - Cards/panels - slightly lighter */
+  --bg-surface: 222 47% 11%;
+  /* Surface secondary */
+  --bg-surface-2: 222 47% 14%;
+  /* Subtle borders */
+  --border-subtle: 217 33% 20%;
   
-  --border: 217 33% 17%;
+  /* Form inputs */
+  --input-bg: 222 47% 14%;
+  --input-border: 217 33% 30%;
+  --input-focus: 217 91% 60%;
   
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 17%;
+  /* Text hierarchy */
+  --text-primary: 210 40% 98%;
+  --text-secondary: 215 20% 70%;
+  --text-tertiary: 215 16% 55%;
+  
+  /* Dark mode premium - using tokens */
+  --background: var(--bg-app);
+  --foreground: var(--text-primary);
+  
+  --border: var(--border-subtle);
+  
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --card-border: var(--border-subtle);
   
   --sidebar: 222 47% 6%;
   --sidebar-foreground: 210 40% 98%;

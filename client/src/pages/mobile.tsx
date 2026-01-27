@@ -64,8 +64,8 @@ export default function MobilePage() {
   const initials = user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "?";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card px-4 py-3 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-bg-app flex flex-col">
+      <header className="border-b border-border-subtle bg-bg-surface px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
             <AvatarFallback className="bg-primary/10 text-primary font-medium">

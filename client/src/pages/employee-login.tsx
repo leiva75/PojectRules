@@ -60,7 +60,7 @@ export default function EmployeeLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-bg-app flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <Button 
           variant="ghost" 

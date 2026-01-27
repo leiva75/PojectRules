@@ -7,7 +7,7 @@ export default function NotFound() {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background p-6">
+    <div className="min-h-screen w-full flex items-center justify-center bg-bg-app p-6">
       <Card className="w-full max-w-md border-card-border">
         <CardContent className="pt-6">
           <div className="flex mb-4 gap-3 items-center">

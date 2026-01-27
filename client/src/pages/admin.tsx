@@ -845,7 +845,7 @@ export default function AdminPage() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-auto p-6 bg-background">
+          <main className="flex-1 overflow-auto p-6 bg-bg-app bg-gradient-to-b from-bg-app to-bg-surface-2/30">
             {activeTab === "dashboard" && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

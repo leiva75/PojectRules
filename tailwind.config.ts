@@ -11,6 +11,18 @@ export default {
         sm: ".1875rem", /* 3px */
       },
       colors: {
+        // === ICY INDIGO DESIGN TOKENS ===
+        "bg-app": "hsl(var(--bg-app) / <alpha-value>)",
+        "bg-surface": "hsl(var(--bg-surface) / <alpha-value>)",
+        "bg-surface-2": "hsl(var(--bg-surface-2) / <alpha-value>)",
+        "border-subtle": "hsl(var(--border-subtle) / <alpha-value>)",
+        "input-bg": "hsl(var(--input-bg) / <alpha-value>)",
+        "input-border": "hsl(var(--input-border) / <alpha-value>)",
+        "input-focus": "hsl(var(--input-focus) / <alpha-value>)",
+        "text-primary": "hsl(var(--text-primary) / <alpha-value>)",
+        "text-secondary": "hsl(var(--text-secondary) / <alpha-value>)",
+        "text-tertiary": "hsl(var(--text-tertiary) / <alpha-value>)",
+        
         // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",

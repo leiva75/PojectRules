@@ -184,8 +184,8 @@ export default function KioskPage() {
   const initials = employee ? `${employee.firstName?.[0] || ""}${employee.lastName?.[0] || ""}`.toUpperCase() : "";
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b bg-card px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-bg-app flex flex-col">
+      <header className="border-b border-border-subtle bg-bg-surface px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img 
             src={logoPath} 
