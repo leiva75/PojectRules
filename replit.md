@@ -53,6 +53,20 @@ A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia w
 - Audit trail: All overtime_create and overtime_review actions logged
 - CSV export includes Overtime_Minutos and Overtime_Estado columns
 
+## Premium Design System
+- **Sidebar**: Dark blue-black background (#0f172a) with light text
+- **Active states**: Blue accent bar on left side + highlighted background
+- **Section colors**: Each section has unique accent color:
+  - Dashboard: Blue (#3b82f6)
+  - Employees: Purple (#8b5cf6)
+  - Punches: Teal (#14b8a6)
+  - Revision: Amber (#f59e0b)
+  - Overtime: Cyan (#06b6d4)
+  - Reports: Indigo (#6366f1)
+- **Cards**: Subtle shadows, colored icon backgrounds (rounded squares)
+- **Lists**: Alternating row backgrounds (zebra striping)
+- **Informes**: CSV export merged into Reports section (no separate menu item)
+
 ## Test Accounts
 - Admin: `admin@cronosfichajes.es` / `admin123` (PIN: 000000)
 - Gerente: `gerente@cronosfichajes.es` / `manager123` (PIN: 111111)
