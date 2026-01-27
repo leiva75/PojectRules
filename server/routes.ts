@@ -30,6 +30,7 @@ import {
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
+import { generateReportPDF, type PunchRecord } from "./pdf-generator";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -1126,6 +1127,191 @@ export async function registerRoutes(
     } catch (error) {
       logError("Get signature URL error", error);
       res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Error al obtener firma" } });
+    }
+  });
+
+  app.get("/api/reports/general", authenticateAdminManager, async (req, res) => {
+    try {
+      const { period, year, month, week } = req.query;
+      
+      let startDate: Date;
+      let endDate: Date;
+      let subtitle: string;
+
+      const yearNum = parseInt(year as string) || new Date().getFullYear();
+      
+      if (period === "week") {
+        const weekNum = parseInt(week as string) || 1;
+        const jan4 = new Date(yearNum, 0, 4);
+        const dayOfWeek = jan4.getDay() || 7;
+        startDate = new Date(jan4);
+        startDate.setDate(jan4.getDate() - dayOfWeek + 1 + (weekNum - 1) * 7);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        subtitle = `Semana ${weekNum} - ${yearNum}`;
+      } else {
+        const monthNum = parseInt(month as string) || 1;
+        startDate = new Date(yearNum, monthNum - 1, 1);
+        endDate = new Date(yearNum, monthNum, 0, 23, 59, 59, 999);
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        subtitle = `${monthNames[monthNum - 1]} ${yearNum}`;
+      }
+
+      const punchesData = await storage.getAllPunchesForReport({ startDate, endDate });
+
+      const punchPairs = new Map<string, { in: typeof punchesData[0] | null; out: typeof punchesData[0] | null; employee: typeof punchesData[0]["employee"] }[]>();
+
+      for (const punch of punchesData) {
+        const dateKey = punch.timestamp.toISOString().split("T")[0];
+        const key = `${punch.employeeId}-${dateKey}`;
+        
+        if (!punchPairs.has(key)) {
+          punchPairs.set(key, []);
+        }
+        
+        const pairs = punchPairs.get(key)!;
+        
+        if (punch.type === "IN") {
+          pairs.push({ in: punch, out: null, employee: punch.employee });
+        } else {
+          const lastPair = pairs[pairs.length - 1];
+          if (lastPair && lastPair.in && !lastPair.out) {
+            lastPair.out = punch;
+          } else {
+            pairs.push({ in: null, out: punch, employee: punch.employee });
+          }
+        }
+      }
+
+      const records: PunchRecord[] = [];
+      for (const pairs of punchPairs.values()) {
+        for (const pair of pairs) {
+          records.push({
+            lastName: pair.employee.lastName,
+            firstName: pair.employee.firstName,
+            inTimestamp: pair.in?.timestamp ?? null,
+            inSignatureData: pair.in?.signatureData ?? null,
+            inLatitude: pair.in?.latitude ?? null,
+            inLongitude: pair.in?.longitude ?? null,
+            outTimestamp: pair.out?.timestamp ?? null,
+            outSignatureData: pair.out?.signatureData ?? null,
+            outLatitude: pair.out?.latitude ?? null,
+            outLongitude: pair.out?.longitude ?? null,
+          });
+        }
+      }
+
+      records.sort((a, b) => {
+        const nameCompare = (a.lastName + a.firstName).localeCompare(b.lastName + b.firstName);
+        if (nameCompare !== 0) return nameCompare;
+        const aTime = a.inTimestamp?.getTime() ?? a.outTimestamp?.getTime() ?? 0;
+        const bTime = b.inTimestamp?.getTime() ?? b.outTimestamp?.getTime() ?? 0;
+        return aTime - bTime;
+      });
+
+      const pdfBuffer = await generateReportPDF({
+        title: "Informe General de Fichajes",
+        subtitle,
+        records,
+        generatedAt: new Date(),
+      });
+
+      await storage.createAuditLog({
+        action: "export",
+        actorId: req.employee!.id,
+        targetType: "report",
+        targetId: "general",
+        details: { period, year: yearNum, month: month ? parseInt(month as string) : undefined, week: week ? parseInt(week as string) : undefined },
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="informe-general-${subtitle.replace(/\s+/g, "-")}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      logError("Report generation error", error);
+      res.status(500).json({ error: { code: "REPORT_ERROR", message: "Error al generar informe" } });
+    }
+  });
+
+  app.get("/api/reports/employee/:id", authenticateAdminManager, async (req, res) => {
+    try {
+      const employeeId = req.params.id;
+      const { startDate: startStr, endDate: endStr } = req.query;
+      
+      if (!startStr || !endStr) {
+        return res.status(400).json({ error: { code: "INVALID_DATES", message: "Fechas inicio y fin requeridas" } });
+      }
+
+      const startDate = new Date(startStr as string);
+      const endDate = new Date(endStr as string);
+      endDate.setHours(23, 59, 59, 999);
+
+      const diffDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays > 366) {
+        return res.status(400).json({ error: { code: "RANGE_TOO_LARGE", message: "El rango máximo es de 1 año" } });
+      }
+
+      const employee = await storage.getEmployee(employeeId);
+      if (!employee) {
+        return res.status(404).json({ error: { code: "EMPLOYEE_NOT_FOUND", message: "Empleado no encontrado" } });
+      }
+
+      const punchesData = await storage.getAllPunchesForReport({ startDate, endDate, employeeId });
+
+      const punchPairs: { in: typeof punchesData[0] | null; out: typeof punchesData[0] | null }[] = [];
+
+      for (const punch of punchesData) {
+        if (punch.type === "IN") {
+          punchPairs.push({ in: punch, out: null });
+        } else {
+          const lastPair = punchPairs[punchPairs.length - 1];
+          if (lastPair && lastPair.in && !lastPair.out) {
+            lastPair.out = punch;
+          } else {
+            punchPairs.push({ in: null, out: punch });
+          }
+        }
+      }
+
+      const records: PunchRecord[] = punchPairs.map(pair => ({
+        lastName: employee.lastName,
+        firstName: employee.firstName,
+        inTimestamp: pair.in?.timestamp ?? null,
+        inSignatureData: pair.in?.signatureData ?? null,
+        inLatitude: pair.in?.latitude ?? null,
+        inLongitude: pair.in?.longitude ?? null,
+        outTimestamp: pair.out?.timestamp ?? null,
+        outSignatureData: pair.out?.signatureData ?? null,
+        outLatitude: pair.out?.latitude ?? null,
+        outLongitude: pair.out?.longitude ?? null,
+      }));
+
+      const formatDate = (d: Date) => d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const subtitle = `${employee.lastName} ${employee.firstName} - Del ${formatDate(startDate)} al ${formatDate(endDate)}`;
+
+      const pdfBuffer = await generateReportPDF({
+        title: "Informe de Fichajes por Empleado",
+        subtitle,
+        records,
+        generatedAt: new Date(),
+      });
+
+      await storage.createAuditLog({
+        action: "export",
+        actorId: req.employee!.id,
+        targetType: "report",
+        targetId: employeeId,
+        details: { startDate: startStr, endDate: endStr, employeeName: `${employee.firstName} ${employee.lastName}` },
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="informe-${employee.lastName}-${employee.firstName}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      logError("Employee report generation error", error);
+      res.status(500).json({ error: { code: "REPORT_ERROR", message: "Error al generar informe" } });
     }
   });
 

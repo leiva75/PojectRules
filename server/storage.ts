@@ -25,6 +25,7 @@ export interface IStorage {
   getLastPunchByEmployee(employeeId: string): Promise<Punch | undefined>;
   getAllPunches(options?: { limit?: number; needsReview?: boolean; startDate?: Date; endDate?: Date; employeeId?: string }): Promise<(Punch & { employee: { id: string; firstName: string; lastName: string } })[]>;
   getAllPunchesForExport(options?: { startDate?: Date; endDate?: Date; employeeId?: string; limit?: number }): Promise<(Punch & { employee: { id: string; firstName: string; lastName: string }; reviewed: boolean; corrected: boolean })[]>;
+  getAllPunchesForReport(options: { startDate: Date; endDate: Date; employeeId?: string }): Promise<(Punch & { employee: { id: string; firstName: string; lastName: string } })[]>;
 
   createCorrection(correction: InsertPunchCorrection): Promise<PunchCorrection>;
   getCorrectionsByPunch(punchId: string): Promise<PunchCorrection[]>;
@@ -213,6 +214,49 @@ export class DatabaseStorage implements IStorage {
       reviewed: r.reviewId !== null,
       corrected: r.correctionId !== null,
     }));
+  }
+
+  async getAllPunchesForReport(options: { startDate: Date; endDate: Date; employeeId?: string }) {
+    const conditions = [
+      gte(punches.timestamp, options.startDate),
+      lte(punches.timestamp, options.endDate),
+    ];
+    
+    if (options.employeeId) {
+      conditions.push(eq(punches.employeeId, options.employeeId));
+    }
+
+    const results = await db
+      .select({
+        id: punches.id,
+        employeeId: punches.employeeId,
+        type: punches.type,
+        timestamp: punches.timestamp,
+        latitude: punches.latitude,
+        longitude: punches.longitude,
+        accuracy: punches.accuracy,
+        needsReview: punches.needsReview,
+        source: punches.source,
+        signatureUrl: punches.signatureUrl,
+        signatureData: punches.signatureData,
+        signatureSignedAt: punches.signatureSignedAt,
+        signatureSha256: punches.signatureSha256,
+        kioskDeviceId: punches.kioskDeviceId,
+        kioskUserAgent: punches.kioskUserAgent,
+        kioskIp: punches.kioskIp,
+        status: punches.status,
+        employee: {
+          id: employees.id,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        },
+      })
+      .from(punches)
+      .innerJoin(employees, eq(punches.employeeId, employees.id))
+      .where(and(...conditions))
+      .orderBy(employees.lastName, employees.firstName, punches.timestamp);
+
+    return results;
   }
 
   async createCorrection(correction: InsertPunchCorrection): Promise<PunchCorrection> {

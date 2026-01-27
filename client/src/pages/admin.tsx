@@ -200,10 +200,343 @@ interface KioskDevice {
   token?: string;
 }
 
+function ReportsTab({ employees }: { employees: Employee[] }) {
+  const { toast } = useToast();
+  const [reportType, setReportType] = useState<"general" | "employee">("general");
+  const [period, setPeriod] = useState<"month" | "week">("month");
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [week, setWeek] = useState(1);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+  const months = [
+    { value: 1, label: "Enero" },
+    { value: 2, label: "Febrero" },
+    { value: 3, label: "Marzo" },
+    { value: 4, label: "Abril" },
+    { value: 5, label: "Mayo" },
+    { value: 6, label: "Junio" },
+    { value: 7, label: "Julio" },
+    { value: 8, label: "Agosto" },
+    { value: 9, label: "Septiembre" },
+    { value: 10, label: "Octubre" },
+    { value: 11, label: "Noviembre" },
+    { value: 12, label: "Diciembre" },
+  ];
+  const weeks = Array.from({ length: 53 }, (_, i) => i + 1);
+
+  const handleGenerateGeneral = async () => {
+    setIsGenerating(true);
+    try {
+      const params = new URLSearchParams({
+        period,
+        year: year.toString(),
+        ...(period === "month" ? { month: month.toString() } : { week: week.toString() }),
+      });
+
+      const response = await fetch(`/api/reports/general?${params}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Error al generar informe");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `informe-general-${period === "month" ? `${year}-${month}` : `semana-${week}-${year}`}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Informe generado",
+        description: "El PDF se ha descargado correctamente",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al generar informe",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateEmployee = async () => {
+    if (!selectedEmployeeId || !startDate || !endDate) {
+      toast({
+        title: "Datos incompletos",
+        description: "Seleccione un empleado y el rango de fechas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+      });
+
+      const response = await fetch(`/api/reports/employee/${selectedEmployeeId}?${params}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Error al generar informe");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const emp = employees.find(e => e.id === selectedEmployeeId);
+      a.download = `informe-${emp?.lastName || "empleado"}-${emp?.firstName || ""}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Informe generado",
+        description: "El PDF se ha descargado correctamente",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al generar informe",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-card-border">
+        <CardHeader>
+          <CardTitle>Generar Informe PDF</CardTitle>
+          <CardDescription>
+            Descargue informes oficiales con firmas digitales y enlaces de ubicación
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex gap-4">
+            <Button
+              variant={reportType === "general" ? "default" : "outline"}
+              onClick={() => setReportType("general")}
+              data-testid="button-report-general"
+            >
+              Informe General
+            </Button>
+            <Button
+              variant={reportType === "employee" ? "default" : "outline"}
+              onClick={() => setReportType("employee")}
+              data-testid="button-report-employee"
+            >
+              Informe por Empleado
+            </Button>
+          </div>
+
+          {reportType === "general" && (
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+              <h3 className="font-medium">Informe General - Todos los Empleados</h3>
+              
+              <div className="flex gap-4 flex-wrap">
+                <div className="space-y-2">
+                  <Label>Período</Label>
+                  <Select value={period} onValueChange={(v) => setPeriod(v as "month" | "week")}>
+                    <SelectTrigger className="w-32" data-testid="select-period">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="month">Mes</SelectItem>
+                      <SelectItem value="week">Semana</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Año</Label>
+                  <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+                    <SelectTrigger className="w-24" data-testid="select-year">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((y) => (
+                        <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {period === "month" && (
+                  <div className="space-y-2">
+                    <Label>Mes</Label>
+                    <Select value={month.toString()} onValueChange={(v) => setMonth(parseInt(v))}>
+                      <SelectTrigger className="w-36" data-testid="select-month">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map((m) => (
+                          <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {period === "week" && (
+                  <div className="space-y-2">
+                    <Label>Semana ISO</Label>
+                    <Select value={week.toString()} onValueChange={(v) => setWeek(parseInt(v))}>
+                      <SelectTrigger className="w-24" data-testid="select-week">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {weeks.map((w) => (
+                          <SelectItem key={w} value={w.toString()}>S{w}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <Button 
+                onClick={handleGenerateGeneral} 
+                disabled={isGenerating}
+                data-testid="button-generate-general"
+              >
+                {isGenerating ? (
+                  <>
+                    <Activity className="h-4 w-4 mr-2 animate-spin" />
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Descargar PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {reportType === "employee" && (
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+              <h3 className="font-medium">Informe por Empleado</h3>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Empleado</Label>
+                  <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                    <SelectTrigger className="w-64" data-testid="select-employee">
+                      <SelectValue placeholder="Seleccionar empleado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.lastName} {emp.firstName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-4 flex-wrap">
+                  <div className="space-y-2">
+                    <Label>Fecha inicio</Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-40"
+                      data-testid="input-start-date"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Fecha fin</Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-40"
+                      data-testid="input-end-date"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  El rango máximo permitido es de 1 año
+                </p>
+              </div>
+
+              <Button 
+                onClick={handleGenerateEmployee} 
+                disabled={isGenerating || !selectedEmployeeId || !startDate || !endDate}
+                data-testid="button-generate-employee"
+              >
+                {isGenerating ? (
+                  <>
+                    <Activity className="h-4 w-4 mr-2 animate-spin" />
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Descargar PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-card-border">
+        <CardHeader>
+          <CardTitle>Contenido del Informe</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm space-y-2">
+            <p>Los informes PDF incluyen las siguientes columnas:</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Apellido</li>
+              <li>Nombre</li>
+              <li>Prise de service (Entrada) - Fecha y hora</li>
+              <li>Firma entrada - Imagen de la firma digital</li>
+              <li>Fin de service (Salida) - Fecha y hora</li>
+              <li>Firma salida - Imagen de la firma digital</li>
+              <li>Ubicación entrada - Enlace clicable a Google Maps</li>
+              <li>Ubicación salida - Enlace clicable a Google Maps</li>
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports" | "estado" | "kiosks">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports" | "estado" | "kiosks" | "reports">("dashboard");
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
@@ -382,7 +715,8 @@ export default function AdminPage() {
     { id: "punches", label: "Fichajes", icon: Clock },
     { id: "revision", label: "Revisión", icon: ClipboardCheck },
     { id: "overtime", label: "Horas Extra", icon: Timer },
-    { id: "exports", label: "Exportaciones", icon: FileText },
+    { id: "reports", label: "Informes PDF", icon: FileText },
+    { id: "exports", label: "Exportar CSV", icon: Download },
     { id: "kiosks", label: "Quioscos", icon: Monitor },
     { id: "estado", label: "Estado", icon: Activity },
   ];
@@ -1101,6 +1435,8 @@ export default function AdminPage() {
             )}
 
             {activeTab === "estado" && <EstadoTab />}
+
+            {activeTab === "reports" && <ReportsTab employees={employees || []} />}
           </main>
         </div>
       </div>
