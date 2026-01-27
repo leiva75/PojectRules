@@ -38,13 +38,15 @@ const COLORS = {
   navyDark: "#0f172a",
   navyMedium: "#1e3a5f",
   navyLight: "#334155",
-  textPrimary: "#1a1a1a",
-  textSecondary: "#4b5563",
+  textPrimary: "#0f172a",
+  textSecondary: "#374151",
   textMuted: "#6b7280",
-  zebraLight: "#e8eef4",
+  zebraLight: "#dce5f0",
   zebraWhite: "#ffffff",
-  linkBlue: "#3366aa",
-  borderLight: "#d1d5db",
+  linkBadge: "#475569",
+  linkBadgeBg: "#e2e8f0",
+  borderLight: "#94a3b8",
+  borderRow: "#cbd5e1",
   bgPage: "#fafbfc",
   white: "#ffffff",
 };
@@ -151,49 +153,49 @@ function drawHeader(
 
   if (logoBuffer) {
     try {
-      doc.image(logoBuffer, marginLeft, y, { height: 40 });
+      doc.image(logoBuffer, marginLeft, y, { height: 45 });
     } catch {
     }
   }
 
   doc
-    .fontSize(16)
+    .fontSize(18)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyDark)
-    .text("CRONOS FICHAJES", marginLeft + 55, y + 5, { align: "left" });
+    .text("CRONOS FICHAJES", marginLeft + 58, y + 6, { align: "left" });
 
   doc
-    .fontSize(11)
+    .fontSize(14)
     .font("Helvetica-Bold")
     .fillColor(COLORS.textPrimary)
-    .text(options.title, marginLeft, y + 24, { align: "center", width: pageWidth });
+    .text(options.title, marginLeft, y + 28, { align: "center", width: pageWidth });
 
-  const rightX = marginLeft + pageWidth - 150;
+  const rightX = marginLeft + pageWidth - 160;
   doc
-    .fontSize(8)
+    .fontSize(9)
     .font("Helvetica")
-    .fillColor(COLORS.textMuted)
-    .text(`Generado: ${formatDateTime(options.generatedAt)}`, rightX, y, { width: 150, align: "right" });
+    .fillColor(COLORS.textSecondary)
+    .text(`Generado: ${formatDateTime(options.generatedAt)}`, rightX, y, { width: 160, align: "right" });
 
   if (options.periodStart && options.periodEnd) {
     doc.text(
       `Período: ${formatDate(options.periodStart)} - ${formatDate(options.periodEnd)}`,
       rightX,
-      y + 12,
-      { width: 150, align: "right" }
+      y + 14,
+      { width: 160, align: "right" }
     );
   }
 
-  y += 48;
+  y += 52;
 
   doc
     .moveTo(marginLeft, y)
     .lineTo(marginLeft + pageWidth, y)
     .strokeColor(COLORS.borderLight)
-    .lineWidth(1)
+    .lineWidth(1.5)
     .stroke();
 
-  return y + 8;
+  return y + 10;
 }
 
 function drawSummaryBlock(
@@ -206,9 +208,9 @@ function drawSummaryBlock(
   const marginLeft = doc.page.margins.left;
   let y = doc.y + 5;
 
-  const blockHeight = 40;
+  const blockHeight = 45;
   const blockCount = options.isEmployeeReport ? 3 : 4;
-  const blockWidth = (pageWidth - (blockCount - 1) * 10) / blockCount;
+  const blockWidth = (pageWidth - (blockCount - 1) * 12) / blockCount;
 
   const periodLabel = options.periodStart && options.periodEnd 
     ? `${formatDate(options.periodStart)} - ${formatDate(options.periodEnd)}`
@@ -229,26 +231,26 @@ function drawSummaryBlock(
 
   let x = marginLeft;
   for (const item of summaryItems) {
-    doc.rect(x, y, blockWidth, blockHeight).fillColor("#f1f5f9").fill();
+    doc.rect(x, y, blockWidth, blockHeight).fillColor("#e8f0f8").fill();
 
-    doc.rect(x, y, blockWidth, blockHeight).strokeColor(COLORS.borderLight).lineWidth(0.5).stroke();
-
-    doc
-      .fontSize(7)
-      .font("Helvetica")
-      .fillColor(COLORS.textMuted)
-      .text(item.label.toUpperCase(), x + 8, y + 8, { width: blockWidth - 16 });
+    doc.rect(x, y, blockWidth, blockHeight).strokeColor(COLORS.borderLight).lineWidth(0.75).stroke();
 
     doc
-      .fontSize(11)
+      .fontSize(8)
+      .font("Helvetica-Bold")
+      .fillColor(COLORS.textSecondary)
+      .text(item.label.toUpperCase(), x + 10, y + 10, { width: blockWidth - 20 });
+
+    doc
+      .fontSize(13)
       .font("Helvetica-Bold")
       .fillColor(COLORS.textPrimary)
-      .text(item.value, x + 8, y + 20, { width: blockWidth - 16 });
+      .text(item.value, x + 10, y + 24, { width: blockWidth - 20 });
 
-    x += blockWidth + 10;
+    x += blockWidth + 12;
   }
 
-  return y + blockHeight + 15;
+  return y + blockHeight + 18;
 }
 
 function drawTableHeader(
@@ -258,20 +260,26 @@ function drawTableHeader(
   pageWidth: number
 ): number {
   const marginLeft = doc.page.margins.left;
+  const headerHeight = 26;
 
-  doc.rect(marginLeft, y, pageWidth, 22).fill(COLORS.navyMedium);
+  doc.rect(marginLeft, y, pageWidth, headerHeight).fill(COLORS.navyDark);
 
-  doc.rect(marginLeft, y + 22, pageWidth, 0).strokeColor(COLORS.navyDark).lineWidth(2).stroke();
+  doc
+    .moveTo(marginLeft, y + headerHeight)
+    .lineTo(marginLeft + pageWidth, y + headerHeight)
+    .strokeColor(COLORS.navyMedium)
+    .lineWidth(2)
+    .stroke();
 
-  doc.fillColor(COLORS.white).fontSize(8).font("Helvetica-Bold");
+  doc.fillColor(COLORS.white).fontSize(9).font("Helvetica-Bold");
 
-  let x = marginLeft + 5;
+  let x = marginLeft + 6;
   for (const header of headers) {
-    doc.text(header.text, x, y + 7, { width: header.width - 10, align: "left" });
+    doc.text(header.text, x, y + 9, { width: header.width - 10, align: "left" });
     x += header.width;
   }
 
-  return y + 24;
+  return y + headerHeight + 2;
 }
 
 export async function generateReportPDF(options: ReportOptions): Promise<Buffer> {
@@ -279,7 +287,7 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
     const doc = new PDFDocument({
       size: "A4",
       layout: "landscape",
-      margins: { top: 35, bottom: 35, left: 25, right: 25 },
+      margins: { top: 28, bottom: 28, left: 28, right: 28 },
       bufferPages: true,
     });
 
@@ -352,34 +360,34 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
     y = drawSummaryBlock(doc, options, pageWidth, totalMinutes, uniqueEmployees.size);
 
     const colWidths = {
-      lastName: 65,
-      firstName: 65,
-      inTime: 82,
-      inSig: 55,
-      outTime: 82,
-      outSig: 55,
-      duration: 50,
-      inLoc: 80,
-      outLoc: 80,
+      lastName: 68,
+      firstName: 68,
+      inTime: 80,
+      inSig: 115,
+      outTime: 80,
+      outSig: 115,
+      duration: 52,
+      inLoc: 60,
+      outLoc: 60,
     };
 
     const headers = [
-      { text: "Apellido", width: colWidths.lastName },
-      { text: "Nombre", width: colWidths.firstName },
-      { text: "Entrada", width: colWidths.inTime },
-      { text: "Firma Ent.", width: colWidths.inSig },
-      { text: "Salida", width: colWidths.outTime },
-      { text: "Firma Sal.", width: colWidths.outSig },
-      { text: "Duración", width: colWidths.duration },
-      { text: "Ubic. Ent.", width: colWidths.inLoc },
-      { text: "Ubic. Sal.", width: colWidths.outLoc },
+      { text: "APELLIDO", width: colWidths.lastName },
+      { text: "NOMBRE", width: colWidths.firstName },
+      { text: "ENTRADA", width: colWidths.inTime },
+      { text: "FIRMA ENT.", width: colWidths.inSig },
+      { text: "SALIDA", width: colWidths.outTime },
+      { text: "FIRMA SAL.", width: colWidths.outSig },
+      { text: "DURACIÓN", width: colWidths.duration },
+      { text: "UBIC. ENT.", width: colWidths.inLoc },
+      { text: "UBIC. SAL.", width: colWidths.outLoc },
     ];
 
     y = drawTableHeader(doc, headers, y, pageWidth);
 
-    const ROW_HEIGHT = 42;
-    const SIG_HEIGHT = 32;
-    const SIG_WIDTH = 45;
+    const ROW_HEIGHT = 70;
+    const SIG_HEIGHT = 56;
+    const SIG_WIDTH = 110;
 
     for (let i = 0; i < processedRecords.length; i++) {
       const record = processedRecords[i];
@@ -396,138 +404,165 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
       doc
         .moveTo(doc.page.margins.left, y + ROW_HEIGHT)
         .lineTo(doc.page.margins.left + pageWidth, y + ROW_HEIGHT)
-        .strokeColor("#e5e7eb")
-        .lineWidth(0.3)
+        .strokeColor(COLORS.borderRow)
+        .lineWidth(0.75)
         .stroke();
 
-      doc.fillColor(COLORS.textPrimary).fontSize(7).font("Helvetica");
+      doc.fillColor(COLORS.textPrimary).fontSize(12).font("Helvetica");
 
-      let x = doc.page.margins.left + 5;
-      const textY = y + 6;
+      let x = doc.page.margins.left + 6;
+      const textY = y + 16;
 
-      doc.font("Helvetica-Bold").text(record.lastName || "-", x, textY, { width: colWidths.lastName - 10 });
+      doc.font("Helvetica-Bold").fontSize(12).text(record.lastName || "-", x, textY, { width: colWidths.lastName - 4 });
       x += colWidths.lastName;
 
-      doc.font("Helvetica").text(record.firstName || "-", x, textY, { width: colWidths.firstName - 10 });
+      doc.font("Helvetica").fontSize(12).text(record.firstName || "-", x, textY, { width: colWidths.firstName - 4 });
       x += colWidths.firstName;
 
-      doc.text(formatDateTime(record.inTimestamp), x, textY, { width: colWidths.inTime - 10 });
+      doc.fontSize(10).text(formatDateTime(record.inTimestamp), x, textY, { width: colWidths.inTime - 4 });
       x += colWidths.inTime;
 
-      // Use pre-processed signature buffer
+      // Signature cell with white background and border
+      const sigCellY = y + 4;
+      const sigCellHeight = SIG_HEIGHT + 4;
+      
+      doc.rect(x + 2, sigCellY, SIG_WIDTH, sigCellHeight).fill(COLORS.white);
+      doc.rect(x + 2, sigCellY, SIG_WIDTH, sigCellHeight).strokeColor(COLORS.borderLight).lineWidth(0.75).stroke();
+      
       if (record.inSignatureBuffer) {
         try {
-          doc.rect(x + 2, y + 4, SIG_WIDTH, SIG_HEIGHT).strokeColor("#d1d5db").lineWidth(0.5).stroke();
-          doc.image(record.inSignatureBuffer, x + 3, y + 5, { width: SIG_WIDTH - 2, height: SIG_HEIGHT - 2, fit: [SIG_WIDTH - 2, SIG_HEIGHT - 2] });
+          doc.image(record.inSignatureBuffer, x + 4, sigCellY + 2, { 
+            fit: [SIG_WIDTH - 4, sigCellHeight - 4],
+            align: "center",
+            valign: "center"
+          });
         } catch {
-          doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.inSig - 10, align: "center" });
+          doc.fillColor(COLORS.textMuted).fontSize(8).text("(firma)", x + 2, sigCellY + sigCellHeight / 2 - 4, { width: SIG_WIDTH, align: "center" });
         }
       } else if (record.inSignatureSkipped) {
-        // Signature exists but was skipped due to limit
-        doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.inSig - 10, align: "center" });
+        doc.fillColor(COLORS.textMuted).fontSize(8).text("(firma)", x + 2, sigCellY + sigCellHeight / 2 - 4, { width: SIG_WIDTH, align: "center" });
       } else {
-        doc.fillColor(COLORS.textMuted).text("-", x, textY + 10, { width: colWidths.inSig - 10, align: "center" });
+        doc.fillColor(COLORS.textMuted).fontSize(10).text("—", x + 2, sigCellY + sigCellHeight / 2 - 5, { width: SIG_WIDTH, align: "center" });
       }
       x += colWidths.inSig;
 
-      doc.fillColor(COLORS.textPrimary).text(formatDateTime(record.outTimestamp), x, textY, { width: colWidths.outTime - 10 });
+      doc.fillColor(COLORS.textPrimary).fontSize(10).text(formatDateTime(record.outTimestamp), x, textY, { width: colWidths.outTime - 4 });
       x += colWidths.outTime;
 
-      // Use pre-processed signature buffer
+      // Signature cell with white background and border
+      doc.rect(x + 2, sigCellY, SIG_WIDTH, sigCellHeight).fill(COLORS.white);
+      doc.rect(x + 2, sigCellY, SIG_WIDTH, sigCellHeight).strokeColor(COLORS.borderLight).lineWidth(0.75).stroke();
+      
       if (record.outSignatureBuffer) {
         try {
-          doc.rect(x + 2, y + 4, SIG_WIDTH, SIG_HEIGHT).strokeColor("#d1d5db").lineWidth(0.5).stroke();
-          doc.image(record.outSignatureBuffer, x + 3, y + 5, { width: SIG_WIDTH - 2, height: SIG_HEIGHT - 2, fit: [SIG_WIDTH - 2, SIG_HEIGHT - 2] });
+          doc.image(record.outSignatureBuffer, x + 4, sigCellY + 2, { 
+            fit: [SIG_WIDTH - 4, sigCellHeight - 4],
+            align: "center",
+            valign: "center"
+          });
         } catch {
-          doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.outSig - 10, align: "center" });
+          doc.fillColor(COLORS.textMuted).fontSize(8).text("(firma)", x + 2, sigCellY + sigCellHeight / 2 - 4, { width: SIG_WIDTH, align: "center" });
         }
       } else if (record.outSignatureSkipped) {
-        // Signature exists but was skipped due to limit
-        doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.outSig - 10, align: "center" });
+        doc.fillColor(COLORS.textMuted).fontSize(8).text("(firma)", x + 2, sigCellY + sigCellHeight / 2 - 4, { width: SIG_WIDTH, align: "center" });
       } else {
-        doc.fillColor(COLORS.textMuted).text("-", x, textY + 10, { width: colWidths.outSig - 10, align: "center" });
+        doc.fillColor(COLORS.textMuted).fontSize(10).text("—", x + 2, sigCellY + sigCellHeight / 2 - 5, { width: SIG_WIDTH, align: "center" });
       }
       x += colWidths.outSig;
 
       const duration = calculateDurationMinutes(record.inTimestamp, record.outTimestamp);
       const durationStr = formatDuration(duration);
+      const durationY = y + ROW_HEIGHT / 2 - 7;
       doc
         .fillColor(duration !== null ? COLORS.textPrimary : COLORS.textMuted)
+        .fontSize(12)
         .font("Helvetica-Bold")
-        .text(durationStr, x, textY + 10, { width: colWidths.duration - 10, align: "center" });
+        .text(durationStr, x, durationY, { width: colWidths.duration - 6, align: "center" });
       doc.font("Helvetica");
       x += colWidths.duration;
 
+      // Map link badges
+      const badgeY = y + ROW_HEIGHT / 2 - 8;
+      const badgeWidth = 52;
+      const badgeHeight = 16;
+      
       const inMapUrl = getMapUrl(record.inLatitude, record.inLongitude);
       if (inMapUrl) {
+        doc.rect(x + 2, badgeY, badgeWidth, badgeHeight).fill(COLORS.linkBadgeBg);
+        doc.rect(x + 2, badgeY, badgeWidth, badgeHeight).strokeColor(COLORS.borderLight).lineWidth(0.5).stroke();
         doc
-          .fillColor(COLORS.linkBlue)
-          .fontSize(6)
-          .text("Ver mapa", x, textY + 10, {
-            width: colWidths.inLoc - 10,
+          .fillColor(COLORS.linkBadge)
+          .fontSize(8)
+          .text("Ver mapa", x + 2, badgeY + 4, {
+            width: badgeWidth,
             link: inMapUrl,
             underline: false,
+            align: "center",
           });
       } else {
-        doc.fillColor(COLORS.textMuted).fontSize(7).text("-", x, textY + 10, { width: colWidths.inLoc - 10 });
+        doc.fillColor(COLORS.textMuted).fontSize(11).text("—", x, badgeY + 3, { width: colWidths.inLoc - 8, align: "center" });
       }
       x += colWidths.inLoc;
 
       const outMapUrl = getMapUrl(record.outLatitude, record.outLongitude);
       if (outMapUrl) {
+        doc.rect(x + 2, badgeY, badgeWidth, badgeHeight).fill(COLORS.linkBadgeBg);
+        doc.rect(x + 2, badgeY, badgeWidth, badgeHeight).strokeColor(COLORS.borderLight).lineWidth(0.5).stroke();
         doc
-          .fillColor(COLORS.linkBlue)
-          .fontSize(6)
-          .text("Ver mapa", x, textY + 10, {
-            width: colWidths.outLoc - 10,
+          .fillColor(COLORS.linkBadge)
+          .fontSize(8)
+          .text("Ver mapa", x + 2, badgeY + 4, {
+            width: badgeWidth,
             link: outMapUrl,
             underline: false,
+            align: "center",
           });
       } else {
-        doc.fillColor(COLORS.textMuted).fontSize(7).text("-", x, textY + 10, { width: colWidths.outLoc - 10 });
+        doc.fillColor(COLORS.textMuted).fontSize(11).text("—", x, badgeY + 3, { width: colWidths.outLoc - 8, align: "center" });
       }
 
       y += ROW_HEIGHT;
     }
 
     if (options.isEmployeeReport && completedPairsCount > 0) {
-      y += 10;
-      const totalBlockWidth = 200;
+      y += 12;
+      const totalBlockWidth = 220;
+      const totalBlockHeight = 42;
       const totalBlockX = doc.page.margins.left + pageWidth - totalBlockWidth;
 
-      doc.rect(totalBlockX, y, totalBlockWidth, 35).fill("#f1f5f9");
-      doc.rect(totalBlockX, y, totalBlockWidth, 35).strokeColor(COLORS.navyMedium).lineWidth(1).stroke();
+      doc.rect(totalBlockX, y, totalBlockWidth, totalBlockHeight).fill("#e8f0f8");
+      doc.rect(totalBlockX, y, totalBlockWidth, totalBlockHeight).strokeColor(COLORS.navyMedium).lineWidth(1.5).stroke();
 
       doc
-        .fontSize(9)
+        .fontSize(10)
         .font("Helvetica-Bold")
         .fillColor(COLORS.navyMedium)
-        .text("TOTAL PERÍODO:", totalBlockX + 10, y + 8);
+        .text("TOTAL PERÍODO:", totalBlockX + 12, y + 10);
 
       doc
-        .fontSize(14)
+        .fontSize(16)
         .font("Helvetica-Bold")
         .fillColor(COLORS.textPrimary)
-        .text(formatDurationShort(totalMinutes), totalBlockX + 10, y + 18, { width: totalBlockWidth - 20, align: "right" });
+        .text(formatDurationShort(totalMinutes), totalBlockX + 12, y + 22, { width: totalBlockWidth - 24, align: "right" });
     }
 
     const totalPages = doc.bufferedPageRange().count;
     for (let i = 0; i < totalPages; i++) {
       doc.switchToPage(i);
 
-      const footerY = doc.page.height - 25;
+      const footerY = doc.page.height - 22;
 
       doc
-        .moveTo(doc.page.margins.left, footerY - 5)
-        .lineTo(doc.page.margins.left + pageWidth, footerY - 5)
+        .moveTo(doc.page.margins.left, footerY - 6)
+        .lineTo(doc.page.margins.left + pageWidth, footerY - 6)
         .strokeColor(COLORS.borderLight)
-        .lineWidth(0.5)
+        .lineWidth(0.75)
         .stroke();
 
       doc
-        .fontSize(7)
+        .fontSize(8)
         .font("Helvetica")
-        .fillColor(COLORS.textMuted)
+        .fillColor(COLORS.textSecondary)
         .text("CronosFichajes.es", doc.page.margins.left, footerY, { align: "left", width: pageWidth / 2 });
 
       doc.text(`Página ${i + 1} de ${totalPages}`, doc.page.margins.left + pageWidth / 2, footerY, {
