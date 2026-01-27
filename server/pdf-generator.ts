@@ -3,6 +3,13 @@ import { PassThrough } from "stream";
 import * as fs from "fs";
 import * as path from "path";
 
+// Cache logo at module level to avoid repeated file reads
+let cachedLogoBuffer: Buffer | null = null;
+let logoLoadAttempted = false;
+
+// Maximum signatures per PDF to prevent memory issues
+const MAX_SIGNATURES_PER_PDF = 100;
+
 export interface PunchRecord {
   lastName: string;
   firstName: string;
@@ -90,6 +97,11 @@ function formatDurationShort(minutes: number): string {
 }
 
 function getLogoBuffer(): Buffer | null {
+  if (logoLoadAttempted) {
+    return cachedLogoBuffer;
+  }
+  logoLoadAttempted = true;
+  
   try {
     const possiblePaths = [
       path.join(process.cwd(), "server", "assets", "logo.png"),
@@ -97,13 +109,35 @@ function getLogoBuffer(): Buffer | null {
     ];
     for (const logoPath of possiblePaths) {
       if (fs.existsSync(logoPath)) {
-        return fs.readFileSync(logoPath);
+        cachedLogoBuffer = fs.readFileSync(logoPath);
+        return cachedLogoBuffer;
       }
     }
   } catch (error) {
     console.warn("Could not load logo for PDF:", error);
   }
   return null;
+}
+
+// Pre-convert base64 signature to Buffer (only once per signature)
+function signatureToBuffer(signatureData: string | null): Buffer | null {
+  if (!signatureData || !signatureData.startsWith("data:image")) {
+    return null;
+  }
+  try {
+    const base64Data = signatureData.split(",")[1];
+    if (!base64Data) return null;
+    return Buffer.from(base64Data, "base64");
+  } catch {
+    return null;
+  }
+}
+
+interface ProcessedRecord extends PunchRecord {
+  inSignatureBuffer: Buffer | null;
+  outSignatureBuffer: Buffer | null;
+  inSignatureSkipped: boolean;
+  outSignatureSkipped: boolean;
 }
 
 function drawHeader(
@@ -265,14 +299,52 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
     let completedPairsCount = 0;
     const uniqueEmployees = new Set<string>();
 
-    for (const record of options.records) {
+    // Pre-process signatures to avoid repeated base64 decoding in loop
+    let signatureCount = 0;
+    const processedRecords: ProcessedRecord[] = options.records.map((record) => {
       const duration = calculateDurationMinutes(record.inTimestamp, record.outTimestamp);
       if (duration !== null && duration >= 0) {
         totalMinutes += duration;
         completedPairsCount++;
       }
       uniqueEmployees.add(`${record.lastName}-${record.firstName}`);
-    }
+      
+      // Only process signatures if under limit
+      let inSigBuffer: Buffer | null = null;
+      let outSigBuffer: Buffer | null = null;
+      let inSigSkipped = false;
+      let outSigSkipped = false;
+      
+      // Check if signature is valid (starts with data:image)
+      const hasValidInSig = record.inSignatureData?.startsWith("data:image");
+      const hasValidOutSig = record.outSignatureData?.startsWith("data:image");
+      
+      if (hasValidInSig) {
+        if (signatureCount < MAX_SIGNATURES_PER_PDF) {
+          inSigBuffer = signatureToBuffer(record.inSignatureData);
+          if (inSigBuffer) signatureCount++;
+        } else {
+          inSigSkipped = true; // Over limit, mark as skipped
+        }
+      }
+      
+      if (hasValidOutSig) {
+        if (signatureCount < MAX_SIGNATURES_PER_PDF) {
+          outSigBuffer = signatureToBuffer(record.outSignatureData);
+          if (outSigBuffer) signatureCount++;
+        } else {
+          outSigSkipped = true; // Over limit, mark as skipped
+        }
+      }
+      
+      return {
+        ...record,
+        inSignatureBuffer: inSigBuffer,
+        outSignatureBuffer: outSigBuffer,
+        inSignatureSkipped: inSigSkipped,
+        outSignatureSkipped: outSigSkipped,
+      };
+    });
 
     let y = drawHeader(doc, options, pageWidth, logoBuffer);
     doc.y = y;
@@ -309,8 +381,8 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
     const SIG_HEIGHT = 32;
     const SIG_WIDTH = 45;
 
-    for (let i = 0; i < options.records.length; i++) {
-      const record = options.records[i];
+    for (let i = 0; i < processedRecords.length; i++) {
+      const record = processedRecords[i];
 
       if (y + ROW_HEIGHT > doc.page.height - doc.page.margins.bottom - 25) {
         doc.addPage();
@@ -342,15 +414,17 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
       doc.text(formatDateTime(record.inTimestamp), x, textY, { width: colWidths.inTime - 10 });
       x += colWidths.inTime;
 
-      if (record.inSignatureData && record.inSignatureData.startsWith("data:image")) {
+      // Use pre-processed signature buffer
+      if (record.inSignatureBuffer) {
         try {
-          const base64Data = record.inSignatureData.split(",")[1];
-          const imageBuffer = Buffer.from(base64Data, "base64");
           doc.rect(x + 2, y + 4, SIG_WIDTH, SIG_HEIGHT).strokeColor("#d1d5db").lineWidth(0.5).stroke();
-          doc.image(imageBuffer, x + 3, y + 5, { width: SIG_WIDTH - 2, height: SIG_HEIGHT - 2, fit: [SIG_WIDTH - 2, SIG_HEIGHT - 2] });
+          doc.image(record.inSignatureBuffer, x + 3, y + 5, { width: SIG_WIDTH - 2, height: SIG_HEIGHT - 2, fit: [SIG_WIDTH - 2, SIG_HEIGHT - 2] });
         } catch {
           doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.inSig - 10, align: "center" });
         }
+      } else if (record.inSignatureSkipped) {
+        // Signature exists but was skipped due to limit
+        doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.inSig - 10, align: "center" });
       } else {
         doc.fillColor(COLORS.textMuted).text("-", x, textY + 10, { width: colWidths.inSig - 10, align: "center" });
       }
@@ -359,15 +433,17 @@ export async function generateReportPDF(options: ReportOptions): Promise<Buffer>
       doc.fillColor(COLORS.textPrimary).text(formatDateTime(record.outTimestamp), x, textY, { width: colWidths.outTime - 10 });
       x += colWidths.outTime;
 
-      if (record.outSignatureData && record.outSignatureData.startsWith("data:image")) {
+      // Use pre-processed signature buffer
+      if (record.outSignatureBuffer) {
         try {
-          const base64Data = record.outSignatureData.split(",")[1];
-          const imageBuffer = Buffer.from(base64Data, "base64");
           doc.rect(x + 2, y + 4, SIG_WIDTH, SIG_HEIGHT).strokeColor("#d1d5db").lineWidth(0.5).stroke();
-          doc.image(imageBuffer, x + 3, y + 5, { width: SIG_WIDTH - 2, height: SIG_HEIGHT - 2, fit: [SIG_WIDTH - 2, SIG_HEIGHT - 2] });
+          doc.image(record.outSignatureBuffer, x + 3, y + 5, { width: SIG_WIDTH - 2, height: SIG_HEIGHT - 2, fit: [SIG_WIDTH - 2, SIG_HEIGHT - 2] });
         } catch {
           doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.outSig - 10, align: "center" });
         }
+      } else if (record.outSignatureSkipped) {
+        // Signature exists but was skipped due to limit
+        doc.fillColor(COLORS.textMuted).text("(firma)", x, textY + 10, { width: colWidths.outSig - 10, align: "center" });
       } else {
         doc.fillColor(COLORS.textMuted).text("-", x, textY + 10, { width: colWidths.outSig - 10, align: "center" });
       }
