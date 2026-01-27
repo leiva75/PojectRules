@@ -1,0 +1,81 @@
+Tu es un UI designer senior. Objectif : améliorer une web-app dont la sidebar est en bleu profond premium (nav à gauche), mais dont les pages de contenu sont trop blanches et manquent de profondeur.
+
+Contexte visuel
+
+Sidebar actuelle : bleu profond premium (conserver l’esprit : sérieux, “enterprise”, propre).
+
+Problème : le contenu principal est blanc pur, trop plat.
+
+Contraintes : ne pas pénaliser la lecture et surtout la saisie de formulaires (inputs, tables, cartes).
+
+Ce que je veux
+
+Remplacer le fond blanc des zones de contenu par une teinte claire compatible avec le bleu profond, qui apporte de la profondeur (style “brume froide” / “papier bleuté” / “gris bleuté”), sans devenir sombre.
+
+Appliquer le changement globalement à toute l’app : toutes les pages, tous les composants, tous les états.
+
+Mettre en place un design system avec tokens (variables CSS) :
+
+--bg-app (fond global)
+
+--bg-surface (cartes/panels)
+
+--bg-surface-2 (surfaces secondaires)
+
+--border-subtle
+
+--text-primary, --text-secondary
+
+--input-bg, --input-border, --input-focus
+
+Conserver des surfaces de contenu (cards / panels) plus claires que le fond global pour garder la lisibilité.
+
+Ajouter de la profondeur via :
+
+légère différence de luminance entre bg-app et bg-surface
+
+bordures subtiles + ombres très soft (pas “Material 2016”)
+
+éventuellement un dégradé très léger sur le fond global (vertical, 2–4% max).
+
+Accessibilité & lisibilité (non négociable)
+
+Texte principal sur surfaces : contraste élevé (vise WCAG AA).
+
+Inputs :
+
+fond input neutre et lisible
+
+focus ring net (teinte dérivée du bleu sidebar)
+
+états hover/disabled/error clairs
+
+Tables : zébrage subtil si besoin, séparateurs fins.
+
+Propositions attendues
+
+Donne 3 options de palette (toutes compatibles avec un bleu profond), par exemple :
+
+Option A : gris bleuté / cool gray
+
+Option B : indigo très pâle / ardoise
+
+Option C : bleu brume / “ice”
+
+Pour chaque option :
+
+valeurs hex des tokens principaux
+
+exemple d’application : fond global + cartes + formulaires + tables + boutons
+
+règles d’ombre/bordure (intensité faible)
+
+Sortie finale : un set de variables CSS + recommandations d’usage (quels composants utilisent quels tokens).
+
+Style recherché
+
+Moderne, “SaaS premium”, sobre.
+
+Pas de blanc pur comme fond global.
+
+Ambiance : profondeur élégante, pas gothique.
