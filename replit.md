@@ -53,18 +53,39 @@ A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia w
 - Audit trail: All overtime_create and overtime_review actions logged
 - CSV export includes Overtime_Minutos and Overtime_Estado columns
 
-## Premium Design System
+## Premium Design System - Icy Indigo Palette
+
+### Color Tokens (CSS Variables)
+| Token | Light Mode | Description |
+|-------|------------|-------------|
+| `--bg-app` | #eef2ff | Pale indigo app background |
+| `--bg-surface` | #f8fafc | Near-white for cards/panels |
+| `--bg-surface-2` | #e0e7ff | Light indigo for alternating rows |
+| `--border-subtle` | #c7d2fe | Subtle indigo borders |
+| `--input-bg` | #ffffff | White input backgrounds |
+| `--input-border` | #a5b4fc | Indigo input borders |
+| `--input-focus` | #1e40af | Blue focus rings |
+
+### Visual Hierarchy
 - **Sidebar**: Dark blue-black background (#0f172a) with light text
 - **Active states**: Blue accent bar on left side + highlighted background
-- **Section colors**: Each section has unique accent color:
-  - Dashboard: Blue (#3b82f6)
-  - Employees: Purple (#8b5cf6)
-  - Punches: Teal (#14b8a6)
-  - Revision: Amber (#f59e0b)
-  - Overtime: Cyan (#06b6d4)
-  - Reports: Indigo (#6366f1)
+- **Content areas**: Subtle indigo tint (NOT pure white) for depth
+- **Cards**: Lighter than background (creates layered depth effect)
+- **Inputs**: White backgrounds that stand out from page background
+
+### Section Accent Colors
+| Section | Color | Hex |
+|---------|-------|-----|
+| Dashboard | Blue | #3b82f6 |
+| Employees | Purple | #8b5cf6 |
+| Punches | Teal | #14b8a6 |
+| Revision | Amber | #f59e0b |
+| Overtime | Cyan | #06b6d4 |
+| Reports | Indigo | #6366f1 |
+
+### Component Styling
 - **Cards**: Subtle shadows, colored icon backgrounds (rounded squares)
-- **Lists**: Alternating row backgrounds (zebra striping)
+- **Lists**: Alternating row backgrounds using bg-surface-2
 - **Informes**: CSV export merged into Reports section (no separate menu item)
 
 ## Test Accounts
