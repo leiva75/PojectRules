@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PunchButton } from "@/components/punch-button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { SignaturePad } from "@/components/signature-pad";
 import { useToast } from "@/hooks/use-toast";
 import { X, Delete, Loader2, AlertTriangle } from "lucide-react";
 import type { Employee, PunchRequest } from "@shared/schema";
@@ -26,11 +25,6 @@ export default function KioskPage() {
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [lastPunchType, setLastPunchType] = useState<"IN" | "OUT" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [signaturePending, setSignaturePending] = useState<{
-    punchId: string;
-    punchType: "IN" | "OUT";
-  } | null>(null);
-  const [requiresSignature, setRequiresSignature] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -56,13 +50,13 @@ export default function KioskPage() {
   }, [searchString]);
 
   useEffect(() => {
-    if (employee && !signaturePending) {
+    if (employee) {
       const timeout = setTimeout(() => {
         resetKiosk();
       }, IDLE_TIMEOUT);
       return () => clearTimeout(timeout);
     }
-  }, [employee, signaturePending]);
+  }, [employee]);
 
   const resetKiosk = useCallback(() => {
     setEmployee(null);
@@ -124,6 +118,7 @@ export default function KioskPage() {
             latitude: data.latitude,
             longitude: data.longitude,
             accuracy: data.accuracy,
+            signatureData: data.signatureData,
           }),
         });
 
@@ -150,24 +145,17 @@ export default function KioskPage() {
           throw new Error(error.message || "Fallo al fichar");
         }
 
-        return { punch: (await response.json()).punch, requiresSignature: false };
+        const result = await response.json();
+        return { ...result.punch, requiresSignature: false };
       }
     },
     onSuccess: (data) => {
       toast({
         title: data.type === "IN" ? "Entrada registrada" : "Salida registrada",
-        description: `A las ${new Date(data.timestamp).toLocaleTimeString("es-ES")}`,
+        description: `Fichaje confirmado con firma`,
       });
 
-      if (data.requiresSignature && deviceToken) {
-        setRequiresSignature(true);
-        setSignaturePending({
-          punchId: data.id,
-          punchType: data.type,
-        });
-      } else {
-        setTimeout(resetKiosk, 3000);
-      }
+      setTimeout(resetKiosk, 3000);
     },
     onError: (error) => {
       toast({
@@ -354,29 +342,6 @@ export default function KioskPage() {
         </Button>
       </footer>
 
-      {signaturePending && employee && deviceToken && (
-        <SignaturePad
-          punchId={signaturePending.punchId}
-          employeeName={`${employee.firstName} ${employee.lastName}`}
-          punchType={signaturePending.punchType}
-          kioskToken={deviceToken}
-          onComplete={() => {
-            toast({
-              title: "Firma registrada",
-              description: "Gracias por confirmar su fichaje",
-            });
-            setTimeout(resetKiosk, 2000);
-          }}
-          onCancel={() => {
-            setSignaturePending(null);
-            toast({
-              title: "Firma omitida",
-              description: "El fichaje se ha registrado sin firma",
-            });
-            setTimeout(resetKiosk, 2000);
-          }}
-        />
-      )}
     </div>
   );
 }

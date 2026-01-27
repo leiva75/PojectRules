@@ -440,7 +440,7 @@ export async function registerRoutes(
       }
 
       const employee = req.employee!;
-      const { type, latitude, longitude, accuracy, source } = result.data;
+      const { type, latitude, longitude, accuracy, source, signatureData } = result.data;
 
       const lastPunch = await storage.getLastPunchByEmployee(employee.id);
       
@@ -450,6 +450,10 @@ export async function registerRoutes(
 
       if (type === "OUT" && (!lastPunch || lastPunch.type === "OUT")) {
         return res.status(400).json({ message: "No está fichado como presente. Realice una entrada primero." });
+      }
+
+      if (!signatureData || signatureData.length < 100) {
+        return res.status(400).json({ message: "La firma es obligatoria para fichar" });
       }
 
       const needsReview = !latitude || !longitude;
@@ -462,6 +466,8 @@ export async function registerRoutes(
         accuracy: accuracy?.toString(),
         needsReview,
         source,
+        signatureData,
+        signatureSignedAt: new Date(),
       });
 
       await storage.createAuditLog({
@@ -983,7 +989,21 @@ export async function registerRoutes(
         return res.status(403).json({ error: { code: "EMPLOYEE_INACTIVE", message: "Empleado inactivo" } });
       }
 
-      const { type, latitude, longitude, accuracy } = parseResult.data;
+      const { type, latitude, longitude, accuracy, signatureData } = parseResult.data;
+
+      if (!signatureData || signatureData.length < 100) {
+        return res.status(400).json({ error: { code: "SIGNATURE_REQUIRED", message: "La firma es obligatoria para fichar" } });
+      }
+
+      const lastPunch = await storage.getLastPunchByEmployee(employee.id);
+      
+      if (type === "IN" && lastPunch?.type === "IN") {
+        return res.status(400).json({ error: { code: "ALREADY_IN", message: "Ya está fichado como presente. Realice una salida primero." } });
+      }
+
+      if (type === "OUT" && (!lastPunch || lastPunch.type === "OUT")) {
+        return res.status(400).json({ error: { code: "NOT_IN", message: "No está fichado como presente. Realice una entrada primero." } });
+      }
 
       const punch = await storage.createPunch({
         employeeId: employee.id,
@@ -993,14 +1013,18 @@ export async function registerRoutes(
         accuracy: accuracy?.toString(),
         source: "kiosk",
         needsReview: false,
+        signatureData,
+        signatureSignedAt: new Date(),
+        kioskDeviceId: req.kioskDevice?.id,
       });
 
-      logInfo("Kiosk punch created", { 
+      logInfo("Kiosk punch created with signature", { 
         punchId: punch.id, 
         employeeId: employee.id, 
         type, 
         status: punch.status,
-        kioskDeviceId: req.kioskDevice?.id 
+        kioskDeviceId: req.kioskDevice?.id,
+        hasSignature: !!signatureData,
       });
 
       res.status(201).json({
@@ -1008,7 +1032,7 @@ export async function registerRoutes(
         type: punch.type,
         timestamp: punch.timestamp,
         status: punch.status,
-        requiresSignature: isSpacesConfigured(),
+        requiresSignature: false,
         employee: {
           id: employee.id,
           firstName: employee.firstName,

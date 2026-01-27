@@ -33,6 +33,7 @@ export const punches = pgTable("punches", {
   signatureUrl: text("signature_url"),
   signatureSha256: text("signature_sha256"),
   signatureSignedAt: timestamp("signature_signed_at"),
+  signatureData: text("signature_data"),
   kioskDeviceId: text("kiosk_device_id"),
   kioskUserAgent: text("kiosk_user_agent"),
   kioskIp: text("kiosk_ip"),
@@ -205,6 +206,7 @@ export const punchRequestSchema = z.object({
   longitude: z.number().optional(),
   accuracy: z.number().optional(),
   source: z.enum(["mobile", "kiosk"]).default("mobile"),
+  signatureData: z.string().min(1, "La firma es obligatoria"),
 });
 
 export const correctionRequestSchema = z.object({
@@ -256,6 +258,7 @@ export const kioskPunchRequestSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   accuracy: z.number().optional(),
+  signatureData: z.string().min(1, "La firma es obligatoria"),
 });
 
 export const signatureUploadSchema = z.object({

@@ -112,7 +112,7 @@ export default function LoginPage() {
 
   // Punch mutation
   const punchMutation = useMutation({
-    mutationFn: async (data: { type: "IN" | "OUT"; latitude?: number; longitude?: number; accuracy?: number; source: "mobile" | "kiosk" }) => {
+    mutationFn: async (data: { type: "IN" | "OUT"; latitude?: number; longitude?: number; accuracy?: number; source: "mobile" | "kiosk"; signatureData: string }) => {
       if (!kioskToken) throw new Error("No autorizado");
       
       const response = await fetch("/api/punches", {

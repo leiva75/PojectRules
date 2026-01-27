@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Loader2, MapPin, AlertTriangle, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SignatureModal } from "@/components/signature-modal";
 
 interface PunchButtonProps {
   type: "IN" | "OUT";
-  onPunch: (data: { type: "IN" | "OUT"; latitude: number; longitude: number; accuracy?: number; source: "mobile" | "kiosk" }) => Promise<void>;
+  onPunch: (data: { type: "IN" | "OUT"; latitude: number; longitude: number; accuracy?: number; source: "mobile" | "kiosk"; signatureData: string }) => Promise<void>;
   source?: "mobile" | "kiosk";
   disabled?: boolean;
   size?: "default" | "large";
@@ -19,6 +20,8 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "success" | "denied" | "error">("idle");
   const [geoError, setGeoError] = useState<string | null>(null);
   const [permissionState, setPermissionState] = useState<PermissionState>("checking");
+  const [showSignature, setShowSignature] = useState(false);
+  const [pendingGeoData, setPendingGeoData] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,7 +76,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           const timeoutId = setTimeout(() => {
             reject(new Error("TIMEOUT"));
-          }, 15000);
+          }, 5000);
           
           navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -85,9 +88,9 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
               reject(err);
             },
             {
-              enableHighAccuracy: true,
-              timeout: 15000,
-              maximumAge: 30000,
+              enableHighAccuracy: false,
+              timeout: 5000,
+              maximumAge: 60000,
             }
           );
         });
@@ -111,7 +114,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
               errorMessage = "Posición no disponible. Verifique que el GPS/WiFi esté activado en su dispositivo.";
               break;
             case geoErr.TIMEOUT:
-              errorMessage = "Tiempo de espera agotado (15s). Intente de nuevo o active el GPS de su dispositivo.";
+              errorMessage = "Tiempo de espera agotado (5s). Intente de nuevo o active el GPS de su dispositivo.";
               break;
           }
         } else if (geoErr instanceof Error && geoErr.message === "TIMEOUT") {
@@ -128,17 +131,38 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
         return;
       }
 
+      setPendingGeoData({ latitude, longitude, accuracy });
+      setShowSignature(true);
+      setIsPending(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Fallo al fichar",
+        variant: "destructive",
+      });
+      setIsPending(false);
+    }
+  }, [toast]);
+
+  const handleSignatureConfirm = useCallback(async (signatureData: string) => {
+    if (!pendingGeoData) return;
+    
+    setShowSignature(false);
+    setIsPending(true);
+    
+    try {
       await onPunch({
         type,
-        latitude,
-        longitude,
-        accuracy,
+        latitude: pendingGeoData.latitude,
+        longitude: pendingGeoData.longitude,
+        accuracy: pendingGeoData.accuracy,
         source,
+        signatureData,
       });
 
       toast({
         title: type === "IN" ? "Entrada registrada" : "Salida registrada",
-        description: `Posición capturada (precisión: ${accuracy}m)`,
+        description: `Fichaje confirmado con firma`,
       });
     } catch (error) {
       toast({
@@ -148,12 +172,20 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
       });
     } finally {
       setIsPending(false);
+      setPendingGeoData(null);
       setTimeout(() => {
         setGeoStatus("idle");
         setGeoError(null);
-      }, 5000);
+      }, 3000);
     }
-  }, [type, onPunch, source, toast]);
+  }, [pendingGeoData, type, onPunch, source, toast]);
+
+  const handleSignatureCancel = useCallback(() => {
+    setShowSignature(false);
+    setPendingGeoData(null);
+    setGeoStatus("idle");
+    setGeoError(null);
+  }, []);
 
   const isLarge = size === "large";
   const baseClasses = isLarge 
@@ -231,7 +263,7 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
           {geoStatus === "loading" && (
             <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              <span className="text-muted-foreground">Obteniendo posición GPS... (hasta 15s)</span>
+              <span className="text-muted-foreground">Obteniendo posición GPS... (hasta 5s)</span>
             </div>
           )}
           {geoStatus === "success" && (
@@ -253,6 +285,13 @@ export function PunchButton({ type, onPunch, source = "mobile", disabled = false
           )}
         </div>
       )}
+
+      <SignatureModal
+        open={showSignature}
+        punchType={type}
+        onCancel={handleSignatureCancel}
+        onConfirm={handleSignatureConfirm}
+      />
     </div>
   );
 }
