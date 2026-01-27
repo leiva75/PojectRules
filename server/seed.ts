@@ -17,59 +17,59 @@ async function seed() {
 
   await db.insert(employees).values([
     {
-      email: "admin@pointeuse.fr",
+      email: "admin@cronosfichajes.es",
       password: adminPassword,
       firstName: "Admin",
-      lastName: "Système",
+      lastName: "Sistema",
       role: "admin",
       pin: "000000",
       isActive: true,
     },
     {
-      email: "manager@pointeuse.fr",
+      email: "gerente@cronosfichajes.es",
       password: managerPassword,
-      firstName: "Marie",
-      lastName: "Dupont",
+      firstName: "Maria",
+      lastName: "Garcia",
       role: "manager",
       pin: "111111",
       isActive: true,
     },
     {
-      email: "jean.martin@pointeuse.fr",
+      email: "carlos.lopez@cronosfichajes.es",
       password: employeePassword,
-      firstName: "Jean",
-      lastName: "Martin",
+      firstName: "Carlos",
+      lastName: "Lopez",
       role: "employee",
       pin: "123456",
       isActive: true,
     },
     {
-      email: "sophie.bernard@pointeuse.fr",
+      email: "ana.martinez@cronosfichajes.es",
       password: employeePassword,
-      firstName: "Sophie",
-      lastName: "Bernard",
+      firstName: "Ana",
+      lastName: "Martinez",
       role: "employee",
       pin: "234567",
       isActive: true,
     },
     {
-      email: "pierre.durand@pointeuse.fr",
+      email: "pedro.sanchez@cronosfichajes.es",
       password: employeePassword,
-      firstName: "Pierre",
-      lastName: "Durand",
+      firstName: "Pedro",
+      lastName: "Sanchez",
       role: "employee",
       pin: "345678",
       isActive: true,
     },
   ]);
 
-  console.log("Seed completed!");
-  console.log("\nTest accounts:");
-  console.log("- Admin: admin@pointeuse.fr / admin123 (PIN: 000000)");
-  console.log("- Manager: manager@pointeuse.fr / manager123 (PIN: 111111)");
-  console.log("- Employee: jean.martin@pointeuse.fr / employee123 (PIN: 123456)");
-  console.log("- Employee: sophie.bernard@pointeuse.fr / employee123 (PIN: 234567)");
-  console.log("- Employee: pierre.durand@pointeuse.fr / employee123 (PIN: 345678)");
+  console.log("Seed completado!");
+  console.log("\nCuentas de prueba:");
+  console.log("- Admin: admin@cronosfichajes.es / admin123 (PIN: 000000)");
+  console.log("- Gerente: gerente@cronosfichajes.es / manager123 (PIN: 111111)");
+  console.log("- Empleado: carlos.lopez@cronosfichajes.es / employee123 (PIN: 123456)");
+  console.log("- Empleado: ana.martinez@cronosfichajes.es / employee123 (PIN: 234567)");
+  console.log("- Empleado: pedro.sanchez@cronosfichajes.es / employee123 (PIN: 345678)");
 }
 
 seed()
