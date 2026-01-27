@@ -1,0 +1,34 @@
+Contexte: je développe une pointeuse (clock-in / clock-out) sur Replit. Aujourd’hui l’utilisateur clique un rond vert “prise de service” et un bouton/rond “sortie”. Avant de valider l’action (entrée ou sortie), je veux afficher un encart de signature tactile (finger/stylus) sur mobile/tablette. La signature doit être obligatoire pour valider.
+
+Problème: en local/preview ça peut marcher, mais une fois déployé sur Replit, l’encart n’apparaît pas.
+
+Ta mission (obligatoire):
+1) Inspecte le code actuel du projet et IDENTIFIE précisément le stack (React/Vite? Next.js? Express + templates? autre). Dis-moi où se trouvent les composants/pages concernés (fichiers + lignes si possible).
+2) Implémente une modale (overlay) de signature qui s’ouvre quand on clique “prise de service” ou “sortie”, AVANT l’envoi au backend.
+   - UX: overlay plein écran ou modale centrée, z-index élevé, fond semi-transparent.
+   - Contenu: zone canvas de signature + boutons “Effacer” / “Annuler” / “Valider”.
+   - Support: pointer events (mouse + touch + stylus), fonctionne sur iOS/Android.
+   - Empêche le scroll de la page pendant la signature (touch-action: none sur le canvas + blocage du body si besoin).
+   - Responsif: canvas adapté à la largeur, haute résolution (gestion devicePixelRatio pour éviter la signature floue).
+3) Au clic “Valider”:
+   - Convertis le canvas en image (dataURL base64 PNG) OU en blob.
+   - Associe la signature à l’évènement (clock-in ou clock-out) et à l’utilisateur.
+   - Envoie au backend (fetch POST) avec timestamp + type d’évènement + signature.
+   - Côté backend: crée/complète l’endpoint pour recevoir la signature, la stocker (fichier ou DB) et lier au pointage.
+4) Rends la signature OBLIGATOIRE:
+   - si la signature est vide => refuse et affiche un message.
+5) Débogage déploiement Replit (c’est crucial):
+   - Vérifie pourquoi l’encart ne s’affiche pas en prod: erreurs console, CSS non chargé, import cassé, route non incluse, build config, z-index/position, rendu conditionnel, variables d’environnement, etc.
+   - Ajoute des logs côté front (console) et côté serveur pour tracer l’ouverture modale et l’envoi.
+   - Donne-moi une checklist de test (mobile + desktop) et comment vérifier dans le navigateur (devtools).
+6) Donne-moi le résultat sous forme de modifications concrètes:
+   - Liste des fichiers modifiés + extrait de code complet des parties touchées.
+   - Instructions “Run / Build / Deploy” adaptées à ce projet.
+
+Contraintes techniques:
+- Zéro dépendance externe si possible. Si tu proposes une lib de signature, justifie-la et assure-toi qu’elle marche sur Replit deployment.
+- Pas de code pseudo: je veux du code prêt à coller.
+- Si c’est React: fais un composant <SignatureModal/> réutilisable, prop: open, onCancel, onConfirm(signatureData).
+- Si c’est vanilla/HTML: fais une modale HTML + JS avec canvas et gestion pointer events.
+
+But: à la fin, en déploiement Replit, quand on clique sur “prise de service” ou “sortie”, la modale de signature apparaît toujours, et on ne peut pas valider sans signer.
