@@ -1,0 +1,83 @@
+Tu es un développeur full-stack senior. Sur mon application de fichages, le modèle est strictement :
+✅ 1 Entrée = 1 Sortie = 1 vacation (une paire).
+Il est impossible d’avoir plusieurs entrées pour une même personne en même temps.
+
+Ce que je veux (uniquement ça)
+
+Dans la liste générale des fichages (toutes vacations), afficher sur chaque vacation une durée calculée entre l’heure d’Entrée et l’heure de Sortie :
+
+Affichage exemple : 3h 12m (ou 45m si < 1h)
+
+Si la vacation n’a pas encore de sortie (cas “en cours”) : afficher — ou En cours, sans calcul final.
+
+Dans la vue par employé, afficher :
+
+la durée sur chaque vacation
+
+un filtre semaine et mois (ou sélection période équivalente déjà existante)
+
+et surtout un TOTAL en bas de la liste pour la période sélectionnée :
+
+Total semaine : 37h 25m
+
+Total mois : 151h 10m
+
+Règles de calcul (simples et sûres)
+
+durée = sortieAt - entréeAt
+
+Calcul en minutes (ignore les secondes).
+
+La durée doit être >= 0.
+
+Si sortieAt < entréeAt (cas anormal) : afficher — et ne pas compter dans le total (et log console côté serveur, mais ne rien casser).
+
+Format :
+
+< 60 min : Xm
+
+≥ 60 min : Hh Mm avec minutes sur 2 chiffres (ex: 3h 05m)
+
+Implémentation demandée
+
+Ne pas modifier le modèle métier (pas de pairing compliqué, pas de regroupement hasardeux).
+
+Ajouter seulement :
+
+une fonction utilitaire computeDurationMinutes(entryAt, exitAt)
+
+une fonction formatDuration(minutes)
+
+l’affichage de la durée sur chaque ligne vacation
+
+le calcul du total sur la période (somme des durées valides)
+
+Où le faire (choix technique)
+
+Si tu as déjà un endpoint qui renvoie les vacations (avec entréeAt/sortieAt) :
+
+soit enrichir la réponse avec durationMinutes
+
+soit calculer côté front uniquement si les deux timestamps existent
+
+Dans tous les cas, le total doit être exactement la somme des durationMinutes.
+
+Livraison attendue
+
+Les changements de code précis (fichiers modifiés).
+
+Une UI propre :
+
+colonne “Durée” ou badge à droite
+
+un bloc “Total période” en bas de la liste employé
+
+Tests rapides (même basiques) sur :
+
+vacation complète
+
+vacation en cours (pas de sortie)
+
+cas anormal sortie < entrée (ignoré)
+
+⚠️ Important : ne touche à rien d’autre (pas de refacto global, pas de nouvelle logique d’appariement). Ajoute uniquement l’affichage durée + total période.
