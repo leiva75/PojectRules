@@ -1216,6 +1216,9 @@ export async function registerRoutes(
         subtitle,
         records,
         generatedAt: new Date(),
+        periodStart: startDate,
+        periodEnd: endDate,
+        isEmployeeReport: false,
       });
 
       await storage.createAuditLog({
@@ -1296,6 +1299,10 @@ export async function registerRoutes(
         subtitle,
         records,
         generatedAt: new Date(),
+        periodStart: startDate,
+        periodEnd: endDate,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        isEmployeeReport: true,
       });
 
       await storage.createAuditLog({
