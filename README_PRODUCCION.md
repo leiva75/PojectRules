@@ -1,4 +1,4 @@
-# Pointeuse Hybride - Guía de Producción (VPS)
+# Cronos Fichajes - Guía de Producción (VPS)
 
 Esta guía explica cómo desplegar la aplicación en un servidor VPS con Docker.
 
@@ -31,8 +31,8 @@ docker compose version
 
 ### Clonar el repositorio
 ```bash
-git clone <url-del-repositorio> pointeuse
-cd pointeuse
+git clone <url-del-repositorio> cronos-fichajes
+cd cronos-fichajes
 ```
 
 ### Crear archivo de configuración
@@ -160,7 +160,7 @@ crontab -e
 
 Agregar línea para backup diario a las 3:00 AM:
 ```
-0 3 * * * cd /ruta/a/pointeuse && ./ops/backup.sh >> /var/log/pointeuse-backup.log 2>&1
+0 3 * * * cd /ruta/a/cronos-fichajes && ./ops/backup.sh >> /var/log/cronos-backup.log 2>&1
 ```
 
 ### Rotación de Backups

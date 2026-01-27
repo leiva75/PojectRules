@@ -1,14 +1,14 @@
 #!/bin/sh
-# Pointeuse Hybride - Script de restauracion PostgreSQL
+# Cronos Fichajes - Script de restauracion PostgreSQL
 # Compatible POSIX (sh)
 # Uso: ./ops/restore.sh <archivo_backup>
 
 set -e
 
 # Configuracion
-CONTAINER_NAME="${DB_CONTAINER:-pointeuse_db}"
+CONTAINER_NAME="${DB_CONTAINER:-cronos_db}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
-POSTGRES_DB="${POSTGRES_DB:-pointeuse}"
+POSTGRES_DB="${POSTGRES_DB:-cronos_fichajes}"
 
 # Verificar argumento
 if [ -z "$1" ]; then

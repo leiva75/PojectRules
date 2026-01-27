@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || "Échec de la connexion");
+      throw new Error(error.message || "Error de conexión");
     }
     
     const data = await response.json();
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || "PIN invalide");
+      throw new Error(error.message || "PIN inválido");
     }
     
     const data = await response.json();

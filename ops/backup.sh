@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pointeuse Hybride - Script de backup PostgreSQL
+# Cronos Fichajes - Script de backup PostgreSQL
 # Compatible POSIX (sh)
 # Uso: ./ops/backup.sh
 
@@ -8,9 +8,9 @@ set -e
 # Configuracion
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
-CONTAINER_NAME="${DB_CONTAINER:-pointeuse_db}"
+CONTAINER_NAME="${DB_CONTAINER:-cronos_db}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
-POSTGRES_DB="${POSTGRES_DB:-pointeuse}"
+POSTGRES_DB="${POSTGRES_DB:-cronos_fichajes}"
 
 # Timestamp para nombre de archivo
 TIMESTAMP=$(date +%Y-%m-%d_%H%M)

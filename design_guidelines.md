@@ -1,4 +1,4 @@
-# Design Guidelines: Pointeuse-Hybride Time Tracking System
+# Design Guidelines: Cronos Fichajes - Sistema de Control Horario
 
 ## Design Approach
 

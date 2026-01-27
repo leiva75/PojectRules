@@ -3,35 +3,35 @@ version: "3.8"
 services:
   db:
     image: postgres:16-alpine
-    container_name: pointeuse_db
+    container_name: cronos_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-pointeuse}
+      POSTGRES_DB: ${POSTGRES_DB:-cronos_fichajes}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-pointeuse}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-cronos_fichajes}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     networks:
-      - pointeuse_network
+      - cronos_network
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pointeuse_app
+    container_name: cronos_app
     restart: unless-stopped
     ports:
       - "${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-pointeuse}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cronos_fichajes}
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN es obligatorio}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET es obligatorio}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET es obligatorio}
@@ -51,12 +51,12 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - pointeuse_network
+      - cronos_network
 
 volumes:
   postgres_data:
     driver: local
 
 networks:
-  pointeuse_network:
+  cronos_network:
     driver: bridge
