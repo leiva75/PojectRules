@@ -1,14 +1,17 @@
+import { useMemo } from "react";
 import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PunchButton } from "@/components/punch-button";
 import { StatusBadge, GeoBadge, TimeBadge } from "@/components/status-badge";
-import { LogOut, Clock, History, User } from "lucide-react";
+import { LogOut, Clock, History, User, Timer } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Punch, PunchRequest } from "@shared/schema";
+import { computeDurationMinutes, formatDuration } from "@/lib/duration";
 
 interface PunchWithEmployee extends Punch {
   employee?: {
@@ -62,6 +65,54 @@ export default function MobilePage() {
 
   const nextPunchType = lastPunch?.type === "IN" ? "OUT" : "IN";
   const initials = user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "?";
+
+  // Compute vacation durations and total for employee's punches
+  const { punchDurations, totalMinutes, hasCompletedVacations } = useMemo(() => {
+    const durationMap = new Map<string, { duration: number | null; isInProgress: boolean }>();
+    let totalMins = 0;
+    let completedCount = 0;
+    
+    if (!punches || punches.length === 0) {
+      return { punchDurations: durationMap, totalMinutes: 0, hasCompletedVacations: false };
+    }
+    
+    // Sort punches chronologically (oldest first)
+    const sorted = [...punches].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    
+    let currentEntry: typeof sorted[0] | null = null;
+    
+    for (const punch of sorted) {
+      if (punch.type === "IN") {
+        // If there's already an open entry, mark it as orphaned/in-progress
+        if (currentEntry) {
+          durationMap.set(currentEntry.id, { duration: null, isInProgress: true });
+        }
+        currentEntry = punch;
+      } else if (punch.type === "OUT") {
+        if (currentEntry) {
+          // Calculate duration for this vacation pair
+          const duration = computeDurationMinutes(currentEntry.timestamp, punch.timestamp);
+          durationMap.set(punch.id, { duration, isInProgress: false });
+          durationMap.set(currentEntry.id, { duration, isInProgress: false });
+          if (duration !== null && duration >= 0) {
+            totalMins += duration;
+            completedCount++;
+          }
+          currentEntry = null;
+        }
+        // Orphan OUT (no matching IN) - don't show duration
+      }
+    }
+    
+    // If there's an open entry (no matching OUT), mark as in progress
+    if (currentEntry) {
+      durationMap.set(currentEntry.id, { duration: null, isInProgress: true });
+    }
+    
+    return { punchDurations: durationMap, totalMinutes: totalMins, hasCompletedVacations: completedCount > 0 };
+  }, [punches]);
 
   return (
     <div className="min-h-screen bg-bg-app flex flex-col">
@@ -145,7 +196,9 @@ export default function MobilePage() {
               </div>
             ) : punches && punches.length > 0 ? (
               <div className="space-y-3">
-                {punches.slice(0, 10).map((punch) => (
+                {punches.slice(0, 10).map((punch) => {
+                  const durationInfo = punchDurations.get(punch.id);
+                  return (
                   <div 
                     key={punch.id} 
                     className="flex items-center justify-between py-2 border-b last:border-0"
@@ -164,13 +217,24 @@ export default function MobilePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {durationInfo && (
+                        <Badge 
+                          variant={durationInfo.isInProgress ? "outline" : "secondary"} 
+                          className={`text-xs font-mono ${durationInfo.isInProgress ? "text-blue-600 border-blue-300" : ""}`}
+                          data-testid={`duration-${punch.id}`}
+                        >
+                          <Timer className="h-3 w-3 mr-1" />
+                          {formatDuration(durationInfo.duration, durationInfo.isInProgress)}
+                        </Badge>
+                      )}
                       {punch.needsReview && (
                         <GeoBadge hasLocation={false} needsReview={true} />
                       )}
                       <TimeBadge time={punch.timestamp} />
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -179,6 +243,19 @@ export default function MobilePage() {
               </div>
             )}
           </CardContent>
+          {punches && punches.length > 0 && hasCompletedVacations && (
+            <CardFooter className="border-t bg-bg-surface-2/50 py-3">
+              <div className="flex items-center justify-between w-full">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Total período
+                </span>
+                <Badge variant="default" className="text-sm font-mono" data-testid="total-duration">
+                  <Timer className="h-4 w-4 mr-1" />
+                  {formatDuration(totalMinutes)}
+                </Badge>
+              </div>
+            </CardFooter>
+          )}
         </Card>
       </main>
 

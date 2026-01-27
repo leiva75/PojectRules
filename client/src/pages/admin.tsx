@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { computeDurationMinutes, formatDuration } from "@/lib/duration";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -708,6 +709,57 @@ export default function AdminPage() {
     }
   };
 
+  // Compute vacation durations by pairing IN→OUT punches per employee
+  const punchDurations = useMemo(() => {
+    if (!recentPunches) return new Map<string, { duration: number | null; isInProgress: boolean }>();
+    
+    const durationMap = new Map<string, { duration: number | null; isInProgress: boolean }>();
+    
+    // Group punches by employee
+    const punchesByEmployee = new Map<string, typeof recentPunches>();
+    for (const punch of recentPunches) {
+      const empPunches = punchesByEmployee.get(punch.employeeId) || [];
+      empPunches.push(punch);
+      punchesByEmployee.set(punch.employeeId, empPunches);
+    }
+    
+    // For each employee, pair punches chronologically
+    for (const [, empPunches] of punchesByEmployee) {
+      // Sort by timestamp ascending
+      const sorted = [...empPunches].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      let currentEntry: typeof sorted[0] | null = null;
+      
+      for (const punch of sorted) {
+        if (punch.type === "IN") {
+          // If there's already an open entry, mark it as orphaned/in-progress
+          if (currentEntry) {
+            durationMap.set(currentEntry.id, { duration: null, isInProgress: true });
+          }
+          currentEntry = punch;
+        } else if (punch.type === "OUT") {
+          if (currentEntry) {
+            // Calculate duration for this vacation pair
+            const duration = computeDurationMinutes(currentEntry.timestamp, punch.timestamp);
+            durationMap.set(punch.id, { duration, isInProgress: false });
+            durationMap.set(currentEntry.id, { duration, isInProgress: false });
+            currentEntry = null;
+          }
+          // Orphan OUT (no matching IN) - don't show duration
+        }
+      }
+      
+      // If there's an open entry (no matching OUT), mark as in progress
+      if (currentEntry) {
+        durationMap.set(currentEntry.id, { duration: null, isInProgress: true });
+      }
+    }
+    
+    return durationMap;
+  }, [recentPunches]);
+
   const handleLogout = async () => {
     await logout();
     setLocation("/");
@@ -1092,13 +1144,16 @@ export default function AdminPage() {
                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Empleado</th>
                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tipo</th>
                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fecha/Hora</th>
+                            <th className="text-left py-3 px-4 font-medium text-muted-foreground">Duración</th>
                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Posición</th>
                             <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fuente</th>
                             <th className="text-right py-3 px-4 font-medium text-muted-foreground">Acciones</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {recentPunches.map((punch) => (
+                          {recentPunches.map((punch) => {
+                            const durationInfo = punchDurations.get(punch.id);
+                            return (
                             <tr key={punch.id} className="border-b last:border-0">
                               <td className="py-3 px-4">
                                 <div className="flex items-center gap-2">
@@ -1117,6 +1172,20 @@ export default function AdminPage() {
                               </td>
                               <td className="py-3 px-4 font-mono text-sm">
                                 {new Date(punch.timestamp).toLocaleString("es-ES")}
+                              </td>
+                              <td className="py-3 px-4">
+                                {durationInfo ? (
+                                  <Badge 
+                                    variant={durationInfo.isInProgress ? "outline" : "secondary"} 
+                                    className={`text-xs font-mono ${durationInfo.isInProgress ? "text-blue-600 border-blue-300" : ""}`}
+                                    data-testid={`duration-${punch.id}`}
+                                  >
+                                    <Timer className="h-3 w-3 mr-1" />
+                                    {formatDuration(durationInfo.duration, durationInfo.isInProgress)}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">—</span>
+                                )}
                               </td>
                               <td className="py-3 px-4">
                                 <GeoBadge 
@@ -1142,7 +1211,8 @@ export default function AdminPage() {
                                 </Button>
                               </td>
                             </tr>
-                          ))}
+                          );
+                          })}
                         </tbody>
                       </table>
                     </div>
