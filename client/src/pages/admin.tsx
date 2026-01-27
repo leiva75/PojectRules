@@ -327,34 +327,45 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
 
   return (
     <div className="space-y-6">
-      <Card className="border-card-border">
-        <CardHeader>
-          <CardTitle>Generar Informe PDF</CardTitle>
-          <CardDescription>
-            Descargue informes oficiales con firmas digitales y enlaces de ubicación
-          </CardDescription>
+      <Card className="shadow-sm border border-border/50">
+        <CardHeader className="border-b bg-section-accent-reports/5">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-section-accent-reports/10 flex items-center justify-center">
+              <FileText className="h-5 w-5 text-section-accent-reports" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Informes y Exportaciones</CardTitle>
+              <CardDescription>
+                Genere informes PDF oficiales o exporte datos en CSV
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex gap-4">
+        <CardContent className="space-y-6 pt-6">
+          <div className="flex gap-3">
             <Button
               variant={reportType === "general" ? "default" : "outline"}
               onClick={() => setReportType("general")}
               data-testid="button-report-general"
+              className="flex-1 sm:flex-none"
             >
+              <FileText className="h-4 w-4 mr-2" />
               Informe General
             </Button>
             <Button
               variant={reportType === "employee" ? "default" : "outline"}
               onClick={() => setReportType("employee")}
               data-testid="button-report-employee"
+              className="flex-1 sm:flex-none"
             >
-              Informe por Empleado
+              <Users className="h-4 w-4 mr-2" />
+              Por Empleado
             </Button>
           </div>
 
           {reportType === "general" && (
-            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-              <h3 className="font-medium">Informe General - Todos los Empleados</h3>
+            <div className="space-y-4 p-5 bg-muted/30 rounded-lg border border-border/50">
+              <h3 className="font-semibold text-foreground">Informe General - Todos los Empleados</h3>
               
               <div className="flex gap-4 flex-wrap">
                 <div className="space-y-2">
@@ -438,8 +449,8 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
           )}
 
           {reportType === "employee" && (
-            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-              <h3 className="font-medium">Informe por Empleado</h3>
+            <div className="space-y-4 p-5 bg-muted/30 rounded-lg border border-border/50">
+              <h3 className="font-semibold text-foreground">Informe por Empleado</h3>
               
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -536,7 +547,7 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "exports" | "estado" | "kiosks" | "reports">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "estado" | "kiosks" | "reports">("dashboard");
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
@@ -710,70 +721,85 @@ export default function AdminPage() {
   } as React.CSSProperties;
 
   const menuItems = [
-    { id: "dashboard", label: "Panel de control", icon: LayoutDashboard },
-    { id: "employees", label: "Empleados", icon: Users },
-    { id: "punches", label: "Fichajes", icon: Clock },
-    { id: "revision", label: "Revisión", icon: ClipboardCheck },
-    { id: "overtime", label: "Horas Extra", icon: Timer },
-    { id: "reports", label: "Informes PDF", icon: FileText },
-    { id: "exports", label: "Exportar CSV", icon: Download },
-    { id: "kiosks", label: "Quioscos", icon: Monitor },
-    { id: "estado", label: "Estado", icon: Activity },
+    { id: "dashboard", label: "Panel de control", icon: LayoutDashboard, accent: "section-accent-dashboard", description: "Vista general del sistema" },
+    { id: "employees", label: "Empleados", icon: Users, accent: "section-accent-employees", description: "Gestionar personal" },
+    { id: "punches", label: "Fichajes", icon: Clock, accent: "section-accent-punches", description: "Historial de fichajes" },
+    { id: "revision", label: "Revisión", icon: ClipboardCheck, accent: "section-accent-revision", description: "Puntos pendientes de revisión" },
+    { id: "overtime", label: "Horas Extra", icon: Timer, accent: "section-accent-overtime", description: "Solicitudes de horas extra" },
+    { id: "reports", label: "Informes", icon: FileText, accent: "section-accent-reports", description: "PDF y exportaciones" },
+    { id: "kiosks", label: "Quioscos", icon: Monitor, accent: "section-accent-dashboard", description: "Dispositivos de fichaje" },
+    { id: "estado", label: "Estado", icon: Activity, accent: "section-accent-dashboard", description: "Estado del sistema" },
   ];
+
+  const currentMenuItem = menuItems.find((m) => m.id === activeTab);
 
   return (
     <SidebarProvider style={sidebarStyle}>
-      <div className="flex h-screen w-full">
-        <Sidebar>
-          <SidebarHeader className="p-4 border-b">
+      <div className="flex h-screen w-full bg-background">
+        <Sidebar className="bg-sidebar border-r border-sidebar-border">
+          <SidebarHeader className="p-4 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <img 
-                src={logoPath} 
-                alt="Cronos Gimnasio" 
-                className="h-10 w-10 object-contain"
-                data-testid="img-logo-admin"
-              />
-              <span className="font-semibold text-lg">Cronos</span>
+              <div className="h-10 w-10 rounded-lg bg-sidebar-primary/20 flex items-center justify-center">
+                <img 
+                  src={logoPath} 
+                  alt="Cronos Gimnasio" 
+                  className="h-8 w-8 object-contain"
+                  data-testid="img-logo-admin"
+                />
+              </div>
+              <div>
+                <span className="font-bold text-lg text-sidebar-foreground">Cronos</span>
+                <p className="text-xs text-sidebar-foreground/60">Fichajes</p>
+              </div>
             </div>
           </SidebarHeader>
-          <SidebarContent>
+          <SidebarContent className="px-2">
             <SidebarGroup>
-              <SidebarGroupLabel>Navegación</SidebarGroupLabel>
+              <SidebarGroupLabel className="text-sidebar-foreground/50 text-xs uppercase tracking-wider px-3 py-2">
+                Navegación
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {menuItems.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton 
-                        onClick={() => setActiveTab(item.id as typeof activeTab)}
-                        isActive={activeTab === item.id}
-                        data-testid={`nav-${item.id}`}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {menuItems.map((item) => {
+                    const isActive = activeTab === item.id;
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton 
+                          onClick={() => setActiveTab(item.id as typeof activeTab)}
+                          isActive={isActive}
+                          data-testid={`nav-${item.id}`}
+                          className={`relative transition-all ${isActive ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}`}
+                        >
+                          {isActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-sidebar-primary rounded-r-full" />
+                          )}
+                          <item.icon className={`h-4 w-4 ml-1 ${isActive ? 'text-sidebar-primary' : ''}`} />
+                          <span className="font-medium">{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter className="p-4 border-t">
+          <SidebarFooter className="p-4 border-t border-sidebar-border">
             <div className="flex items-center gap-3 mb-3">
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+              <Avatar className="h-9 w-9 ring-2 ring-sidebar-primary/30">
+                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
+                <p className="text-sm font-medium truncate text-sidebar-foreground">
                   {user?.firstName} {user?.lastName}
                 </p>
-                <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                <p className="text-xs text-sidebar-foreground/60 capitalize">{user?.role}</p>
               </div>
             </div>
             <Button 
               variant="ghost" 
-              className="w-full justify-start"
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
               onClick={handleLogout}
               data-testid="button-admin-logout"
             >
@@ -784,12 +810,18 @@ export default function AdminPage() {
         </Sidebar>
 
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between px-6 py-3 border-b bg-card gap-4">
+          <header className="flex items-center justify-between px-6 py-4 border-b bg-card shadow-sm gap-4">
             <div className="flex items-center gap-4">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="text-xl font-semibold">
-                {menuItems.find((m) => m.id === activeTab)?.label}
-              </h1>
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="text-muted-foreground hover:text-foreground" />
+              <div className="h-6 w-px bg-border" />
+              <div>
+                <h1 className="text-xl font-bold text-foreground">
+                  {currentMenuItem?.label}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {currentMenuItem?.description}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {activeTab === "employees" && (
@@ -798,8 +830,8 @@ export default function AdminPage() {
                   Añadir
                 </Button>
               )}
-              {activeTab === "exports" && (
-                <Button onClick={() => setShowExportDialog(true)} data-testid="button-export">
+              {activeTab === "reports" && (
+                <Button variant="outline" onClick={() => setShowExportDialog(true)} data-testid="button-export-csv">
                   <Download className="h-4 w-4 mr-2" />
                   Exportar CSV
                 </Button>
@@ -813,66 +845,85 @@ export default function AdminPage() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6 bg-background">
             {activeTab === "dashboard" && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card className="border-card-border">
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border border-border/50">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
                         Total Empleados
                       </CardTitle>
-                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <div className="h-9 w-9 rounded-lg bg-section-accent-employees/10 flex items-center justify-center">
+                        <Users className="h-5 w-5 text-section-accent-employees" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-3xl font-bold">{stats?.totalEmployees || 0}</div>
+                      <div className="text-3xl font-bold tracking-tight">{stats?.totalEmployees || 0}</div>
+                      <p className="text-xs text-muted-foreground mt-1">empleados registrados</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-card-border">
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border border-border/50">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
                         Activos Hoy
                       </CardTitle>
-                      <TrendingUp className="h-4 w-4 text-green-600" />
+                      <div className="h-9 w-9 rounded-lg bg-success/10 flex items-center justify-center">
+                        <TrendingUp className="h-5 w-5 text-success" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-3xl font-bold text-green-600">{stats?.activeToday || 0}</div>
+                      <div className="text-3xl font-bold tracking-tight text-success">{stats?.activeToday || 0}</div>
+                      <p className="text-xs text-muted-foreground mt-1">han fichado hoy</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-card-border">
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border border-border/50">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
-                        Presentes Actualmente
+                        Presentes Ahora
                       </CardTitle>
-                      <CheckCircle className="h-4 w-4 text-primary" />
+                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <CheckCircle className="h-5 w-5 text-primary" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-3xl font-bold text-primary">{stats?.currentlyIn || 0}</div>
+                      <div className="text-3xl font-bold tracking-tight text-primary">{stats?.currentlyIn || 0}</div>
+                      <p className="text-xs text-muted-foreground mt-1">en el centro</p>
                     </CardContent>
                   </Card>
 
-                  <Card className="border-card-border">
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border border-border/50">
                     <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
                       <CardTitle className="text-sm font-medium text-muted-foreground">
                         Por Verificar
                       </CardTitle>
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <div className="h-9 w-9 rounded-lg bg-warning/10 flex items-center justify-center">
+                        <AlertTriangle className="h-5 w-5 text-warning" />
+                      </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-3xl font-bold text-red-600">{stats?.needsReview || 0}</div>
+                      <div className="text-3xl font-bold tracking-tight text-warning">{stats?.needsReview || 0}</div>
+                      <p className="text-xs text-muted-foreground mt-1">fichajes pendientes</p>
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card className="border-card-border">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Fichajes Recientes</CardTitle>
-                      <CardDescription>Los 10 últimos fichajes</CardDescription>
+                  <Card className="shadow-sm border border-border/50">
+                    <CardHeader className="border-b">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-section-accent-punches/10 flex items-center justify-center">
+                          <Clock className="h-5 w-5 text-section-accent-punches" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Fichajes Recientes</CardTitle>
+                          <CardDescription>Los 10 últimos fichajes</CardDescription>
+                        </div>
+                      </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-4">
                       {punchesLoading ? (
                         <div className="space-y-3">
                           {[1, 2, 3, 4, 5].map((i) => (
@@ -880,15 +931,15 @@ export default function AdminPage() {
                           ))}
                         </div>
                       ) : recentPunches && recentPunches.length > 0 ? (
-                        <div className="space-y-3">
-                          {recentPunches.slice(0, 10).map((punch) => (
+                        <div className="space-y-1">
+                          {recentPunches.slice(0, 10).map((punch, index) => (
                             <div 
                               key={punch.id}
-                              className="flex items-center justify-between py-2 border-b last:border-0"
+                              className={`flex items-center justify-between py-3 px-3 rounded-lg ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
                             >
                               <div className="flex items-center gap-3">
                                 <Avatar className="h-8 w-8">
-                                  <AvatarFallback className="text-xs bg-muted">
+                                  <AvatarFallback className="text-xs bg-primary/10 text-primary font-medium">
                                     {punch.employee.firstName[0]}{punch.employee.lastName[0]}
                                   </AvatarFallback>
                                 </Avatar>
@@ -911,13 +962,17 @@ export default function AdminPage() {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-card-border">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-red-600" />
-                        Por Verificar
-                      </CardTitle>
-                      <CardDescription>Fichajes que requieren verificación</CardDescription>
+                  <Card className="shadow-sm border border-border/50">
+                    <CardHeader className="border-b">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-warning/10 flex items-center justify-center">
+                          <AlertTriangle className="h-5 w-5 text-warning" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Por Verificar</CardTitle>
+                          <CardDescription>Fichajes que requieren verificación</CardDescription>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {flaggedPunches && flaggedPunches.length > 0 ? (
@@ -1345,26 +1400,6 @@ export default function AdminPage() {
               </Card>
             )}
 
-            {activeTab === "exports" && (
-              <Card className="border-card-border">
-                <CardHeader>
-                  <CardTitle>Exportaciones CSV</CardTitle>
-                  <CardDescription>
-                    Exporte los datos de fichajes por empleado y período
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-center py-12">
-                  <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground mb-6">
-                    Seleccione un período y los empleados para generar una exportación CSV
-                  </p>
-                  <Button onClick={() => setShowExportDialog(true)} data-testid="button-start-export">
-                    <Download className="h-4 w-4 mr-2" />
-                    Crear exportación
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
 
             {activeTab === "kiosks" && (
               <div className="space-y-6">

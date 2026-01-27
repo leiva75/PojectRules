@@ -81,6 +81,26 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        "section-accent": {
+          dashboard: "hsl(var(--accent-dashboard) / <alpha-value>)",
+          employees: "hsl(var(--accent-employees) / <alpha-value>)",
+          punches: "hsl(var(--accent-punches) / <alpha-value>)",
+          revision: "hsl(var(--accent-revision) / <alpha-value>)",
+          overtime: "hsl(var(--accent-overtime) / <alpha-value>)",
+          reports: "hsl(var(--accent-reports) / <alpha-value>)",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info) / <alpha-value>)",
+          foreground: "hsl(var(--info-foreground) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
