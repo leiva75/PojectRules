@@ -1,4 +1,4 @@
-# Build & Deployment Guide - Pointeuse Hybride
+# Build & Deployment Guide - Cronos Fichajes
 
 ## Development
 
@@ -98,7 +98,7 @@ npm start
 | `JWT_ACCESS_SECRET` | JWT secret (min 32 chars) | `openssl rand -base64 48` |
 | `JWT_REFRESH_SECRET` | JWT refresh secret (min 32 chars) | `openssl rand -base64 48` |
 | `KIOSK_KEY` | Kiosk mode key (min 16 chars) | `openssl rand -base64 24` |
-| `CORS_ORIGIN` | Allowed origin | `https://pointeuse.example.com` |
+| `CORS_ORIGIN` | Allowed origin | `https://cronosfichajes.es` |
 
 ### Environment Variables (Optional - Spaces)
 
@@ -107,12 +107,12 @@ npm start
 | `DO_SPACES_KEY` | Spaces access key | From DO console |
 | `DO_SPACES_SECRET` | Spaces secret key | From DO console |
 | `DO_SPACES_REGION` | Bucket region | `ams3` |
-| `DO_SPACES_BUCKET` | Bucket name | `pointeuse-files` |
+| `DO_SPACES_BUCKET` | Bucket name | `cronos-fichajes` |
 
 ### Managed PostgreSQL Setup
 
 1. Create a Managed PostgreSQL cluster in DigitalOcean
-2. Create a database named `pointeuse`
+2. Create a database named `cronos_fichajes`
 3. Get the connection string from "Connection Details"
 4. Add `?sslmode=require` to the URL
 5. Set as `DATABASE_URL` in App Platform
@@ -139,9 +139,9 @@ curl https://your-app.ondigitalocean.app/health
 
 | Role | Email | Password | PIN |
 |------|-------|----------|-----|
-| Admin | admin@pointeuse.fr | admin123 | 000000 |
-| Manager | manager@pointeuse.fr | manager123 | 111111 |
-| Employee | jean.martin@pointeuse.fr | employee123 | 123456 |
+| Admin | admin@cronosfichajes.es | admin123 | 000000 |
+| Gerente | gerente@cronosfichajes.es | manager123 | 111111 |
+| Empleado | carlos.lopez@cronosfichajes.es | employee123 | 123456 |
 
 ---
 

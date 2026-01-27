@@ -1,7 +1,7 @@
-# Pointeuse Hybride - Time Tracking System
+# Cronos Fichajes - Sistema de Control Horario
 
 ## Overview
-A full-stack TypeScript time-tracking application with:
+A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia with:
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: Node.js + Express + TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
@@ -54,9 +54,9 @@ A full-stack TypeScript time-tracking application with:
 - CSV export includes Overtime_Minutos and Overtime_Estado columns
 
 ## Test Accounts
-- Admin: `admin@pointeuse.fr` / `admin123` (PIN: 000000)
-- Manager: `manager@pointeuse.fr` / `manager123` (PIN: 111111)
-- Employee: `jean.martin@pointeuse.fr` / `employee123` (PIN: 123456)
+- Admin: `admin@cronosfichajes.es` / `admin123` (PIN: 000000)
+- Gerente: `gerente@cronosfichajes.es` / `manager123` (PIN: 111111)
+- Empleado: `carlos.lopez@cronosfichajes.es` / `employee123` (PIN: 123456)
 
 ## Development Commands
 ```bash
