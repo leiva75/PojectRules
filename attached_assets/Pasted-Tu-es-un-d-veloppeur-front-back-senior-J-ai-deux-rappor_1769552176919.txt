@@ -1,0 +1,110 @@
+Tu es un développeur front/back senior. J’ai deux rapports imprimables/PDF :
+
+Informe General de Fichajes (tous employés)
+
+Informe de Fichajes por Empleado (un employé)
+
+Actuellement ils manquent de contraste et de hiérarchie visuelle : ce n’est pas assez professionnel.
+Je veux une refonte uniquement UI/Template/CSS (ne touche pas aux données ni à la logique métier), pour obtenir un rendu “rapport entreprise”.
+
+Objectifs (non négociables)
+
+Améliorer lisibilité, contraste, hiérarchie.
+
+Conserver les colonnes existantes (Apellido, Nombre, Entrada, Firma Ent., Salida, Firma Sal., Ubicación Ent., Ubicación Sal.).
+
+Ajouter une colonne Durée si elle existe déjà dans l’app (sinon, ne pas l’inventer).
+
+Ajouter un bloc Total en bas du rapport employé (somme des durées de la période si disponible, sinon ne rien additionner).
+
+Sur le rapport général : ajouter un résumé + option visuelle de sous-total par employé si les données sont déjà groupées/triées (sinon ne pas changer l’ordre des données).
+
+Mise en page (structure)
+
+Header professionnel (sur chaque page)
+
+Gauche : logo Cronos (utiliser l’asset brand centralisé)
+
+Centre : “CRONOS FICHAJES” + titre du rapport
+
+Droite : “Generado: date/heure”, période, filtres appliqués
+
+Ligne de séparation fine sous le header
+
+Bloc Résumé (juste après header, avant le tableau)
+
+Cartouches (style discret) :
+
+“Période”
+
+“Total enregistrements”
+
+“Total heures” (si durée disponible)
+
+“Employés” (pour rapport général)
+
+Doit être imprimable et sobre (pas de couleurs flashy)
+
+Table
+
+Header table : fond bleu marine (même famille que la sidebar), texte blanc, police plus lisible
+
+Lignes : zebra striping plus contrasté (gris bleuté très léger)
+
+Bordures :
+
+bordure basse du header plus marquée
+
+séparateurs horizontaux fins
+
+Alignements :
+
+dates alignées, colonnes texte à gauche
+
+signatures centrées dans leur cellule avec un cadre léger
+
+Liens “Ver en mapa” : rendre comme badge ou lien discret (soulignement léger), pas bleu criard.
+
+Footer
+
+“CronosFichajes.es” + “Page X / Y”
+
+S’affiche sur chaque page
+
+Print/PDF CSS (important)
+
+Format A4, marges propres (ex: 14–18mm)
+
+@media print :
+
+répéter header/footer
+
+éviter les coupures de ligne de tableau : page-break-inside: avoid;
+
+réduire ombres (quasi zéro), garder bordures
+
+Style guide (tokens simples)
+
+Fond page : blanc cassé / gris bleuté très léger (pas blanc pur)
+
+Texte principal : quasi noir
+
+Bleu : utiliser une teinte “navy” cohérente
+
+Contraste WCAG “raisonnable” (lisible à l’impression)
+
+Livraison attendue
+
+Identifier les fichiers templates du rapport (HTML/React/etc.) et le CSS associé.
+
+Appliquer la refonte aux deux rapports (général + employé).
+
+Ajouter un petit composant réutilisable : ReportHeader, ReportFooter, ReportSummary.
+
+Aucun changement sur API/données, uniquement présentation.
+
+Petite touche “premium” (optionnelle mais safe)
+
+Rendre les rapports plus “cadencés” : espacements réguliers, typographie (ex: 12–13px corps, 16–18px titres).
+
+Si le tableau est très large, passer en landscape uniquement pour le print.
