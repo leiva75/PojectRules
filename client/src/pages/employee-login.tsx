@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Delete, ArrowLeft, Loader2 } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import logoPath from "@/assets/logo-cronos.png";
+import { LOGO_SRC, APP_NAME } from "@/config/brand";
 
 export default function EmployeeLoginPage() {
   const [, setLocation] = useLocation();
@@ -74,9 +74,9 @@ export default function EmployeeLoginPage() {
 
         <div className="text-center space-y-2">
           <img 
-            src={logoPath} 
-            alt="Cronos Gimnasio" 
-            className="w-20 h-20 mx-auto object-contain mb-2"
+            src={LOGO_SRC} 
+            alt={APP_NAME} 
+            className="h-24 w-auto mx-auto object-contain mb-2"
             data-testid="img-logo-employee"
           />
           <h1 className="text-2xl font-semibold tracking-tight">Acceso Empleado</h1>

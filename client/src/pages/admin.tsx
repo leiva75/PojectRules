@@ -56,7 +56,7 @@ import type { Employee, Punch } from "@shared/schema";
 import { EmployeeDialog } from "@/components/employee-dialog";
 import { ExportDialog } from "@/components/export-dialog";
 import { CorrectionDialog } from "@/components/correction-dialog";
-import logoPath from "@/assets/logo-cronos.png";
+import { LOGO_SRC, APP_NAME } from "@/config/brand";
 
 interface DashboardStats {
   totalEmployees: number;
@@ -791,14 +791,12 @@ export default function AdminPage() {
         <Sidebar className="bg-sidebar border-r border-sidebar-border">
           <SidebarHeader className="p-4 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-sidebar-primary/20 flex items-center justify-center">
-                <img 
-                  src={logoPath} 
-                  alt="Cronos Gimnasio" 
-                  className="h-8 w-8 object-contain"
-                  data-testid="img-logo-admin"
-                />
-              </div>
+              <img 
+                src={LOGO_SRC} 
+                alt={APP_NAME} 
+                className="h-12 w-auto object-contain"
+                data-testid="img-logo-admin"
+              />
               <div>
                 <span className="font-bold text-lg text-sidebar-foreground">Cronos</span>
                 <p className="text-xs text-sidebar-foreground/60">Fichajes</p>

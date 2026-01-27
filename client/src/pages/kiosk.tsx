@@ -9,7 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { useToast } from "@/hooks/use-toast";
 import { X, Delete, Loader2, AlertTriangle } from "lucide-react";
 import type { Employee, PunchRequest } from "@shared/schema";
-import logoPath from "@/assets/logo-cronos.png";
+import { LOGO_SRC, APP_NAME } from "@/config/brand";
 
 const IDLE_TIMEOUT = 30000;
 const KIOSK_TOKEN_KEY = "kiosk_device_token";
@@ -188,9 +188,9 @@ export default function KioskPage() {
       <header className="border-b border-border-subtle bg-bg-surface px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img 
-            src={logoPath} 
-            alt="Cronos Gimnasio" 
-            className="h-12 w-12 object-contain"
+            src={LOGO_SRC} 
+            alt={APP_NAME} 
+            className="h-14 w-auto object-contain"
             data-testid="img-logo-kiosk"
           />
           <span className="text-xl font-semibold">Cronos Gimnasio</span>

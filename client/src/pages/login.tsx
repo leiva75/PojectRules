@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Delete, ShieldCheck, Users } from "lucide-react";
-import logoPath from "@/assets/logo-cronos.png";
+import { LOGO_SRC, APP_NAME } from "@/config/brand";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { PunchButton } from "@/components/punch-button";
@@ -193,9 +193,9 @@ export default function LoginPage() {
       <header className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
           <img 
-            src={logoPath} 
-            alt="Cronos Gimnasio" 
-            className="w-12 h-12 object-contain"
+            src={LOGO_SRC} 
+            alt={APP_NAME} 
+            className="h-12 w-auto object-contain"
             data-testid="img-logo-header"
           />
           <span className="text-xl font-semibold">Cronos Gimnasio</span>
@@ -221,9 +221,9 @@ export default function LoginPage() {
           <Card className="w-full max-w-md bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader className="text-center pb-4">
               <img 
-                src={logoPath} 
-                alt="Cronos Gimnasio" 
-                className="w-20 h-20 mx-auto object-contain mb-2"
+                src={LOGO_SRC} 
+                alt={APP_NAME} 
+                className="h-20 w-auto mx-auto object-contain mb-2"
                 data-testid="img-logo-main"
               />
               <CardTitle className="text-2xl text-white">Control de Asistencia</CardTitle>
