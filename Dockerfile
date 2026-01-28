@@ -48,9 +48,10 @@ RUN mkdir -p /backups && chmod 755 /backups
 # Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+# Health check - uses lightweight /health endpoint (no DB dependency)
+# /api/health is still available for deep checks but not used for platform healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Start: runs "node dist/index.cjs" via npm run start
 CMD ["npm", "run", "start"]

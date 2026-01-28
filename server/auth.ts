@@ -4,7 +4,13 @@ import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import type { Employee } from "@shared/schema";
 
-const JWT_SECRET = process.env.SESSION_SECRET || "dev-secret-change-in-production";
+const isProd = process.env.NODE_ENV === "production";
+
+// In production, JWT secrets are validated at startup in index.ts
+// In development, we use fallback secrets for convenience
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || (isProd ? "" : "dev-access-secret-do-not-use-in-production");
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (isProd ? "" : "dev-refresh-secret-do-not-use-in-production");
+
 const ACCESS_TOKEN_EXPIRY = "15m";
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 const EMPLOYEE_TOKEN_EXPIRY = "12h";
@@ -37,7 +43,7 @@ export function generateAccessToken(employee: Employee): string {
     role: employee.role,
     type: "access",
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
 }
 
 export function generateRefreshToken(employee: Employee): string {
@@ -46,7 +52,7 @@ export function generateRefreshToken(employee: Employee): string {
     role: employee.role,
     type: "refresh",
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` });
+  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` });
 }
 
 export function generateEmployeeToken(employee: Employee): string {
@@ -55,14 +61,21 @@ export function generateEmployeeToken(employee: Employee): string {
     role: employee.role,
     type: "employee",
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: EMPLOYEE_TOKEN_EXPIRY });
+  // Employee tokens use access secret (same trust level as access tokens)
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: EMPLOYEE_TOKEN_EXPIRY });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
+  // Try access secret first (covers access and employee tokens)
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, JWT_ACCESS_SECRET) as TokenPayload;
   } catch {
-    return null;
+    // Try refresh secret for refresh tokens
+    try {
+      return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+    } catch {
+      return null;
+    }
   }
 }
 

@@ -1186,7 +1186,7 @@ export async function registerRoutes(
       }
 
       const records: PunchRecord[] = [];
-      for (const pairs of punchPairs.values()) {
+      for (const pairs of Array.from(punchPairs.values())) {
         for (const pair of pairs) {
           records.push({
             lastName: pair.employee.lastName,
@@ -1226,7 +1226,7 @@ export async function registerRoutes(
         actorId: req.employee!.id,
         targetType: "report",
         targetId: "general",
-        details: { period, year: yearNum, month: month ? parseInt(month as string) : undefined, week: week ? parseInt(week as string) : undefined },
+        details: JSON.stringify({ period, year: yearNum, month: month ? parseInt(month as string) : undefined, week: week ? parseInt(week as string) : undefined }),
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -1256,12 +1256,12 @@ export async function registerRoutes(
         return res.status(400).json({ error: { code: "RANGE_TOO_LARGE", message: "El rango máximo es de 1 año" } });
       }
 
-      const employee = await storage.getEmployee(employeeId);
+      const employee = await storage.getEmployee(employeeId as string);
       if (!employee) {
         return res.status(404).json({ error: { code: "EMPLOYEE_NOT_FOUND", message: "Empleado no encontrado" } });
       }
 
-      const punchesData = await storage.getAllPunchesForReport({ startDate, endDate, employeeId });
+      const punchesData = await storage.getAllPunchesForReport({ startDate, endDate, employeeId: employeeId as string });
 
       const punchPairs: { in: typeof punchesData[0] | null; out: typeof punchesData[0] | null }[] = [];
 
@@ -1309,8 +1309,8 @@ export async function registerRoutes(
         action: "export",
         actorId: req.employee!.id,
         targetType: "report",
-        targetId: employeeId,
-        details: { startDate: startStr, endDate: endStr, employeeName: `${employee.firstName} ${employee.lastName}` },
+        targetId: employeeId as string,
+        details: JSON.stringify({ startDate: startStr, endDate: endStr, employeeName: `${employee.firstName} ${employee.lastName}` }),
       });
 
       res.setHeader("Content-Type", "application/pdf");

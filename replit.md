@@ -102,6 +102,20 @@ npx tsx server/seed.ts  # Seed database
 
 ## Production Deployment
 
+### Health Endpoints
+- `GET /health` - Lightweight check (NO DB) - Use for platform healthchecks
+- `GET /api/health` - Deep check (includes DB status) - For monitoring dashboards
+
+### JWT Authentication
+- **Access tokens**: Signed with `JWT_ACCESS_SECRET` (15m expiry)
+- **Refresh tokens**: Signed with `JWT_REFRESH_SECRET` (7 days expiry)
+- **Employee tokens**: Signed with `JWT_ACCESS_SECRET` (12h expiry)
+- Secrets must be different and at least 32 characters in production
+
+### Payload Limits
+- JSON body: 10MB max (for base64 signatures)
+- File uploads: 2MB max per file
+
 ### DigitalOcean App Platform (Recommended)
 
 **Build Command:**
@@ -114,6 +128,12 @@ npm ci && npm run build && npm run db:push
 npm start
 ```
 
+**Health Check Endpoint:** `/health` (NOT `/api/health`)
+
+**Database Migrations (First Deploy Only):**
+Set `RUN_DB_MIGRATIONS=true` for first deployment, then remove the variable.
+Alternative: Run `npm run db:push` manually via console.
+
 **Required Environment Variables:**
 | Variable | Description |
 |----------|-------------|
@@ -123,6 +143,11 @@ npm start
 | `JWT_REFRESH_SECRET` | Min 32 chars (`openssl rand -base64 48`) |
 | `KIOSK_KEY` | Min 16 chars (`openssl rand -base64 24`) |
 | `CORS_ORIGIN` | Frontend URL (e.g., `https://app.example.com`) |
+
+**Optional - Database Migrations:**
+| Variable | Description |
+|----------|-------------|
+| `RUN_DB_MIGRATIONS` | Set to `true` for first deploy only |
 
 **Optional - DigitalOcean Spaces (for signatures):**
 | Variable | Description |
@@ -142,5 +167,7 @@ docker compose up -d --build
 docker compose exec app npm run db:push
 docker compose exec app npx tsx server/seed.ts
 ```
+
+The Dockerfile HEALTHCHECK uses `/health` (lightweight, no DB dependency).
 
 See README_PRODUCCION.md for VPS deployment guide.
