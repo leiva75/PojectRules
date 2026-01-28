@@ -698,6 +698,28 @@ export default function AdminPage() {
     },
   });
 
+  const toggleEmployeeMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      return apiRequest("PATCH", `/api/employees/${id}`, { isActive });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      toast({
+        title: variables.isActive ? "Empleado activado" : "Empleado desactivado",
+        description: variables.isActive 
+          ? "El empleado puede volver a fichar" 
+          : "El empleado ya no puede fichar",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado del empleado",
+        variant: "destructive",
+      });
+    },
+  });
+
   const copyKioskUrl = (deviceId: string) => {
     if (newKioskToken) {
       const url = `${window.location.origin}/kiosk?token=${newKioskToken}`;
@@ -724,7 +746,7 @@ export default function AdminPage() {
     }
     
     // For each employee, pair punches chronologically
-    for (const [, empPunches] of punchesByEmployee) {
+    for (const [, empPunches] of Array.from(punchesByEmployee)) {
       // Sort by timestamp ascending
       const sorted = [...empPunches].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -772,16 +794,18 @@ export default function AdminPage() {
     "--sidebar-width-icon": "3rem",
   } as React.CSSProperties;
 
-  const menuItems = [
-    { id: "dashboard", label: "Panel de control", icon: LayoutDashboard, accent: "section-accent-dashboard", description: "Vista general del sistema" },
-    { id: "employees", label: "Empleados", icon: Users, accent: "section-accent-employees", description: "Gestionar personal" },
-    { id: "punches", label: "Fichajes", icon: Clock, accent: "section-accent-punches", description: "Historial de fichajes" },
-    { id: "revision", label: "Revisión", icon: ClipboardCheck, accent: "section-accent-revision", description: "Puntos pendientes de revisión" },
-    { id: "overtime", label: "Horas Extra", icon: Timer, accent: "section-accent-overtime", description: "Solicitudes de horas extra" },
-    { id: "reports", label: "Informes", icon: FileText, accent: "section-accent-reports", description: "PDF y exportaciones" },
-    { id: "kiosks", label: "Quioscos", icon: Monitor, accent: "section-accent-dashboard", description: "Dispositivos de fichaje" },
-    { id: "estado", label: "Estado", icon: Activity, accent: "section-accent-dashboard", description: "Estado del sistema" },
+  const allMenuItems = [
+    { id: "dashboard", label: "Panel de control", icon: LayoutDashboard, accent: "section-accent-dashboard", description: "Vista general del sistema", adminOnly: false },
+    { id: "employees", label: "Empleados", icon: Users, accent: "section-accent-employees", description: "Gestionar personal", adminOnly: false },
+    { id: "punches", label: "Fichajes", icon: Clock, accent: "section-accent-punches", description: "Historial de fichajes", adminOnly: false },
+    { id: "revision", label: "Revisión", icon: ClipboardCheck, accent: "section-accent-revision", description: "Puntos pendientes de revisión", adminOnly: false },
+    { id: "overtime", label: "Horas Extra", icon: Timer, accent: "section-accent-overtime", description: "Solicitudes de horas extra", adminOnly: false },
+    { id: "reports", label: "Informes", icon: FileText, accent: "section-accent-reports", description: "PDF y exportaciones", adminOnly: false },
+    { id: "kiosks", label: "Quioscos", icon: Monitor, accent: "section-accent-dashboard", description: "Dispositivos de fichaje", adminOnly: true },
+    { id: "estado", label: "Estado", icon: Activity, accent: "section-accent-dashboard", description: "Estado del sistema", adminOnly: true },
   ];
+
+  const menuItems = allMenuItems.filter(item => !item.adminOnly || user?.role === "admin");
 
   const currentMenuItem = menuItems.find((m) => m.id === activeTab);
 
@@ -1102,11 +1126,23 @@ export default function AdminPage() {
                               <p className="text-sm text-muted-foreground">{emp.email}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-3">
                             <Badge variant="outline" className="capitalize">
                               {emp.role}
                             </Badge>
-                            <StatusBadge status={emp.isActive ? "ACTIVE" : "INACTIVE"} />
+                            <Badge variant={emp.isActive ? "default" : "secondary"}>
+                              {emp.isActive ? "Activo" : "Inactivo"}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => toggleEmployeeMutation.mutate({ id: emp.id, isActive: !emp.isActive })}
+                              disabled={toggleEmployeeMutation.isPending}
+                              title={emp.isActive ? "Desactivar empleado" : "Activar empleado"}
+                              data-testid={`button-toggle-employee-${emp.id}`}
+                            >
+                              <Power className={`h-4 w-4 ${emp.isActive ? "text-muted-foreground" : "text-green-600"}`} />
+                            </Button>
                           </div>
                         </div>
                       ))}
