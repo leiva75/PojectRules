@@ -1,0 +1,104 @@
+Tu es un agent senior full-stack + DevOps. Tu travailles sur un repo TypeScript full-stack destiné à DigitalOcean App Platform.
+
+CONTEXTE (ce que le repo contient)
+- Front: React + Vite (build -> dist/public)
+- Back: Express (TypeScript) bundlé via esbuild -> dist/index.cjs
+- DB: PostgreSQL via Drizzle (DATABASE_URL)
+- PDF: pdfkit (pas de Chromium)
+- Déploiement: Dockerfile multi-stage, port 3000, healthcheck, App Platform.
+- Fichiers clés: server/index.ts, server/routes.ts, server/auth.ts, Dockerfile, .env.example, .env.production.example, .gitignore
+
+OBJECTIF
+Rendre l’app “production-safe” sur DigitalOcean App Platform:
+- cohérence des secrets JWT
+- healthchecks fiables (ne pas casser un déploiement si la DB est lente)
+- démarrage/migrations maîtrisés
+- limites de payload adaptées (signatures base64)
+- hygiène repo (fichiers parasites)
+- maintenir la compatibilité et ne pas casser le build
+
+POINTS QUI VONT MORDRE EN PROD (à corriger)
+P0 (bloquant / sécurité / stabilité)
+1) Incohérence des secrets:
+   - server/index.ts exige JWT_ACCESS_SECRET et JWT_REFRESH_SECRET en production
+   - server/auth.ts utilise SESSION_SECRET avec fallback "dev-secret-change-in-production"
+   => Risque: tokens signés avec un secret faible / différent de la config attendue, auth instable + fail sécurité.
+
+2) Healthcheck trop “deep”:
+   - /api/health touche la DB et renvoie 503 si DB KO.
+   - Docker HEALTHCHECK pointe sur /api/health.
+   => Risque: déploiements qui échouent / redémarrages en boucle si DB lente ou migrations en cours.
+
+3) Payload limits:
+   - express.json() n’a pas de limit explicite (par défaut ~100kb)
+   - signatures en base64 + PDF => dépassements probables en prod.
+   => Risque: erreurs 413 / requêtes rejetées “aléatoirement”.
+
+P1 (fortement recommandé)
+4) Migrations en prod:
+   - script db:push existe, mais rien ne garantit que les schémas soient appliqués avant usage.
+   => Risque: erreurs runtime après déploiement.
+
+5) Hygiène repo:
+   - .gitignore minimal; dans les archives on voit des dossiers parasites (.config/npm, etc.).
+   => Risque: builds lents, bruit, secrets/artefacts accidentels.
+
+TRAVAUX DEMANDÉS (implémenter maintenant)
+A) Corriger la gestion des secrets JWT (P0)
+- Modifier server/auth.ts:
+  - Supprimer le fallback dangereux "dev-secret-change-in-production" en production.
+  - Utiliser des secrets séparés:
+    ACCESS secret = process.env.JWT_ACCESS_SECRET
+    REFRESH secret = process.env.JWT_REFRESH_SECRET
+    (optionnel: EMPLOYEE token -> même secret que ACCESS, ou un troisième secret si tu préfères, mais rester simple)
+  - Implémenter verifyToken(token):
+    - essayer jwt.verify avec ACCESS secret, si fail essayer REFRESH secret
+    - valider payload.type (access/refresh/employee) de façon cohérente
+- Modifier server/index.ts:
+  - Ajouter une validation explicite: si isProd, exiger JWT_ACCESS_SECRET + JWT_REFRESH_SECRET (déjà présent) et retirer toute dépendance implicite à SESSION_SECRET.
+- Mettre à jour .env.example et .env.production.example pour refléter la vraie liste d’ENV nécessaires (JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, KIOSK_KEY, CORS_ORIGIN, DATABASE_URL, etc.). Mentionner explicitement la longueur minimale (>=32).
+
+B) Healthcheck robuste (P0)
+- Ajouter un endpoint léger:
+  - GET /health -> 200 OK, JSON {status:"ok"}
+  - Il ne doit PAS dépendre de la DB.
+- Conserver /api/health comme “deep check”:
+  - OK qu’il vérifie la DB, mais ne pas l’utiliser comme healthcheck plateforme.
+  - Option: renvoyer 200 avec status "degraded" + db:false au lieu de 503, ou garder 503 mais ne plus l’utiliser dans Docker/DO.
+- Modifier Dockerfile:
+  - HEALTHCHECK doit appeler /health (pas /api/health)
+
+C) Ajuster les limites de payload (P0)
+- Dans server/index.ts:
+  - express.json({ limit: "10mb", verify: ... })
+  - express.urlencoded({ extended:false, limit:"10mb" })
+- Si tu as du multipart (multer), mettre aussi des limites (fileSize) si pertinent.
+- Ajouter une validation côté API: refuser une signature base64 au-delà d’une taille raisonnable (ex: 1–2MB) et retourner un message clair.
+
+D) Migrations contrôlées (P1)
+- Ajouter un mécanisme simple et sûr:
+  - Créer un script node (ex: script/migrate.ts ou script/start-prod.ts) qui:
+    - si process.env.RUN_DB_MIGRATIONS === "true": exécute "drizzle-kit push" (ou appelle l’API drizzle) puis démarre le serveur
+    - sinon: démarre le serveur directement
+  - Modifier Dockerfile CMD pour lancer ce script (ou modifier npm start pour le faire).
+  - Ne pas forcer les migrations à chaque boot en prod par défaut. Le flag doit être opt-in.
+
+E) Hygiène repo (P1)
+- Renforcer .gitignore:
+  - ignorer .env, .env.*, .config/, .local/, *.log, etc.
+- S’assurer que .dockerignore ignore aussi .config/ si pas déjà (ou confirmer).
+- Si des fichiers parasites sont déjà trackés, proposer une commande de nettoyage dans un commentaire (git rm --cached ...), mais ne supprime pas des choses au hasard sans vérifier qu’elles ne sont pas nécessaires au build.
+
+CRITÈRES D’ACCEPTATION
+- npm run build OK
+- npm run start démarre sans erreur (en dev et en prod simulée)
+- /health renvoie 200 sans DB
+- /api/health continue de renvoyer un état DB (db:true/false)
+- Auth: access/refresh tokens signés et vérifiés avec les bons secrets; aucun fallback faible en production
+- Dockerfile healthcheck pointe sur /health
+- Limites payload: une signature base64 réaliste passe, les payloads abusifs sont refusés proprement
+- Documentation: mettre à jour README ou docs minimalement avec la liste d’ENV prod et le flag RUN_DB_MIGRATIONS
+
+LIVRABLE
+- Fais les modifications directement dans le repo (diff clair).
+- Donne un résumé “avant/après” et une check-list de déploiement DigitalOcean (quelles env vars renseigner, quel endpoint mettre en healthcheck, quand activer RUN_DB_MIGRATIONS).
