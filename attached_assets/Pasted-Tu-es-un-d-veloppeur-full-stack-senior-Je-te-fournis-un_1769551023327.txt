@@ -1,0 +1,113 @@
+Tu es un développeur full-stack senior. Je te fournis un nouveau logo (PNG) et je veux que l’application remplace tous les logos existants par celui-ci, partout, sans casser l’UI ni les builds.
+
+Objectif
+
+Remplacer tous les emplacements de logo existants (header, sidebar, login, splash/landing, écran kiosque, emails/templates si présents, etc.) par CE logo.
+
+Dans l’interface (notamment sidebar/header), afficher le logo un peu plus gros, de façon professionnelle :
+
+garder proportions (pas d’étirement)
+
+rendu net (pas flou)
+
+alignement propre (centrage vertical/horizontal)
+
+responsive (desktop + mobile)
+
+Contraintes (ne touche pas au reste)
+
+Ne pas refactoriser l’architecture.
+
+Ne change pas la logique métier.
+
+Fais une modif safe : uniquement assets + composants UI qui affichent le logo.
+
+Zéro hardcode fragile : centraliser la source du logo.
+
+Implémentation demandée
+
+Ajouter l’asset
+
+Copier le PNG dans l’emplacement standard du projet :
+
+public/brand/logo.png (ou équivalent si le projet n’a pas public)
+
+Si tu détectes déjà un dossier assets/static, utilise la convention existante.
+
+Centraliser la référence
+
+Créer un fichier unique (ex: src/config/brand.ts ou src/constants/brand.ts) avec :
+
+LOGO_SRC = "/brand/logo.png"
+
+APP_NAME = "CronosFichajes" (si utile)
+
+Tous les composants doivent pointer vers cette constante.
+
+Remplacer partout
+
+Chercher et remplacer tous les usages de logos existants :
+
+images importées type logo.svg, logo.png, brandmark, favicon, app-icon, etc.
+
+composants Logo, Brand, Header, Sidebar, AuthLayout
+
+Remplacer par un composant unique BrandLogo (ou adapter l’existant) qui consomme LOGO_SRC.
+
+Sizing “pro” (plus gros mais élégant)
+
+Sidebar (zone marque en haut) :
+
+hauteur logo : 44–52px (selon espace), largeur auto
+
+ajouter un padding vertical cohérent
+
+si la sidebar est compacte, prévoir une variante sm (ex: 36–40px)
+
+Header (si logo présent) :
+
+hauteur : 32–40px
+
+Toujours :
+
+height contrôlé, width: auto
+
+object-fit: contain
+
+max-width raisonnable pour éviter le débordement
+
+spacing cohérent avec le texte (si texte adjacent)
+
+Icônes navigateur / PWA
+
+Mettre à jour :
+
+favicon.ico / favicon.png (si présent)
+
+manifest.json icons (si PWA)
+
+Si besoin, générer des tailles 16/32/48/180/192/512 à partir du PNG, et les enregistrer dans public/brand/.
+
+Important : ne rien casser si PWA n’existe pas ; seulement si fichiers présents.
+
+Vérifications anti-casse
+
+Vérifier que :
+
+aucune page ne casse en layout (pas de débordement)
+
+dark/light mode : logo lisible (si fond sombre, ok)
+
+build sans erreurs d’import
+
+Ajouter un fallback alt="CronosFichajes" + gestion si image non chargée (CSS simple).
+
+Livrable
+
+Liste des fichiers modifiés
+
+Le composant BrandLogo (ou mise à jour du composant existant)
+
+Les tokens/classes CSS utilisés pour tailles sm/md (prop ou variantes)
+
+⚠️ Priorité : remplacement global + sizing propre. Aucune autre “amélioration” non demandée.

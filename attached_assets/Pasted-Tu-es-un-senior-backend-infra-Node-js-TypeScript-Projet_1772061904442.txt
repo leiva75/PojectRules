@@ -1,0 +1,104 @@
+Tu es un senior backend/infra Node.js + TypeScript. Projet: Cronos Fichajes. Génération PDF via PDFKit. Objectif: AUDIT profond + PATCH robuste sur les 2 routes PDF (Général + Employé) pour garantir (1) tri chronologique global ASC (ancien → récent) et (2) instrumentation de preuve en production (build stamp + logs tri/timezone). Tu dois livrer des diffs précis, build TS clean, et logs exploitables.
+
+CONTEXTE (facts déjà établis, à respecter)
+- DB: getAllPunchesForReport() fait ORDER BY lastName, firstName, timestamp.
+- Route Général:
+  - groupement Map par employeeId-dateKey → Array.from(values) → records[]
+  - un sort chronologique ASC (epoch) a été ajouté récemment ✅
+  - generateReportPDF(records) rend séquentiellement l’ordre fourni (pas de tri interne) ✅
+- Route Employé:
+  - pairing IN/OUT → records[]
+  - PAS de sort explicite ⚠️ (dépend du ORDER BY DB, donc fragile)
+- Problème majeur prod: on manque de preuve de la version réellement déployée qui génère les PDFs.
+- Timezone: [TZ-CHECK] existe déjà et est correct; garder.
+
+OBJECTIFS NON NÉGOCIABLES
+1) Les DEUX rapports PDF (général + employé) doivent être triés strictement du plus ancien au plus récent, jour puis heure, via epoch ms (jamais des strings).
+2) Ajouter instrumentation VERBOSE (mais propre) pour prouver:
+   - l’ordre réel des 5 premiers records utilisés par le renderer
+   - la monotonicité croissante des epochs
+   - la normalisation ensureDateUTC + format Madrid
+3) Ajouter un build stamp au boot pour prouver la version en prod.
+
+SCOPE À MODIFIER
+- server/routes.ts (2 routes PDF)
+- server/index.ts (boot logs)
+
+T001 — TRI CHRONOLOGIQUE ROUTE EMPLOYÉ (OBLIGATOIRE)
+Dans server/routes.ts, route /api/reports/employee/:id :
+1) Après construction “records[]” (après pairing IN/OUT), ajouter un tri explicite identique à celui du général.
+2) Tri ASC (ancien → récent).
+3) Calcul epoch:
+   - utiliser ensureDateUTC(sortKey)?.getTime()
+   - si invalide => Infinity (pour pousser en fin en ASC)
+4) Définir UNE sortKey stable (éviter chaos):
+   - sortKey = record.timestamp ?? record.eventAt ?? record.entryTime ?? record.entradaAt ?? record.exitTime ?? record.salidaAt ?? record.createdAt
+   - choisir l’ordre de fallback selon les champs réellement présents; l’important est: 1 seule clé par record.
+5) Vérifier que c’est bien “records triés” qui est passé à generateReportPDF() (pas une copie non triée).
+
+Acceptance T001:
+- PDF Employé est strictement chronologique ASC, indépendamment du ORDER BY DB.
+
+T002 — INSTRUMENTATION ROUTES PDF (OBLIGATOIRE)
+Remplacer les logs [PDF-DEBUG] par une instrumentation standardisée identique sur les 2 routes (général + employé).
+
+Implémenter une petite fonction interne (dans routes.ts) type logPdfDebug(routeTag, records):
+- [PDF-SORT-CHECK] : afficher les 5 premiers records VRAIMENT envoyés au PDF:
+  { employee: (id + nom si dispo), rawTimestamp: sortKey brut, isoTimestamp: ensured.toISOString(), epochMs }
+- [PDF-TIME-DEBUG] : uniquement pour le 1er record:
+  { raw, rawType, ensuredISO, madridFormatted }
+  où madridFormatted = formatInMadrid(raw, { withSeconds: true })
+- Vérification monotonicité:
+  - parcourir epochs et vérifier epoch[i] <= epoch[i+1]
+  - si violation: log ERROR [PDF-SORT-FAIL] avec les 2 records incriminés (index, epochs, iso, employee)
+- Les logs doivent s’exécuter À CHAQUE génération PDF (mais limite à top5 + 1 record pour éviter spam).
+
+Important:
+- Les logs doivent refléter la liste EXACTE rendue (celle donnée au PDF renderer), pas une liste “avant grouping”.
+- Ne pas logger des données sensibles inutilement (pas d’email, pas de DNI, etc.).
+
+Acceptance T002:
+- Sur chaque génération PDF, on voit [PDF-SORT-CHECK], [PDF-TIME-DEBUG], et éventuellement [PDF-SORT-FAIL] si bug.
+
+T003 — BUILD STAMP AU BOOT (OBLIGATOIRE)
+Dans server/index.ts:
+1) Ajouter un log au démarrage:
+   [PDF-BUILD] buildTime=... gitSha=... node=... env=...
+2) Source de buildTime:
+   - process.env.BUILD_TIME si présent sinon new Date().toISOString()
+3) Source gitSha:
+   - process.env.GIT_SHA / process.env.VERCEL_GIT_COMMIT_SHA / process.env.COMMIT_SHA (prendre le premier non vide), sinon “unknown”
+4) Garder le [TZ-CHECK] existant tel quel.
+5) S’assurer que ces logs apparaissent au boot en prod.
+
+Acceptance T003:
+- On voit [PDF-BUILD] + [TZ-CHECK] à chaque démarrage.
+
+T004 — BUILD & VALIDATION (OBLIGATOIRE)
+1) Build TypeScript sans erreur.
+2) Démarrage serveur: logs [PDF-BUILD] + [TZ-CHECK][OK].
+3) Générer:
+   - un PDF général
+   - un PDF employé
+   et vérifier dans les logs:
+   - epochs monotones croissants
+   - les timestamps affichés (iso + madridFormatted) cohérents
+4) Si un endpoint /api/debug/timezone existe, vérifier qu’il répond et correspond au [TZ-CHECK].
+
+LIVRABLES
+1) Diffs exacts (patch) pour:
+   - server/routes.ts (T001 + T002)
+   - server/index.ts (T003)
+2) Commandes de validation exécutées et leurs résultats (build OK).
+3) Exemples de logs attendus en prod.
+
+CONTRAINTES TECHNIQUES
+- Tri uniquement sur epoch number. Interdit de trier sur string formatée.
+- SortKey unique par record (pas “entryTime parfois, exitTime parfois” sans règle).
+- Fallback Infinity en tri ASC pour invalides.
+- Ne pas modifier le renderer PDFKit (il préserve l’ordre).
+- Ne pas “faire confiance” au ORDER BY DB pour le rapport employé.
+- Tout doit être déterministe et prouvable via logs.
+
+EXÉCUTION
+Applique maintenant T001–T003, puis exécute T004. Fournis le patch complet et les logs types. Si tu détectes une incohérence (ex: records ne contiennent pas le champ attendu), adapte sortKey et documente exactement quel champ est utilisé.

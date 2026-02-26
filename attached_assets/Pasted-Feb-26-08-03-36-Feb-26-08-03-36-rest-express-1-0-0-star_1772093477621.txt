@@ -1,0 +1,29 @@
+Feb 26 08:03:36  
+Feb 26 08:03:36  > rest-express@1.0.0 start
+Feb 26 08:03:36  > NODE_ENV=production node dist/index.cjs
+Feb 26 08:03:36  
+Feb 26 08:03:37  [PG-SSL] env=production sslmode=true mode=verified-ca
+Feb 26 08:03:39  [TZ-CHECK][OK] CET: 2026-02-25T22:01:00Z → 23:01 (expect 23:01) ✓ | CEST: 2026-07-01T12:00:00Z → 14:00 (expect 14:00) ✓ | resolvedTZ=Europe/Madrid
+Feb 26 08:03:39  [PDF-BUILD] buildTime=2026-02-26T08:03:39.858Z gitSha=unknown node=v18.20.8 env=production
+Feb 26 08:03:39  {"level":30,"time":1772093019859,"pid":13,"hostname":"pojectrules-58c6ff7f5b-vs8rh","env":"production","msg":"Configuración validada correctamente"}
+Feb 26 08:03:39  {"level":30,"time":1772093019934,"pid":13,"hostname":"pojectrules-58c6ff7f5b-vs8rh","env":"production","port":3000,"msg":"Servidor iniciado en puerto 3000"}
+Feb 26 08:07:00  {"level":30,"time":1772093220605,"pid":13,"hostname":"pojectrules-58c6ff7f5b-vs8rh","msg":"GET /api/auth/me 401 in 13ms"}
+Feb 26 08:07:38  Login error: Error: self-signed certificate in certificate chain
+Feb 26 08:07:38      at /app/dist/index.cjs:70:13330
+Feb 26 08:07:38      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 26 08:07:38      at async /app/dist/index.cjs:78:102736
+Feb 26 08:07:38      at async kg.getEmployeeByEmail (/app/dist/index.cjs:79:2784)
+Feb 26 08:07:38      at async /app/dist/index.cjs:79:41928 {
+Feb 26 08:07:38    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 26 08:07:38  }
+Feb 26 08:07:38  {"level":30,"time":1772093258844,"pid":13,"hostname":"pojectrules-58c6ff7f5b-vs8rh","msg":"POST /api/auth/login 500 in 302ms"}
+Feb 26 08:08:52  {"level":30,"time":1772093332040,"pid":13,"hostname":"pojectrules-58c6ff7f5b-vs8rh","msg":"GET /api/auth/me 401 in 2ms"}
+Feb 26 08:10:18  Employee login error: Error: self-signed certificate in certificate chain
+Feb 26 08:10:18      at /app/dist/index.cjs:70:13330
+Feb 26 08:10:18      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 26 08:10:18      at async /app/dist/index.cjs:78:102736
+Feb 26 08:10:18      at async kg.getEmployeeByPin (/app/dist/index.cjs:79:2879)
+Feb 26 08:10:18      at async /app/dist/index.cjs:79:43057 {
+Feb 26 08:10:18    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 26 08:10:18  }
+Feb 26 08:10:18  {"level":30,"time":1772093418308,"pid":13,"hostname":"pojectrules-58c6ff7f5b-vs8rh","msg":"POST /api/auth/employee-login 500 in 61ms"}

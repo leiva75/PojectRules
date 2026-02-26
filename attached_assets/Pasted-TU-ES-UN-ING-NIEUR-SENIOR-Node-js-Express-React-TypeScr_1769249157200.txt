@@ -1,0 +1,115 @@
+TU ES UN INGÉNIEUR SENIOR Node.js/Express/React/TypeScript/Postgres/Drizzle, spécialisé en déploiement PaaS sur DigitalOcean.
+
+OBJECTIF
+Préparer l’application existante (pointeuse) pour être déployée sur DigitalOcean App Platform + Managed PostgreSQL + Spaces (S3 compatible), en production, avec un minimum de changements (pas de refactor cosmétique).
+
+CONTEXTE
+- Front: React + TypeScript (Vite ou autre)
+- Back: Express + TypeScript
+- DB actuelle: SQLite (better-sqlite3) en local / dev, mais PROD doit être PostgreSQL (Managed DB DigitalOcean)
+- Multi-utilisateurs faibles (10–15), usage local (Palencia)
+- App doit être stable, loggable, et “inspection-proof” (horodatage, traçabilité)
+
+CONTRAINTES STRICTES
+1) Pas de renommage massif, pas de refactor esthétique.
+2) Produire des commits séparés et petits (liste à la fin).
+3) Tout ce qui est “prod config” passe par env vars.
+4) Ne jamais compter sur le filesystem local en prod (services éphémères).
+5) Ne rien “casser” : chaque phase doit garder l’app fonctionnelle.
+
+PHASE 0 — INVENTAIRE (AVANT MODIFS)
+- Donne l’arborescence (dossiers clés)
+- Identifie les points d’entrée:
+  - serveur Express (fichier principal)
+  - build backend (dist/…)
+  - build frontend (client/dist ou autre)
+- Liste les scripts package.json (dev/build/start)
+- Montre où la DB est initialisée et comment le chemin est déterminé
+- Confirme si le front est servi par un Static Site séparé ou par le backend
+
+PHASE 1 — PROD READINESS (Express)
+Appliquer les points suivants:
+- écouter sur 0.0.0.0 et process.env.PORT
+- ajouter endpoint GET /health (200 + info version)
+- activer app.set("trust proxy", 1) pour cookies/sessions derrière proxy
+- logs d’erreur structurés (codes explicites), pas de INTERNAL_ERROR opaque
+- config centralisée via env vars:
+  - NODE_ENV
+  - PORT
+  - DATABASE_URL
+  - USE_POSTGRES
+  - SESSION_SECRET
+  - FRONTEND_URL / CORS_ORIGINS
+
+PHASE 2 — BASE DE DONNÉES (SQLite dev / Postgres prod)
+But: DEV local = SQLite, PROD DO = Postgres.
+- Implémenter un switch propre:
+  - si USE_POSTGRES=true et DATABASE_URL présent → utiliser Postgres
+  - sinon → SQLite local
+- Si Drizzle est utilisé:
+  - maintenir un schema unique
+  - ajouter/valider les commandes de migration (ex: npm run db:push ou drizzle migrate)
+- Fournir un .env.example complet
+- Assurer que la création de cours/pointages fonctionne de manière identique en SQLite et Postgres
+
+PHASE 3 — FRONTEND CONFIG
+- Mettre l’URL API en variable:
+  - VITE_API_URL (ou équivalent)
+- Ajuster CORS côté backend:
+  - en prod, autoriser uniquement FRONTEND_URL
+  - en dev, autoriser localhost
+- Vérifier que le build front sort dans un dossier stable (ex: client/dist)
+
+PHASE 4 — DIGITALOCEAN SPACES (préparation)
+Préparer l’app pour stocker les fichiers (signatures / exports) dans Spaces au lieu du disque local.
+- Ajouter un module storage S3-compatible (AWS SDK) utilisable avec Spaces
+- Variables d’environnement à prévoir:
+  - DO_SPACES_KEY
+  - DO_SPACES_SECRET
+  - DO_SPACES_REGION (ex: ams3)
+  - DO_SPACES_BUCKET
+  - DO_SPACES_ENDPOINT (ex: https://ams3.digitaloceanspaces.com)
+  - DO_SPACES_PUBLIC_BASE_URL (si public) ou stratégie signed URLs (si privé)
+- IMPORTANT: ne pas rendre ce stockage obligatoire si la feature n’est pas encore branchée.
+  -> on prépare l’infra et le module, sans tout refondre.
+
+PHASE 5 — ARTEFACTS DE DÉPLOIEMENT (obligatoires)
+Créer les fichiers suivants:
+1) .env.example (documenté)
+2) BUILD.md avec:
+   - commandes dev
+   - commandes prod local (build + start)
+   - commandes migrations
+3) README section “Déploiement DigitalOcean”
+   - App Platform: Build Command / Run Command
+   - Managed Postgres: DATABASE_URL
+   - Spaces: env vars + permissions
+4) OPTIONNEL mais recommandé:
+   - un fichier spec “app.yaml” ou notes précises pour configurer App Platform
+   (si tu n’as pas le format exact, au minimum une checklist claire)
+
+PHASE 6 — CHECKLIST DE VALIDATION (avant fin)
+- Local dev: npm ci && npm run dev
+- Prod local: npm run build && npm start
+- /health retourne 200
+- DB switch fonctionne:
+  - SQLite sans DATABASE_URL
+  - Postgres avec DATABASE_URL
+- erreurs backend: codes explicites + logs clairs
+- aucune dépendance à des chemins Windows/Electron
+
+COMMITS (OBLIGATOIRE)
+Découper en commits:
+1) chore: add healthcheck + prod server bindings (PORT, trust proxy)
+2) feat: env config + cors rules + .env.example
+3) feat: postgres switch (drizzle) + migrations script
+4) docs: BUILD.md + DigitalOcean deploy checklist
+5) chore: add spaces storage module (non branché)
+
+SORTIE ATTENDUE
+- Liste des fichiers modifiés + nouveaux fichiers
+- Les commandes DO App Platform:
+  - Build Command
+  - Run Command
+- Liste exacte des env vars à saisir dans DigitalOcean
+- Checklist finale de validation

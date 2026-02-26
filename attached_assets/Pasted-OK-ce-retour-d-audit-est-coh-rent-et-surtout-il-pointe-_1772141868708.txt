@@ -1,0 +1,177 @@
+OK — ce retour d’audit est cohérent et, surtout, il pointe exactement le vrai bug : DATABASE_URL arrive vide/undefined en prod (ou devient vide après “cleaning”), et pg se casse la gueule en interne sur new URL(undefined) → searchParams.
+
+Maintenant on exécute proprement les tâches T001–T004, en mode “pas de magie, que des preuves”.
+
+1) T001 — Rendre DATABASE_URL impossible à foirer (et prouver qu’il est bien reçu)
+Ce qu’on veut
+
+Si DATABASE_URL est manquant / vide / invalide → log clair + exit(1) (pas de crash cryptique en runtime).
+
+Au démarrage, tu vois un log du genre :
+
+postgresql://cronos_app:***@db-postgresql-fra1-...:25060/cronosdb (sslmode stripped).
+
+Patch recommandé (logique)
+
+Dans server/db.ts (ou là où tu construis le Pool) :
+
+Lire process.env.DATABASE_URL (ou process.env.DATABASE_URL?.trim()).
+
+Valider avant tout replace() :
+
+non vide
+
+commence par postgres:// ou postgresql://
+
+Faire ton “clean” (retirer sslmode=...) sans jamais pouvoir produire une string vide.
+
+Re-valider après clean.
+
+Log “masked” (sans password) au boot.
+
+process.exit(1) si invalide.
+
+⚠️ Point clé : ton cleaning doit gérer ces cas :
+
+URL qui ne contient que ?sslmode=require (ou pire : quelqu’un a mis juste sslmode=require dans la variable… oui, ça arrive)
+
+URL avec &sslmode=require
+
+URL avec paramètres multiples
+
+Le plus robuste : parse en new URL() uniquement après validation que c’est une URL, puis supprimer searchParams.delete("sslmode").
+
+2) T003 — Vérifier la variable sur DigitalOcean (c’est là que ça casse)
+
+Tu ne peux pas corriger du code si DO envoie un DATABASE_URL vide.
+
+Sur DigitalOcean App Platform
+
+App → Settings → Environment Variables
+
+Cherche DATABASE_URL
+
+Clique l’œil (ou “Edit”) pour vérifier que :
+
+ça commence bien par postgresql://...
+
+il y a bien @db-postgresql-fra1-69239...:25060/
+
+et le bon DB name (/cronosdb)
+
+IMPORTANT
+
+Si tu as créé DATABASE_URL “Encrypted”, c’est OK.
+
+Mais si tu as aussi une variable du style DATABASE__URL (double underscore) ou DB_URL, ton code peut lire la mauvaise.
+
+Et si tu as “component-level env vars” qui override “app-level”, tu peux avoir un DATABASE_URL vide dans le Web Service.
+
+👉 Après patch T001, tu auras un log clair qui dira “DATABASE_URL missing” au boot. C’est exactement la preuve qu’on veut.
+
+3) T002 — Corriger les routes auth pour renvoyer 503 au lieu de 500 “vague”
+
+Ça ne règle pas le cœur du problème, mais ça te donne une prod qui se comporte comme un service sérieux :
+
+DB down / non connectable → 503 Service Unavailable
+
+mauvais mot de passe → 401
+
+Donc dans server/routes.ts, sur :
+
+/api/auth/login
+
+/api/auth/employee-login
+
+/api/auth/refresh
+
+remplacer les console.error + res.status(500) par handleRouteError(err, req, res) (ou ton wrapper standard).
+
+4) Ton état actuel (d’après tes logs)
+
+Tu as eu 3 phases :
+
+SELF_SIGNED_CERT_IN_CHAIN → DB refusée (TLS CA foireux)
+
+Tu as mis NODE_TLS_REJECT_UNAUTHORIZED=0 → la DB passe → tu obtiens des 401 (ce qui prouve que DB et auth fonctionnent)
+
+Maintenant tu as Cannot read properties of undefined (reading 'searchParams') → ça sent :
+
+DATABASE_URL absent dans CE déploiement précis (ou mal injectée)
+
+ou ton cleaning a transformé en string vide
+
+Conclusion brutale : ce n’est plus un problème TLS ; c’est un problème d’injection de variable d’environnement (ou de parsing).
+
+5) Ce que tu dois faire maintenant, pas à pas (sans réfléchir)
+Étape A — Vérifier la variable côté DO
+
+DigitalOcean → App → Settings → Environment Variables
+
+Ouvre DATABASE_URL
+
+Confirme qu’elle est bien complète
+
+Si tu vois vide ou suspect :
+
+remets la valeur en copiant depuis ton cluster DB (Connection details → connection string), et colle la ligne complète.
+
+Étape B — Patch T001 (code)
+
+Ajoute validation + log masked + exit(1) dans server/db.ts
+
+Commit + push → DO rebuild
+
+Étape C — Lire les logs après déploiement
+
+Tu dois voir au boot :
+
+[PG-SSL] ...
+
+et surtout ton nouveau log style [PG-URL] masked=postgresql://cronos_app:***@.../cronosdb
+
+Si tu vois :
+
+[PG-URL][FATAL] DATABASE_URL missing/invalid
+=> c’est DO qui n’injecte pas la variable au bon scope.
+
+Étape D — Corriger DO scope si besoin
+
+Dans DO, vérifie si la variable est :
+
+au niveau “App-level”
+
+ou au niveau “Component-level” (Web Service pojectrules)
+
+Si elle n’est qu’au App-level mais ton composant override, mets-la explicitement dans le composant.
+
+6) Pour ta question “quel login/mdp tester ?”
+
+Aucun nouveau login magique n’est créé par ces manips.
+
+Le login admin à tester = celui qui existe en DB (table employees/admin selon ton modèle)
+
+Tant que tu prends la même base cronosdb et le même code, les identifiants ne changent pas.
+
+Si tu obtiens 401, ça veut dire :
+
+DB OK
+
+le user existe ou pas / password mismatch
+→ là on passe en mode DB : on vérifie l’email exact + si le hash correspond. Mais ce n’est pas l’étape actuelle.
+
+7) Et le DNS / ancien lien qui marche encore
+
+Deux points rapides (sans poésie, juste la mécanique) :
+
+Si l’ancien lien marche encore, c’est que son DNS pointe toujours vers l’ancienne infra (ou cache DNS).
+
+Pour “tuer” l’ancien lien, tu dois soit :
+
+changer le DNS de ce domaine vers DO
+
+ou mettre une redirection côté ancien hébergeur
+
+ou désactiver l’ancien service (la vraie guillotine)
+
+Mais on ne touche pas au DNS tant que l’app DO n’est pas stable.

@@ -1,0 +1,52 @@
+Tu es un ingénieur backend senior Node.js/TypeScript spécialisé en PostgreSQL TLS. Objectif: débloquer immédiatement la prod DigitalOcean (login cassé) en corrigeant l’erreur SELF_SIGNED_CERT_IN_CHAIN dans le driver pg.
+
+CONTEXTE
+- En prod DO, toutes les requêtes DB échouent avec: SELF_SIGNED_CERT_IN_CHAIN.
+- Cause racine identifiée: server/db.ts (env DO_CA_CRT absent => ssl undefined) + DATABASE_URL contient ?sslmode=require => pg tente SSL sans config CA => Node rejette la chaîne DO.
+- Priorité absolue: rétablir le login en prod aujourd’hui.
+
+TÂCHES (OBLIGATOIRES)
+T001 — Patch SSL robuste dans server/db.ts
+1) Ouvre server/db.ts et localise la création du Pool/Client pg.
+2) Implémente une logique SSL à 3 états:
+   A) Si DO_CA_CRT est défini et non vide:
+      ssl = { ca: DO_CA_CRT (support \n), rejectUnauthorized: true }
+   B) Sinon, si NODE_ENV === "production" OU DATABASE_URL indique SSL (sslmode=require ou ssl=true):
+      ssl = { rejectUnauthorized: false }
+      (TLS chiffré, sans validation CA — nécessaire pour DO si CA non fournie)
+   C) Sinon (dev local sans indication SSL):
+      ssl = undefined
+
+3) Détection SSL dans DATABASE_URL:
+   - hasSslMode = DATABASE_URL contient "sslmode=require" (query param) OU "ssl=true"
+   - La détection doit être robuste (regex sur ?/&).
+
+4) IMPORTANT:
+   - Ne pas exposer DO_CA_CRT dans les logs.
+   - Gérer DO_CA_CRT multi-line en remplaçant "\\n" par "\n".
+   - Conserver les imports et le style du fichier.
+
+T002 — Instrumentation minimale (preuve)
+Ajouter un log au démarrage DB (une seule fois) :
+[PG-SSL] env=<NODE_ENV> sslmode=<true/false> mode=<verified-ca|encrypted-no-verify|disabled>
+- verified-ca si ca fourni
+- encrypted-no-verify si fallback rejectUnauthorized:false
+- disabled si ssl undefined
+
+T003 — Build validation
+1) Lancer build TypeScript (commande du repo) et garantir 0 erreurs.
+2) Démarrer l’app localement:
+   - En dev sans sslmode dans DATABASE_URL, ssl doit rester undefined (mode=disabled).
+3) Fournir les diffs exacts de server/db.ts (+ autres fichiers si touchés) et coller un extrait des logs attendus.
+
+ACCEPTANCE CRITERIA
+- En prod DO, le login fonctionne et l’erreur SELF_SIGNED_CERT_IN_CHAIN disparaît.
+- Les logs montrent [PG-SSL] mode=encrypted-no-verify si DO_CA_CRT n’est pas configuré, ou verified-ca si DO_CA_CRT est configuré.
+- Build TS clean.
+
+EXÉCUTION
+Applique maintenant le patch dans server/db.ts, ajoute le log [PG-SSL], puis exécute le build TS. Donne-moi:
+- le diff complet
+- la sortie build (succès)
+- un exemple de logs [PG-SSL] en local
+et explique en 3 lignes pourquoi le correctif résout l’erreur.

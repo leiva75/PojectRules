@@ -1,0 +1,65 @@
+# ===========================================
+# Cronos Fichajes - Docker Ignore
+# ===========================================
+
+# Dependencies (will be installed in container)
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Environment files (secrets should be passed via env vars)
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Build artifacts (will be built in container)
+dist/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (not needed in container)
+*.md
+!README.md
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Config directories
+.config/
+.local/
+.cache/
+
+# Replit specific
+.replit
+replit.nix
+.upm/
+attached_assets/
+
+# Test files
+coverage/
+.nyc_output/
+**/*.test.ts
+**/*.spec.ts
+
+# Development files
+*.tar.gz
+*.zip
+
+# Migrations (handled separately)
+migrations/
+
+# Optional: Design files
+design_guidelines.md

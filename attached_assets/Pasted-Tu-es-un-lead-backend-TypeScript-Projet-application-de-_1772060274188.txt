@@ -1,0 +1,55 @@
+Tu es un lead backend TypeScript. Projet: application de pointage “Cronos Fichajes”.
+Objectif: corriger 2 bugs dans la génération des rapports PDF (PDFKit).
+
+CONTEXTE
+- PDF générés via PDFKit (pas de headless browser).
+- Décalage constaté: PDF affiche -1h vs UI (ex: UI 23:01, PDF 22:01 en février Espagne).
+- On a déjà ensureDateUTC + timeZone: "Europe/Madrid" MAIS suspicion: version déployée ancienne, ou ensureDateUTC pas robuste selon les formats d’entrée.
+- Rapport général: tri actuellement par nom d’employé puis date; attendu: tri chronologique global (ancien -> récent).
+
+TÂCHES À RÉALISER (OBLIGATOIRES)
+T001 — TRI RAPPORT GÉNÉRAL
+1) Ouvre server/routes.ts, route /api/reports/general.
+2) Repère le sort actuel du type:
+   records.sort((a,b)=> { nameCompare...; return aTime-bTime; })
+3) Remplace-le par un tri STRICTEMENT CHRONOLOGIQUE GLOBAL:
+   - Calculer aTime/bTime en epoch ms à partir du timestamp de l’événement (champ(s) existants).
+   - Ne PAS utiliser le nom dans le tri.
+   - Tri: ASC (ancien -> récent).
+4) Vérifie que ce tri est celui utilisé AVANT la génération PDF (pas seulement pour JSON).
+
+T002 — ROBUSTESSE TIMEZONE + GARDE-FOU PROD
+1) server/timezone.ts:
+   - Renforce ensureDateUTC pour gérer: Date, ISO string avec Z/offset, number epoch (ms ou s), string naïve "YYYY-MM-DD HH:mm:ss" / "YYYY-MM-DDTHH:mm:ss", null/undefined.
+   - Règle: si string naïve => l’interpréter comme heure LOCALE Europe/Madrid puis convertir en instant UTC.
+   - Ajoute formatInMadrid(dateInput, {withSeconds?}) qui formate via Intl.DateTimeFormat avec timeZone "Europe/Madrid" et hourCycle "h23".
+2) server/index.ts:
+   - Ajoute un check au démarrage:
+     - Formater new Date("2026-02-25T22:01:00Z") en Europe/Madrid doit contenir "23:01" (CET).
+     - Si échec ou Intl timeZone non supportée, log ERROR explicite avec process.version et Intl.DateTimeFormat().resolvedOptions().timeZone.
+     - Sinon log OK.
+   - Ce log doit s’exécuter à CHAQUE boot.
+3) Vérifie que toutes les zones du code PDF utilisent formatInMadrid (ou un chemin unique équivalent), pas des Date.toLocaleString() dispersés.
+
+T003 — BUILD & VALIDATION
+1) Build TypeScript: zéro erreur.
+2) Lancement app: vérifier présence du log [TZ-CHECK][OK] et la valeur attendue.
+3) Générer un PDF employé + général et confirmer:
+   - heures conformes à l’UI en Europe/Madrid
+   - général trié chronologiquement global (ancien -> récent)
+
+CONTRAINTES / QUALITÉ
+- Pas de “quick fix” au hasard. Le tri doit être déterministe.
+- La conversion timezone ne doit PAS dépendre de la timezone système.
+- Si un champ date est invalide: le traiter explicitement (ex: pousser en fin de liste via +Infinity) plutôt que comportement implicite.
+- Pas de régression CET/CEST: ajouter au minimum une vérification “été” si simple (ex: 2026-07-01T12:00:00Z doit donner 14:00 Madrid).
+
+LIVRABLES
+1) Patch (diff) sur:
+   - server/routes.ts
+   - server/timezone.ts
+   - server/index.ts
+2) Mini-note dans le PR: cause racine probable + comment le fix empêche -1h en prod.
+3) Résultat de test: logs TZ + preuve tri chronologique.
+
+Exécute maintenant: applique les changements et fournis les diffs exacts + une check-list de validation.

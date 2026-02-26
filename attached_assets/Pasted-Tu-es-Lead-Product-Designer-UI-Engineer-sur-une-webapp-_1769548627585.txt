@@ -1,0 +1,98 @@
+Tu es Lead Product Designer + UI Engineer sur une webapp de pointage RH (“Cronos”), interface actuelle plutôt neutre (beaucoup de blanc/gris), navigation latérale (Panel de control, Empleados, Fichajes, Revisión, Horas Extra, Informes PDF, Exportar CSV, etc.).
+Je veux une montée en gamme visuelle : plus de couleur, plus de contraste, plus de profondeur—sans tomber dans le carnaval. Style recherché : SaaS premium / admin dashboard moderne, lisible, élégant, “chic” (sobriété + caractère).
+
+1) Objectif produit
+
+Je n’ai plus besoin d’exporter en CSV comme fonctionnalité centrale.
+→ Soit tu retires “Exportar CSV” du menu, soit tu le déplaces dans une zone “Admin / Outils” moins visible, soit tu le remplaces par une action secondaire (ex. dans “Informes PDF” ou “Fichajes” via un menu “…”).
+
+Je veux que chaque onglet / écran ait une identité visuelle légère (couleur d’accent, header, bloc héro) pour mieux “scander” l’expérience.
+
+2) Direction artistique (design system)
+
+Crée une proposition de design system cohérente :
+
+Palette :
+
+1 couleur “brand” principale (bleu premium ou autre),
+
+1–2 couleurs secondaires (ex. teal / violet / amber très mesurés),
+
+neutres riches (pas du gris plat : nuances plus chaudes/froides),
+
+états (success/warn/error/info) harmonisés.
+
+Contraste : vise un rendu plus “dense” : textes plus sombres, fonds moins “vides”, séparations plus nettes, cartes avec relief subtil (ombre douce, bordure fine, overlay).
+
+Typo : hiérarchie claire (H1/H2, labels, helper), interlignage propre, chiffres/horaires très lisibles.
+
+Rayons/ombres : modernes mais discrets, cohérents partout.
+
+Accessibilité : contrastes conformes, focus visible, tailles minimum, états hover/active.
+
+3) Layout & composants à upgrader (partout)
+
+Applique une refonte transversale :
+
+Top bar / header plus “premium” (titre d’écran, breadcrumb optionnel, actions à droite).
+
+Sidebar : état actif vraiment visible (pill + barre latérale + icône), sections mieux séparées.
+
+Écrans : remplace le “grand vide” central par une composition plus riche :
+
+un hero header d’écran (titre + description + actions),
+
+une zone de contenu en cartes/sections,
+
+micro-illustrations / pictos si utile (minimal).
+
+Boutons : primary/secondary/tertiary + icon buttons cohérents.
+
+Tables / listes : zébrage subtil, header sticky optionnel, filtres mieux mis en scène.
+
+Formulaires : champs plus élégants, labels/erreurs propres.
+
+4) Spécifique à l’écran “Exportar CSV”
+
+Comme je n’en ai plus besoin au centre du produit :
+
+Propose 2 alternatives UX :
+
+Suppression de l’écran et remplacement par “Informes / Exports” (PDF + exports secondaires)
+
+Conservation mais rebranding en outil admin (caché selon rôle), avec UI plus compacte.
+
+Si conservé : l’écran ne doit plus être un “grand bloc vide” : ajoute une structure (filtres période/employés, résumé, historique d’exports, statut, logs, permissions).
+
+5) “Couleur par onglet” (signature légère)
+
+Définis une règle simple : chaque section a un accent (bordure, header, icône, tag) :
+
+Panel de control : accent 1
+
+Empleados : accent 2
+
+Fichajes : accent 3
+
+Revisión : accent 4
+
+Horas Extra : accent 5
+
+Informes PDF : accent 6
+(Accents subtils : pas de gros aplats partout, plutôt des touches maîtrisées.)
+
+6) Livrables attendus
+
+Donne-moi :
+
+Une proposition de palette (hex) + règles d’usage (fonds, textes, états).
+
+Une spec de composants (sidebar, header, cards, boutons, tables, formulaires).
+
+Un plan de refonte écran par écran (ce qui change concrètement).
+
+Une liste de critères d’acceptation (cohérence, contraste, lisibilité, responsive, accessibilité).
+
+(Si tu codes) une stratégie d’implémentation par étapes (tokens → composants → écrans) sans casser la prod.
+
+Contrainte : garder l’app professionnelle, rapide à lire, et plus “premium” qu’aujourd’hui. Je veux du contraste et du style — pas du bruit.

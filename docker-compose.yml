@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cronos_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cronos_fichajes}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-cronos_fichajes}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - cronos_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cronos_app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-cronos_fichajes}
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN es obligatorio}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET es obligatorio}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET es obligatorio}
+      KIOSK_KEY: ${KIOSK_KEY:?KIOSK_KEY es obligatorio}
+      EXPECTED_DAILY_MINUTES: ${EXPECTED_DAILY_MINUTES:-480}
+      OVERTIME_MIN_THRESHOLD: ${OVERTIME_MIN_THRESHOLD:-15}
+      GEO_DECIMALS: ${GEO_DECIMALS:-4}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - cronos_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  cronos_network:
+    driver: bridge

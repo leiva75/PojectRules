@@ -1,0 +1,118 @@
+Tu es un auditeur senior backend/infra (Node.js/TypeScript) spécialisé en génération PDF et en data correctness. Projet : application de pointage “Cronos Fichajes”. PDF générés via PDFKit (pas de navigateur headless).
+
+OBJECTIF BUSINESS (NON NÉGOCIABLE)
+1) Les rapports PDF doivent être TRIÉS chronologiquement (du plus ancien au plus récent) avec une cohérence parfaite “jour puis heure”.
+2) Les heures affichées doivent correspondre exactement à l’UI (timezone Europe/Madrid), y compris en production (CET/CEST).
+3) Deux générations PDF existent et doivent être auditées :
+   A) Rapport Général (tous les employés)
+   B) Rapport Par Employé (un employé)
+
+PROBLÈMES OBSERVÉS
+- Tri chronologique demandé (ancien → récent) ne s’applique pas dans le PDF (ordre incohérent / regroupements).
+- Décalage d’heure persistant en production malgré des fonctions timezone censées être correctes.
+- Suspicion : mauvais pipeline de données, mauvais endroit du tri, structure rendue différente de la structure triée, ou code déployé différent.
+
+MISSION (AUDIT PROFOND + DIAGNOSTIC PRÉCIS + PATCH)
+Tu dois produire une analyse technique qui IDENTIFIE la cause racine, et proposer un correctif minimal, robuste, testable, sans régression.
+
+SCOPE TECHNIQUE À CARTOGRAPHIER (OBLIGATOIRE)
+1) Pipeline complet “Demande → Données → Tri → Formatage → PDFKit → Sortie”
+   - Point d’entrée des routes : /api/reports/general et /api/reports/employee (ou équivalent)
+   - Comment les données sont récupérées : DB query / ORM / service / repository
+   - Où le tri est fait : DB (ORDER BY) vs JS (Array.sort)
+   - Quelle structure est réellement envoyée à PDFKit : records, groupedRecords, map, etc.
+   - Où le formatage date/heure est fait : fonctions utilitaires vs inline (toLocaleString, Intl, etc.)
+   - Où le PDF est finalisé : doc.end() / stream / buffer / storage
+
+2) Différences entre “Général” et “Par Employé”
+   - Les champs temporels utilisés (entryTime, exitTime, createdAt, timestamp, etc.)
+   - Le regroupement (groupBy employé) existe-t-il côté général ? côté employé ?
+   - Le tri doit-il être global (tous employés mélangés) ou par groupe ? -> SPEC : TRI GLOBAL strict sur le temps, ancien → récent.
+
+SPÉCIFICATION DE TRI (À APPLIQUER AUX 2 PDF)
+- Tri global par instant d’événement (epoch ms) :
+  sortKey = eventTime (ou à défaut : entryTime ?? exitTime ?? timestamp ?? createdAt)
+- Ordre : ASC (ancien → récent)
+- Records invalides (date absente/invalide) : doivent être poussés en FIN (Infinity en tri ASC)
+- Interdiction de trier sur des strings formatées (ex “25/02/2026, 23:01”), uniquement sur nombres epoch.
+- Interdiction d’écraser l’ordre via regroupement après tri.
+
+HYPOTHÈSES À TESTER (PRIORITÉ)
+H1 — Tri appliqué sur records mais rendu PDF utilise une autre structure (ex groupBy) => le tri “ne marche pas”.
+H2 — Tri appliqué avant enrichissement (merge) puis une étape réordonne (ex concat, map keys, pagination).
+H3 — Tri compare des strings locales au lieu d’epoch => ordre faux.
+H4 — SortKey instable (parfois entryTime, parfois exitTime) => ordre chaotique.
+H5 — DB renvoie déjà ordonné par autre chose, puis JS tri est absent sur certaines branches.
+H6 — Multi-pages PDF : page break / table header reinsert réinitialise un buffer et réordonne.
+H7 — En prod, code différent : l’instance qui génère le PDF n’a pas le patch (build mismatch).
+
+AUDIT TIMEZONE (OBLIGATOIRE)
+But : prouver où l’heure se décale (entrée, normalisation, formatage, ou données).
+1) Identifier le format brut en DB (timestamp vs timestamptz, string, etc.)
+2) Identifier le format transporté par l’API :
+   - ISO 8601 avec Z/offset ? ou string naïve “YYYY-MM-DD HH:mm:ss” ?
+3) ensureDateUTC / formatInMadrid :
+   - vérifier que toutes les dates affichées dans les PDF passent par UNE seule source de vérité de formatage.
+4) Vérifier le support timezone en prod :
+   - ICU complet ? tzdata ? Intl support ?
+   - logs de boot CET/CEST existants + s’assurer que c’est l’instance qui génère les PDF.
+5) Hypothèse critique : “string naïve en UTC” interprétée comme “Europe/Madrid” => -1h.
+   - Si vrai, la correction doit se faire à la source (API/DB) ou via fonction explicite “naiveUTC”.
+
+INSTRUMENTATION (À AJOUTER TEMPORAIREMENT POUR PREUVE)
+Ajouter des logs EXACTS, uniquement en mode debug (env var), dans les deux routes PDF (général et employé).
+A) Log build stamp
+- Ajouter au boot : BUILD_ID (commit hash/env) et l’afficher aussi en footer PDF (temporaire).
+B) Log tri et clé de tri
+Avant d’écrire le PDF, afficher les 10 premières lignes de la liste RÉELLEMENT rendue :
+- raw sortKey
+- ensureDateUTC(sortKey)?.toISOString()
+- epoch ms
+- employee id/name
+C) Log timezone par ligne
+Pour 1 ligne problématique :
+- raw date value + type
+- ensured ISO
+- formatted Madrid
+
+Exemples de logs requis:
+[PDF-BUILD] id=...
+[PDF-SORT-CHECK] first10=[{emp, raw, iso, epoch}, ...]
+[PDF-TIME-DEBUG] { raw, rawType, ensuredISO, madridFormatted }
+
+TESTS (À PRODUIRE)
+1) Test tri :
+- dataset multi-employés avec événements intercalés
+- vérifier monotonicité ASC sur epoch
+- vérifier que le PDF suit exactement cet ordre (au moins via la liste utilisée par le renderer)
+2) Test timezone :
+- CET : 2026-02-25T22:01:00Z => 23:01 Europe/Madrid
+- CEST : 2026-07-01T12:00:00Z => 14:00 Europe/Madrid
+3) Test “naïf UTC” :
+- “2026-02-25 22:01:00” si c’est UTC doit afficher 23:01 ; si c’est local doit afficher 22:01.
+=> le test doit révéler la convention réelle du backend et la fixer.
+
+LIVRABLES ATTENDUS
+1) Rapport d’audit (1–2 pages) incluant :
+   - diagramme pipeline PDF (routes/services/db/utilities)
+   - cause racine tri (preuve via logs + endroit exact où l’ordre est perdu)
+   - cause racine timezone (preuve via logs + format brut des données)
+2) Patch minimal (diff) avec :
+   - Tri ASC global appliqué SUR la collection réellement rendue dans le PDF (général + employé)
+   - Unification du formatage date/heure via formatInMadrid partout
+   - Option safe pour dates invalides (Infinity)
+   - Build stamp/trace (temporaire) pour prouver la version en prod
+3) Checklist de validation prod :
+   - logs attendus
+   - génération des 2 PDF validée
+   - preuve que l’ordre est ancien → récent (jour/heure) et que les heures matchent l’UI.
+
+CONTRAINTES
+- Ne pas “corriger” en triant des strings affichées.
+- Ne pas dépendre de la timezone système.
+- Ne pas casser les rapports existants (formats, secondes).
+- Le tri doit être identique dans “Général” et “Par Employé”.
+- Zéro ambiguïté : à la fin, on doit pouvoir dire “voici la fonction qui décide l’ordre, et voici l’instant utilisé”.
+
+EXÉCUTION
+Commence par localiser les deux routes PDF et le renderer PDFKit. Trace ensuite la liste réellement utilisée pour écrire les lignes. Prouve où l’ordre est perdu. Implémente le tri au dernier moment juste avant rendu (ou dans la query DB si mieux). Ensuite, trace la valeur brute de date à chaque étape et corrige la convention (ISO Z recommandé). Fournis les diffs + les logs de preuve.

@@ -1,0 +1,103 @@
+Tu es un ingénieur SRE/Backend senior. J’ai une application avec 2 parcours :
+
+1) “Login normal” (web/desktop) : OK
+2) “Kiosque” (mobile/tactile) : KO avec “server error” au moment où :
+   - l’utilisateur saisit un code à 6 chiffres (tactile)
+   - l’app demande la géolocalisation (HTML5 geolocation / permission)
+   - l’utilisateur signe au doigt (canvas / signature pad)
+   - puis valide => c’est là que le serveur renvoie une erreur.
+
+Objectif : identifier la cause racine et fournir des correctifs concrets (backend + frontend + infra), puis me donner une checklist de validation.
+
+Contraintes :
+- Ne fais pas de blabla. Sois chirurgical.
+- Donne un plan de debug en étapes avec hypothèses probables classées par impact/probabilité.
+- Propose des patches de code (diffs) quand tu peux.
+- Si des infos manquent, propose exactement quelles commandes/logs/artefacts je dois te fournir.
+
+Contexte technique (à compléter si possible, sinon tu infères et tu proposes des variantes) :
+- Front : [React / Vue / Next / autre ?]
+- Back : [Node/Express / Nest / Django / Laravel / Spring / autre ?]
+- DB : [Postgres/MySQL/Mongo ?]
+- Hébergement : [Replit / VPS / Render / Heroku / AWS ?]
+- Auth : [JWT / session cookie / OAuth ?]
+- Reverse proxy : [Nginx / Cloudflare / aucun ?]
+
+Symptôme :
+- Le parcours kiosque échoue, le login normal réussit.
+- Message côté client : “Server error” ou HTTP 500/502/503.
+- Ça arrive après géolocalisation + signature, donc probablement payload plus lourd ou format différent.
+
+Tâches que tu dois faire :
+
+A) TRIAGE RAPIDE (5 minutes)
+1. Liste les causes les plus probables, par ordre :
+   - CORS / preflight OPTIONS bloqué (mobile/kiosque ≠ même origin)
+   - CSRF / cookies SameSite sur mobile webview
+   - Endpoint kiosque différent / route non déployée
+   - Timeout / body parser limit (signature base64 trop grosse)
+   - Erreur de parsing JSON/multipart (signature + geo)
+   - Permissions geolocation => client envoie null/undefined => backend crash
+   - Signature pad => envoie “data:image/png;base64,…” => dépasse max request size
+   - WAF / proxy / Cloudflare bloque “data:” ou grosses requêtes
+   - Différences User-Agent (webview) => redirection ou header absent
+   - Problème TLS/mixed content (geo exige HTTPS) => flux cassé
+   - Erreur de validation (lat/long hors plage) => 500 au lieu de 400
+2. Donne des indicateurs très concrets pour confirmer/infirmer chaque hypothèse.
+
+B) COLLECTE MINIMALE (sans laquelle on perd du temps)
+Demande-moi exactement :
+- Logs serveur au moment du crash (stack trace complète)
+- Réponse HTTP exacte (status + body) sur l’appel kiosque
+- Request payload (sans données sensibles) : taille (bytes), content-type, champs
+- Headers principaux (Origin, Referer, Cookie, Authorization)
+- Route/URL exacte appelée par le kiosque
+- Code côté client du fetch/axios pour cet appel kiosque
+- Config backend : body parser limit, CORS, CSRF, proxy
+- Environnement : variables, base URL API, reverse proxy.
+
+C) DIAGNOSTIC GUIDÉ
+Propose une procédure reproductible :
+1) Reproduire en local + curl/Postman
+2) Simuler mobile (User-Agent) + CORS preflight
+3) Mesurer taille du payload signature
+4) Tester content-type (application/json vs multipart/form-data)
+5) Inspecter cookies SameSite/secure
+6) Vérifier HTTPS et geolocation policy
+7) Vérifier logs reverse proxy (502, client_max_body_size)
+8) Ajouter instrumentation (requestId, structured logs, capture body size, timing).
+
+D) CORRECTIFS IMMÉDIATS
+Fournis des patches possibles selon stack :
+
+- Node/Express :
+  - Augmenter JSON/body limit
+  - Gérer upload de signature en multipart + stockage
+  - Middleware error handler propre (ne jamais renvoyer 500 pour validation)
+  - CORS complet (OPTIONS + allowed headers)
+  - Cookies SameSite=None; Secure si nécessaire
+
+- Nginx/Proxy :
+  - client_max_body_size
+  - timeouts
+
+- Frontend :
+  - Ne pas envoyer base64 brut si énorme : compresser / réduire résolution / envoyer vectoriel
+  - Envoyer geo en nombres (float) + fallback si permission refusée
+  - Afficher l’erreur réelle (status + message) au lieu de “server error”
+  - Retries contrôlés sur 502/503
+
+E) QUALITÉ / SÉCURITÉ
+- Ne log pas la signature ni le code à 6 chiffres en clair.
+- Ajoute un requestId, journalise la taille payload et la route.
+- Renvoie des erreurs 4xx pour validation, 5xx seulement pour crash.
+- Ajoute tests unitaires / tests API (kiosque).
+
+Livrables attendus :
+1) Hypothèses classées + comment tester chacune
+2) Liste d’artefacts à me demander
+3) Correctif(s) le plus probable avec code concret
+4) Checklist de validation après fix
+5) Si tu détectes un point bloquant (ex: HTTPS requis pour geo), dis-le clairement.
+
+Je vais te fournir les infos au fur et à mesure. Commence par me dire exactement quelles 8 informations tu veux en premier (format précis).

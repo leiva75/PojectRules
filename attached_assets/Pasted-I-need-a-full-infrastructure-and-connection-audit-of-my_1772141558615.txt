@@ -1,0 +1,48 @@
+I need a full infrastructure and connection audit of my production application deployed on DigitalOcean App Platform.
+
+Context:
+
+My application was previously fully functional and connected to a managed PostgreSQL cluster on DigitalOcean (cronosdb). Recently, after login credential changes and infrastructure redeployments, I lost synchronization between:
+
+• The App Platform deployment
+• The managed PostgreSQL database
+• The production authentication system
+• The domain routing and DNS
+• The environment variables used in the backend
+
+Currently:
+
+* The PostgreSQL cluster is still alive and contains all production data (employees, admin users, authentication records, etc.)
+* The application builds successfully on DigitalOcean App Platform
+* But login requests now return 401 or 500 errors
+* Logs show runtime database connection issues such as:
+  → Cannot read properties of undefined (reading 'searchParams')
+* Replit cannot access the DigitalOcean DB due to network isolation
+* Authentication fails even though admin accounts still exist in the database
+* Environment variables such as DATABASE_URL or SSL configuration may be misconfigured
+* TLS and CA certificate configuration has recently been modified
+* The domain and DNS were also reconfigured and may now point to a new deployment instance
+
+Goal:
+
+I want you to:
+
+1. Audit the entire backend configuration related to the PostgreSQL connection
+2. Verify that the DATABASE_URL is correctly parsed and passed to the pg client
+3. Check SSL configuration (sslmode=require + CA certificate usage)
+4. Confirm that the app connects to the correct database name and role (cronos_app vs doadmin)
+5. Inspect authentication logic to ensure it queries the correct production user tables
+6. Rebuild the database connection pool configuration if needed
+7. Ensure that runtime environment variables are correctly loaded in production (DigitalOcean App Platform)
+8. Confirm that login requests are executed against the live production database and not a fallback or undefined connection
+9. Detect whether admin credentials stored in DB are still valid and being read correctly by the auth service
+10. Restore the original functional login behavior without data loss
+
+Important:
+
+Do NOT recreate a new database.
+Use the existing production database and restore full connectivity between backend auth service and PostgreSQL cluster.
+
+Assume the database is the single source of truth and rebuild all necessary connection logic around it.
+
+Provide explicit fixes if DATABASE_URL parsing or SSL setup is currently breaking the login query layer.

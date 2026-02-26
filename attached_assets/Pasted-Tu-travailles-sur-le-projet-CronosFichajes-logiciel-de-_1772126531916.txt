@@ -1,0 +1,76 @@
+Tu travailles sur le projet CronosFichajes (logiciel de pointage). Objectif: assurer la création/évolution automatique des tables via Drizzle ORM, de manière fiable en dev et en prod.
+
+CONTRAINTES & CIBLE
+- Utiliser Drizzle ORM + drizzle-kit.
+- Priorité production: migrations versionnées (generate + migrate). Le mode push est autorisé uniquement en dev.
+- Compatible PostgreSQL (par défaut). Si le projet utilise MySQL/SQLite, adapte proprement mais garde la logique identique.
+- Ne casse pas l’existant: si Prisma/Sequelize/etc existe, n’y touche pas sans justification explicite. Intègre Drizzle proprement.
+- Les variables d’environnement doivent être utilisées (DATABASE_URL).
+- Ajouter des scripts npm/pnpm pour générer et appliquer les migrations.
+- Ajouter une commande “release”/“prestart” optionnelle pour exécuter les migrations avant le démarrage.
+- IMPORTANT: éviter les migrations lancées automatiquement par plusieurs instances en parallèle (si l’app peut scaler). Fournir un mode safe.
+
+TÂCHES À EXÉCUTER
+1) Audit rapide
+- Inspecter package.json, stack serveur (Express/Next/etc), et la config DB existante.
+- Identifier le driver DB actuel et comment la connexion est faite.
+- Repérer si un dossier schema/db existe déjà.
+
+2) Installer et configurer Drizzle
+- Installer: drizzle-orm, drizzle-kit, et le driver (ex: pg).
+- Créer: drizzle.config.ts à la racine.
+- Créer: src/db/index.ts (ou équivalent) qui expose l’instance drizzle(db).
+- Créer: src/db/schema.ts (ou dossier src/db/schema/*) pour les tables.
+
+3) Définir le schéma minimal nécessaire
+- Créer au minimum des tables “placeholder” si le vrai schéma n’est pas encore présent, mais structure le projet pour accueillir le schéma final.
+- Si le projet a déjà un schéma (SQL, modèles, migrations d’un autre outil), traduire ce schéma vers Drizzle tables.
+- Toujours inclure:
+  - primary keys
+  - indexes utiles
+  - contraintes d’unicité pertinentes (ex: PIN employee si applicable au produit)
+- Utiliser des timestamps standard (created_at, updated_at) si cohérent avec le codebase.
+
+4) Migrations
+- Ajouter scripts:
+  - db:generate -> drizzle-kit generate
+  - db:migrate  -> drizzle-kit migrate
+  - db:push     -> drizzle-kit push (DEV ONLY)
+- Générer une première migration et l’ajouter au repo (dossier drizzle/ ou migrations/ selon config).
+- Ajouter un “migrate runner”:
+  - Option A (recommandée): script séparé `npm run db:migrate` à lancer au deploy.
+  - Option B (acceptable): au démarrage de l’app, exécuter db:migrate uniquement si une variable RUN_MIGRATIONS=true est présente, et documenter que cela doit être exécuté sur une seule instance.
+
+5) Déploiement / exécution Replit
+- Ajouter un README/section “Database setup”:
+  - comment définir DATABASE_URL
+  - comment lancer migrations
+  - séquence de démarrage
+- Si Replit utilise un “run” command, le configurer pour:
+  - (RUN_MIGRATIONS=true) exécuter `npm run db:migrate` puis `npm start`
+  - ou fournir une commande “release” explicite.
+
+6) Validation
+- Lancer:
+  - build TypeScript (si présent)
+  - exécuter db:migrate sur une DB de test
+  - vérifier que les tables existent
+- Ajouter un petit script de vérification (optionnel) qui liste les tables ou fait un SELECT simple.
+
+SORTIE ATTENDUE (très concret)
+- Liste des fichiers créés/modifiés avec extraits de code:
+  - drizzle.config.ts
+  - src/db/index.ts (connexion + drizzle)
+  - src/db/schema.ts (tables)
+  - package.json scripts
+  - éventuellement un script `scripts/migrate.ts`
+- Instructions de lancement (dev + prod) en 6 lignes max.
+- ZÉRO promesse vague. Je veux du “copier-coller” prêt à tourner.
+
+NOTES TECHNIQUES
+- PostgreSQL: utiliser `pg` + `drizzle-orm/node-postgres`.
+- drizzle-kit migrate doit pointer vers le dossier migrations correct.
+- Ne pas hardcoder d’identifiants DB: uniquement env.
+- Si tu détectes un framework (Next/Express/Vite), adapte l’emplacement des fichiers mais garde la séparation claire.
+
+Commence maintenant par: (1) audit du repo, (2) choix de la DB et du driver, (3) implémentation des fichiers et scripts, (4) génération de la première migration.

@@ -1,0 +1,55 @@
+Feb 25 23:06:07  
+Feb 25 23:06:07  > rest-express@1.0.0 start
+Feb 25 23:06:07  > NODE_ENV=production node dist/index.cjs
+Feb 25 23:06:07  
+Feb 25 23:06:10  [TZ-CHECK][OK] CET: 2026-02-25T22:01:00Z → 23:01 (expect 23:01) ✓ | CEST: 2026-07-01T12:00:00Z → 14:00 (expect 14:00) ✓ | resolvedTZ=Europe/Madrid
+Feb 25 23:06:10  {"level":30,"time":1772060770504,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","env":"production","msg":"Configuración validada correctamente"}
+Feb 25 23:06:10  {"level":30,"time":1772060770570,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","env":"production","port":3000,"msg":"Servidor iniciado en puerto 3000"}
+Feb 25 23:10:03  {"level":30,"time":1772061003524,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"GET /api/auth/me 401 in 15ms"}
+Feb 25 23:10:41  Login error: Error: self-signed certificate in certificate chain
+Feb 25 23:10:41      at /app/dist/index.cjs:70:13330
+Feb 25 23:10:41      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 25 23:10:41      at async /app/dist/index.cjs:78:102736
+Feb 25 23:10:41      at async Cg.getEmployeeByEmail (/app/dist/index.cjs:78:108318)
+Feb 25 23:10:41      at async /app/dist/index.cjs:78:146141 {
+Feb 25 23:10:41    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 25 23:10:41  }
+Feb 25 23:10:41  {"level":30,"time":1772061041370,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"POST /api/auth/login 500 in 340ms"}
+Feb 25 23:10:50  Login error: Error: self-signed certificate in certificate chain
+Feb 25 23:10:50      at /app/dist/index.cjs:70:13330
+Feb 25 23:10:50      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 25 23:10:50      at async /app/dist/index.cjs:78:102736
+Feb 25 23:10:50      at async Cg.getEmployeeByEmail (/app/dist/index.cjs:78:108318)
+Feb 25 23:10:50      at async /app/dist/index.cjs:78:146141 {
+Feb 25 23:10:50    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 25 23:10:50  }
+Feb 25 23:10:50  {"level":30,"time":1772061050604,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"POST /api/auth/login 500 in 59ms"}
+Feb 25 23:11:06  Login error: Error: self-signed certificate in certificate chain
+Feb 25 23:11:06      at /app/dist/index.cjs:70:13330
+Feb 25 23:11:06      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 25 23:11:06      at async /app/dist/index.cjs:78:102736
+Feb 25 23:11:06      at async Cg.getEmployeeByEmail (/app/dist/index.cjs:78:108318)
+Feb 25 23:11:06      at async /app/dist/index.cjs:78:146141 {
+Feb 25 23:11:06    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 25 23:11:06  }
+Feb 25 23:11:06  {"level":30,"time":1772061066394,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"POST /api/auth/login 500 in 72ms"}
+Feb 25 23:11:23  Login error: Error: self-signed certificate in certificate chain
+Feb 25 23:11:23      at /app/dist/index.cjs:70:13330
+Feb 25 23:11:23      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 25 23:11:23      at async /app/dist/index.cjs:78:102736
+Feb 25 23:11:23      at async Cg.getEmployeeByEmail (/app/dist/index.cjs:78:108318)
+Feb 25 23:11:23      at async /app/dist/index.cjs:78:146141 {
+Feb 25 23:11:23    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 25 23:11:23  }
+Feb 25 23:11:23  {"level":30,"time":1772061083969,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"POST /api/auth/login 500 in 54ms"}
+Feb 25 23:11:45  {"level":30,"time":1772061105691,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"GET /api/auth/me 401 in 3ms"}
+Feb 25 23:12:21  {"level":30,"time":1772061141609,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"GET /api/auth/me 401 in 1ms"}
+Feb 25 23:12:40  Login error: Error: self-signed certificate in certificate chain
+Feb 25 23:12:40      at /app/dist/index.cjs:70:13330
+Feb 25 23:12:40      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Feb 25 23:12:40      at async /app/dist/index.cjs:78:102736
+Feb 25 23:12:40      at async Cg.getEmployeeByEmail (/app/dist/index.cjs:78:108318)
+Feb 25 23:12:40      at async /app/dist/index.cjs:78:146141 {
+Feb 25 23:12:40    code: 'SELF_SIGNED_CERT_IN_CHAIN'
+Feb 25 23:12:40  }
+Feb 25 23:12:40  {"level":30,"time":1772061160777,"pid":13,"hostname":"pojectrules-84dcb48469-9w7rl","msg":"POST /api/auth/login 500 in 25ms"}

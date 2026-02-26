@@ -1,0 +1,70 @@
+Je veux un audit + correctif complet sur la gestion des horaires dans mon projet "Project Rules".
+
+Contexte :
+- Le pointage téléphone avec géolocalisation fonctionne.
+- Le bug d'affichage en temps réel (liste admin) était : 11h affiché 10h. Il est maintenant corrigé.
+- MAIS les exports / rapports de pointage (général + par employé) affichent encore les heures avec -1h.
+- L'heure de génération du PDF est aussi fausse : si je génère à 11h, le PDF indique 10h.
+
+Objectif :
+1) Identifier toutes les zones du code qui formatent des dates/heures pour :
+   - exports généraux
+   - exports par employé
+   - génération PDF (horodatage "PDF généré à ...")
+2) Unifier la logique de formatage avec un utilitaire unique.
+3) Forcer l’affichage en fuseau Europe/Paris (ou fuseau configuré du projet).
+4) Éviter toute utilisation de toISOString() pour l’affichage humain.
+5) Corriger sans casser le stockage existant (UTC en base si déjà le cas).
+
+Tâches à faire :
+- Rechercher toutes les occurrences de :
+  - toISOString
+  - toLocaleString / toLocaleTimeString / toLocaleDateString
+  - new Date(...)
+  - moment/dayjs/luxon (si présents)
+  - génération PDF / lib PDF utilisée
+- Vérifier si le backend tourne en UTC (process.env.TZ / config serveur) et si les dates sont converties avant rendu PDF.
+- Vérifier si les dates viennent de la base en string SQL, timestamp ou ISO.
+
+Implémentation attendue :
+1) Créer un helper central de formatage date/heure, par exemple:
+   - formatDateTimeParis(date)
+   - formatTimeParis(date)
+   - formatDateParis(date)
+2) Utiliser Intl.DateTimeFormat avec timeZone: 'Europe/Paris' (pas de toISOString pour affichage).
+3) Remplacer tous les formats PDF/exports pour utiliser ce helper.
+4) Corriger aussi l’horodatage "PDF généré à ...".
+5) Ajouter des logs de vérification temporaires (avant/après) sur une date test.
+
+Exemple attendu (Node.js/JS) :
+```js
+const TZ = 'Europe/Paris';
+
+export function formatDateTimeParis(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d)) return '';
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+
+export function formatTimeParis(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d)) return '';
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
+}

@@ -1,0 +1,42 @@
+Tu es un auditeur senior fullstack. Projet: application de pointage “Cronos Fichajes”.
+Problèmes à diagnostiquer et corriger:
+1) Les heures dans les PDF générés sont décalées vs l’application (ex: app montre 23:01 mais PDF affiche 22:01, soit -1h).
+2) Le rapport PDF “général” n’est pas trié chronologiquement (ancien -> récent) au niveau global.
+
+Objectifs:
+- Identifier précisément à quel étage le décalage timezone est introduit (DB, API, front, moteur PDF).
+- Proposer un correctif robuste (UTC en stockage, conversion explicite Europe/Madrid en rendu) et éviter les régressions (CEST/CET).
+- Corriger le tri des données du rapport général.
+
+Audit demandé (étapes obligatoires):
+A) Cartographier le pipeline de génération PDF:
+   - Où est déclenchée la génération (front/back)?
+   - Techno: puppeteer/playwright/pdfkit/html2pdf/wkhtmltopdf?
+   - Le rendu PDF dépend-il de JS Date / toLocaleString dans un headless browser?
+
+B) Vérifier la chaîne des timestamps:
+   - En DB: type (timestamp, timestamptz?), valeurs brutes (ex: 2026-02-25 ...)
+   - Dans l’API: format renvoyé (ISO avec Z? offset? string locale?)
+   - Dans l’UI: comment c’est formaté (toLocaleString, dayjs, moment, luxon)
+   - Dans le PDF: code exact de formatage des dates/heures
+
+C) Hypothèses à tester (priorité):
+   1) Headless browser en timezone UTC -> décalage -1h (février) / -2h (été)
+   2) Node runtime TZ=UTC
+   3) Postgres “timestamp without time zone” interprété comme local/UTC selon driver
+   4) Double conversion UTC->local->local ou oubli de conversion dans PDF
+
+D) Tests à implémenter:
+   - Un test snapshot sur une date fixe: 2026-02-25T22:01:01Z doit s’afficher 23:01 en Europe/Madrid (CET)
+   - Idem sur une date d’été (CEST) pour valider +2h
+   - Un test de tri: liste d’événements multi-employés doit sortir triée par eventTime ASC dans le “général”
+
+E) Correctifs attendus:
+   - Standardiser: DB UTC, API ISO8601 en UTC, conversion explicite en Europe/Madrid pour UI + PDF
+   - Si Puppeteer: appliquer page.emulateTimezone('Europe/Madrid') (ou équivalent), et/ou fixer TZ=Europe/Madrid sur le conteneur
+   - Pour le tri général: ORDER BY eventTime ASC (ou sort en JS sur timestamp numérique), pas par employé
+
+Livrables:
+1) Rapport d’audit: cause racine + preuve (fichier/code/ligne).
+2) Patch code proposé (diff) et explication.
+3) Checklist anti-régression (tests + env TZ).

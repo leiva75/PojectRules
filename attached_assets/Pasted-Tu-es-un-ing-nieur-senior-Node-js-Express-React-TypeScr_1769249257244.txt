@@ -1,0 +1,114 @@
+Tu es un ingénieur senior Node.js/Express/React/TypeScript/Postgres (Drizzle) spécialisé en applications de pointage.
+OBJECTIF: Ajouter une signature tactile "libre" (au doigt) au moment de chaque pointage, SANS contrôle biométrique (la signature n’a pas besoin d’être identique), avec UX fluide et stockage compatible production sur DigitalOcean.
+
+CONTEXTE
+- App de pointeuse pour centre sportif/école de danse (Espagne)
+- Front: React + TS
+- Back: Express + TS
+- DB: Postgres (Drizzle)
+- Hébergement: DigitalOcean App Platform + Managed Postgres + Spaces (S3 compatible)
+- Exigences:
+  1) Signature demandée à chaque pointage sur le KIOSQUE MOBILE.
+  2) La signature doit être "libre" et non contraignante: aucun matching, aucune comparaison, aucun rejet pour signature différente.
+  3) Le desktop/admin doit pouvoir consulter/exporter, mais ne doit PAS être un kiosque.
+  4) La preuve doit être archivable et intégrable dans un document (export PDF/rapport).
+
+RÈGLES DE SÉCURITÉ / PRODUIT
+- Ne pas faire de vérification de similarité de signature.
+- Ne pas stocker en base64 en DB en production (préférer Spaces + URL).
+- Empêcher un pointage "valide" si la signature n’a pas été enregistrée.
+- Le kiosque mobile doit être "enrolled" via un token (pas une simple détection user-agent).
+- Logs et erreurs clairs (codes explicites), pas de INTERNAL_ERROR opaque.
+
+PHASE 0 — AUDIT EXPRESS (sans modifier)
+- Localiser: route de création de punch (entrée/sortie), modèle DB `punches`, et écran UI du kiosque.
+- Confirmer: comment l’utilisateur est identifié sur kiosque (PIN/QR/etc.). Ne pas changer si déjà en place.
+
+PHASE 1 — MODÈLE DE DONNÉES (DB)
+- Ajouter dans `punches`:
+  - signature_url TEXT NULL
+  - signature_sha256 TEXT NULL
+  - signature_signed_at TIMESTAMPTZ NULL
+  - kiosk_device_id TEXT NULL
+  - kiosk_user_agent TEXT NULL
+  - kiosk_ip TEXT NULL
+  - status TEXT NOT NULL DEFAULT 'PENDING_SIGNATURE' (ou équivalent)
+- Règle: un punch est "valide" uniquement quand status='SIGNED'.
+- Ajouter une migration Drizzle correspondante + mise à jour du schema partagé.
+
+PHASE 2 — KIOSK ENROLLMENT (OBLIGATOIRE)
+- Créer une table `kiosk_devices`:
+  - id (device_id) TEXT PRIMARY KEY
+  - name TEXT
+  - token_hash TEXT (hash du token)
+  - enabled BOOLEAN
+  - created_at TIMESTAMPTZ
+- Créer un endpoint admin (protégé) pour générer un token et activer un kiosque.
+- Middleware backend: exiger header `X-KIOSK-TOKEN` sur les routes kiosque, vérifier token_hash + enabled.
+- Si absent/invalide -> 403 KIOSK_REQUIRED.
+
+PHASE 3 — FRONTEND SIGNATURE (React)
+- Ajouter une UI de signature plein écran (mobile-first), via:
+  - `signature_pad` + wrapper React (ex: `react-signature-canvas`)
+- UX:
+  - Zone large
+  - Boutons: Effacer / Valider
+  - Message: "Je confirme ce pointage" (attestation)
+  - Aucune contrainte de forme: accepter signature variable
+  - Empêcher Valider si canvas vide (min. 1 trait) -> code EMPTY_SIGNATURE
+- Exporter la signature en PNG Blob (pas base64 si possible).
+- Flow:
+  1) L’utilisateur choisit Entrée/Sortie
+  2) Backend crée le punch en status PENDING_SIGNATURE
+  3) UI demande signature
+  4) Upload signature
+  5) Backend confirme -> status SIGNED
+  6) UI affiche "Pointage enregistré"
+
+PHASE 4 — BACKEND UPLOAD SIGNATURE VERS DIGITALOCEAN SPACES
+- Utiliser AWS SDK S3 (compatible Spaces).
+- Env vars:
+  - DO_SPACES_KEY
+  - DO_SPACES_SECRET
+  - DO_SPACES_REGION (ex: ams3)
+  - DO_SPACES_BUCKET
+  - DO_SPACES_ENDPOINT (ex: https://ams3.digitaloceanspaces.com)
+  - DO_SPACES_PUBLIC_BASE_URL (si public) OU stratégie de signed URLs si privé
+- Endpoint: POST /api/kiosk/punches/:id/signature
+  - Auth: middleware kiosque (X-KIOSK-TOKEN)
+  - Input: multipart/form-data (field: file) OU application/octet-stream
+  - Calculer sha256 du contenu
+  - Uploader PNG vers Spaces: key = `signatures/{centerId}/{employeeId}/{punchId}.png`
+  - Mettre à jour la ligne punch:
+    - signature_url
+    - signature_sha256
+    - signature_signed_at=NOW()
+    - kiosk_device_id, user_agent, ip
+    - status='SIGNED'
+  - Réponse: { ok:true, punchId, signatureUrl, signedAt }
+
+PHASE 5 — EXPORT DOCUMENT (preuve)
+- Ajouter une fonction export PDF (admin) pour une journée / période:
+  - liste des punches signés
+  - inclure miniature signature
+  - inclure punchId + hash sha256
+  - inclure date génération
+- Important: si signature stockée privée, générer des signed URLs temporaires pendant l’export.
+
+PHASE 6 — QUALITÉ / TESTS
+- Ajouter logs ciblés:
+  - création punch -> id + status
+  - upload signature -> size + sha256 + punchId
+  - refus kiosque -> reason code
+- Ajouter tests manuels guidés (checklist):
+  1) kiosque token absent -> 403
+  2) signature vide -> 400 EMPTY_SIGNATURE
+  3) upload ok -> punch status SIGNED
+  4) export PDF inclut signature
+
+CONTRAINTES DE LIVRAISON
+- Changements minimaux, pas de refactor cosmétique.
+- Commits séparés et petits:
+  1) DB schema/migrations
+  2) kiosk token + middleware
+  
