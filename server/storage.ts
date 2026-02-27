@@ -48,6 +48,7 @@ export interface IStorage {
   updateOvertimeRequest(id: string, data: Partial<InsertOvertimeRequest> & { reviewedAt?: Date }): Promise<OvertimeRequest | undefined>;
   getOvertimeRequests(options?: { status?: "pending" | "approved" | "rejected"; employeeId?: string; limit?: number }): Promise<(OvertimeRequest & { employee: { id: string; firstName: string; lastName: string }; reviewer?: { id: string; firstName: string; lastName: string } | null })[]>;
   getPunchesByEmployeeAndDate(employeeId: string, date: Date): Promise<Punch[]>;
+  getPunchesByEmployeeAndDateRange(employeeId: string, startDate: Date, endDate: Date): Promise<Punch[]>;
 
   getStats(): Promise<{ totalEmployees: number; activeToday: number; currentlyIn: number; needsReview: number }>;
 
@@ -495,6 +496,16 @@ export class DatabaseStorage implements IStorage {
         eq(punches.employeeId, employeeId),
         gte(punches.timestamp, startOfDay),
         lte(punches.timestamp, endOfDay)
+      ))
+      .orderBy(punches.timestamp);
+  }
+
+  async getPunchesByEmployeeAndDateRange(employeeId: string, startDate: Date, endDate: Date): Promise<Punch[]> {
+    return db.select().from(punches)
+      .where(and(
+        eq(punches.employeeId, employeeId),
+        gte(punches.timestamp, startDate),
+        lte(punches.timestamp, endDate)
       ))
       .orderBy(punches.timestamp);
   }

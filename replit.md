@@ -36,7 +36,8 @@ A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia w
 ## Key Features
 - **Append-only punches**: No edits/deletes, only corrections
 - **Geolocation capture**: Lat/lon rounded to 4 decimals
-- **Dual auth**: Admin/Manager (httpOnly cookies) vs Employee (localStorage JWT)
+- **Triple auth**: Admin/Manager (httpOnly cookies) vs Employee PIN (localStorage JWT) vs Employee Portal (httpOnly cookies, separate session)
+- **Employee Portal ("Mis Fichajes")**: Read-only view of own shifts, mobile-first, PDF/CSV export
 - **CSV exports**: By employee and date range with overtime columns
 - **Kiosk mode**: Shared terminal with PIN login + digital signature capture
 - **Overtime management**: Automatic calculation on OUT punch, admin approval workflow
@@ -55,6 +56,24 @@ A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia w
 - Docker: Alpine image includes `tzdata` package and `ENV TZ=UTC` for full timezone support
 - Boot verification: `[TZ-CHECK]` log at startup validates CET (+1h) and CEST (+2h) formatting
 - General PDF report: sorted chronologically (oldest → newest), not by employee name
+
+## Employee Portal System ("Mis Fichajes")
+- **Auth flow**: Email+password login → httpOnly cookies (`epAccessToken` + `epRefreshToken`), separate from admin session
+- **Cookie config**: `httpOnly: true`, `secure: prod`, `sameSite: "lax"`, `path: "/"`
+- **Token types**: `employee-portal` (access, 1h) + `ep-refresh` (refresh, 7d with rotation)
+- **Endpoints** (all filtered by JWT `sub`, no employeeId parameter accepted):
+  - `POST /api/auth/employee/login` — email+password, returns cookies
+  - `POST /api/auth/employee/refresh` — rotate refresh token
+  - `POST /api/auth/employee/logout` — clear cookies + delete refresh from DB
+  - `GET /api/auth/employee/me` — verify session
+  - `GET /api/me/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD` — read-only shifts with IN/OUT pairing
+  - `GET /api/me/shifts/export.pdf?from=&to=` — PDF download (Content-Disposition: attachment, Cache-Control: no-store)
+  - `GET /api/me/shifts/export.csv?from=&to=` — CSV download (UTF-8 BOM for Excel)
+- **Shift pairing**: Defensive IN→OUT matching with `status: "OK" | "INCOMPLETE"` for anomalies
+- **Anti-IDOR**: No employeeId in URL/body/query, no employeeId in response payload
+- **Frontend routes**: `/empleado` (login), `/empleado/mis-fichajes` (shifts view)
+- **Mobile-first**: Cards (<640px), table (>=640px), sticky PDF download bar, safe-area padding
+- **TODO**: RLS Postgres policy for defense-in-depth (currently application-level filtering only)
 
 ## Kiosk Device System
 - **Device enrollment**: Admin creates kiosk devices, receives one-time token URL

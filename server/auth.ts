@@ -18,7 +18,7 @@ const EMPLOYEE_TOKEN_EXPIRY = "12h";
 export interface TokenPayload {
   employeeId: string;
   role: string;
-  type: "access" | "refresh" | "employee";
+  type: "access" | "refresh" | "employee" | "employee-portal" | "ep-refresh";
 }
 
 declare global {
@@ -65,12 +65,28 @@ export function generateEmployeeToken(employee: Employee): string {
   return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: EMPLOYEE_TOKEN_EXPIRY });
 }
 
+export function generateEmployeePortalAccessToken(employee: Employee): string {
+  const payload: TokenPayload = {
+    employeeId: employee.id,
+    role: employee.role,
+    type: "employee-portal",
+  };
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+}
+
+export function generateEmployeePortalRefreshToken(employee: Employee): string {
+  const payload: TokenPayload = {
+    employeeId: employee.id,
+    role: employee.role,
+    type: "ep-refresh",
+  };
+  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` });
+}
+
 export function verifyToken(token: string): TokenPayload | null {
-  // Try access secret first (covers access and employee tokens)
   try {
     return jwt.verify(token, JWT_ACCESS_SECRET) as TokenPayload;
   } catch {
-    // Try refresh secret for refresh tokens
     try {
       return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
     } catch {
@@ -83,6 +99,43 @@ export function getRefreshTokenExpiry(): Date {
   const expiry = new Date();
   expiry.setDate(expiry.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
   return expiry;
+}
+
+export const EP_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: "lax" as const,
+  path: "/",
+};
+
+export async function authenticateEmployeePortal(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const token = req.cookies?.epAccessToken;
+
+  if (!token) {
+    res.status(401).json({ message: "No autenticado" });
+    return;
+  }
+
+  const payload = verifyToken(token);
+
+  if (!payload || payload.type !== "employee-portal") {
+    res.status(401).json({ message: "Token inválido o expirado" });
+    return;
+  }
+
+  const employee = await storage.getEmployee(payload.employeeId);
+
+  if (!employee || !employee.isActive) {
+    res.status(401).json({ message: "Cuenta desactivada o no encontrada" });
+    return;
+  }
+
+  req.employee = employee;
+  next();
 }
 
 export async function authenticateAdminManager(

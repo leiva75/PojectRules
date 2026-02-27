@@ -10,6 +10,8 @@ import EmployeeLoginPage from "@/pages/employee-login";
 import MobilePage from "@/pages/mobile";
 import KioskPage from "@/pages/kiosk";
 import AdminPage from "@/pages/admin";
+import EmployeePortalLoginPage from "@/pages/employee-portal-login";
+import EmployeeShiftsPage from "@/pages/employee-shifts";
 import { Loader2 } from "lucide-react";
 
 function ProtectedRoute({ 
@@ -50,6 +52,8 @@ function Router() {
       <Route path="/" component={LoginPage} />
       <Route path="/employee" component={EmployeeLoginPage} />
       <Route path="/kiosk" component={KioskPage} />
+      <Route path="/empleado" component={EmployeePortalLoginPage} />
+      <Route path="/empleado/mis-fichajes" component={EmployeeShiftsPage} />
       <Route path="/mobile">
         <ProtectedRoute allowedRoles={["employee", "manager", "admin"]}>
           <MobilePage />

@@ -10,10 +10,14 @@ import {
   generateAccessToken, 
   generateRefreshToken, 
   generateEmployeeToken,
+  generateEmployeePortalAccessToken,
+  generateEmployeePortalRefreshToken,
   verifyToken,
   getRefreshTokenExpiry,
   authenticateAdminManager,
-  authenticateEmployee 
+  authenticateEmployee,
+  authenticateEmployeePortal,
+  EP_COOKIE_OPTIONS
 } from "./auth";
 import { authenticateKiosk, generateKioskToken, hashToken, getClientIp } from "./kiosk";
 import { uploadSignature, isSpacesConfigured, getSignedDownloadUrl } from "./spaces";
@@ -31,7 +35,9 @@ import {
   updateEmployeeSchema,
   correctPunchSchema,
   kioskDeviceSchema,
-  updateKioskDeviceSchema
+  updateKioskDeviceSchema,
+  employeePortalLoginSchema,
+  shiftsQuerySchema
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
@@ -130,6 +136,104 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 }
 });
+
+interface ShiftEntry {
+  date: string;
+  clockIn: string | null;
+  clockInTime: string | null;
+  clockOut: string | null;
+  clockOutTime: string | null;
+  durationMin: number | null;
+  status: "OK" | "INCOMPLETE";
+  inLatitude: string | null;
+  inLongitude: string | null;
+  outLatitude: string | null;
+  outLongitude: string | null;
+}
+
+function pairPunchesIntoShifts(rawPunches: { type: string; timestamp: Date | null; latitude: string | null; longitude: string | null }[]): ShiftEntry[] {
+  const shifts: ShiftEntry[] = [];
+  let openShift: { timestamp: Date; latitude: string | null; longitude: string | null } | null = null;
+
+  for (const punch of rawPunches) {
+    const ts = ensureDateUTC(punch.timestamp);
+    if (!ts) continue;
+
+    if (punch.type === "IN") {
+      if (openShift) {
+        shifts.push({
+          date: formatDateES(openShift.timestamp),
+          clockIn: openShift.timestamp.toISOString(),
+          clockInTime: formatTimeES(openShift.timestamp),
+          clockOut: null,
+          clockOutTime: null,
+          durationMin: null,
+          status: "INCOMPLETE",
+          inLatitude: openShift.latitude,
+          inLongitude: openShift.longitude,
+          outLatitude: null,
+          outLongitude: null,
+        });
+      }
+      openShift = { timestamp: ts, latitude: punch.latitude, longitude: punch.longitude };
+    } else if (punch.type === "OUT") {
+      if (openShift) {
+        const durationMs = ts.getTime() - openShift.timestamp.getTime();
+        const durationMin = Math.round(durationMs / 60000);
+        shifts.push({
+          date: formatDateES(openShift.timestamp),
+          clockIn: openShift.timestamp.toISOString(),
+          clockInTime: formatTimeES(openShift.timestamp),
+          clockOut: ts.toISOString(),
+          clockOutTime: formatTimeES(ts),
+          durationMin,
+          status: "OK",
+          inLatitude: openShift.latitude,
+          inLongitude: openShift.longitude,
+          outLatitude: punch.latitude,
+          outLongitude: punch.longitude,
+        });
+        openShift = null;
+      } else {
+        shifts.push({
+          date: formatDateES(ts),
+          clockIn: null,
+          clockInTime: null,
+          clockOut: ts.toISOString(),
+          clockOutTime: formatTimeES(ts),
+          durationMin: null,
+          status: "INCOMPLETE",
+          inLatitude: null,
+          inLongitude: null,
+          outLatitude: punch.latitude,
+          outLongitude: punch.longitude,
+        });
+      }
+    }
+  }
+
+  if (openShift) {
+    shifts.push({
+      date: formatDateES(openShift.timestamp),
+      clockIn: openShift.timestamp.toISOString(),
+      clockInTime: formatTimeES(openShift.timestamp),
+      clockOut: null,
+      clockOutTime: null,
+      durationMin: null,
+      status: "INCOMPLETE",
+      inLatitude: openShift.latitude,
+      inLongitude: openShift.longitude,
+      outLatitude: null,
+      outLongitude: null,
+    });
+  }
+
+  return shifts;
+}
+
+function formatDateForQuery(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -456,6 +560,299 @@ export async function registerRoutes(
       handleRouteError(res, error, "[AUTH-LOGOUT]");
     }
   });
+
+  // ==================== EMPLOYEE PORTAL AUTH ====================
+
+  app.post("/api/auth/employee/login", employeeLimiter, async (req, res) => {
+    try {
+      const result = employeePortalLoginSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+      }
+
+      const { email, password } = result.data;
+      const employee = await storage.getEmployeeByEmail(email);
+
+      if (!employee) {
+        return res.status(401).json({ message: "Email o contraseña incorrectos" });
+      }
+
+      const validPassword = await verifyPassword(password, employee.password);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Email o contraseña incorrectos" });
+      }
+
+      if (!employee.isActive) {
+        return res.status(401).json({ message: "Cuenta desactivada" });
+      }
+
+      const accessToken = generateEmployeePortalAccessToken(employee);
+      const refreshToken = generateEmployeePortalRefreshToken(employee);
+
+      await storage.createRefreshToken(employee.id, refreshToken, getRefreshTokenExpiry());
+
+      res.cookie("epAccessToken", accessToken, {
+        ...EP_COOKIE_OPTIONS,
+        maxAge: 60 * 60 * 1000,
+      });
+
+      res.cookie("epRefreshToken", refreshToken, {
+        ...EP_COOKIE_OPTIONS,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      await storage.createAuditLog({
+        action: "login",
+        actorId: employee.id,
+        targetType: "session",
+        targetId: employee.id,
+        details: JSON.stringify({ role: employee.role, method: "employee-portal" }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
+      const { password: _, id: _id, ...userWithoutSensitive } = employee;
+      res.json({ user: { ...userWithoutSensitive, role: employee.role } });
+    } catch (error) {
+      handleRouteError(res, error, "[EP-LOGIN]");
+    }
+  });
+
+  app.post("/api/auth/employee/refresh", async (req, res) => {
+    try {
+      const refreshToken = req.cookies?.epRefreshToken;
+
+      if (!refreshToken) {
+        return res.status(401).json({ message: "No autenticado" });
+      }
+
+      const payload = verifyToken(refreshToken);
+      if (!payload || payload.type !== "ep-refresh") {
+        return res.status(401).json({ message: "Token inválido" });
+      }
+
+      const storedToken = await storage.getRefreshToken(refreshToken);
+      if (!storedToken || new Date() > storedToken.expiresAt) {
+        return res.status(401).json({ message: "Token expirado" });
+      }
+
+      const employee = await storage.getEmployee(payload.employeeId);
+      if (!employee || !employee.isActive) {
+        return res.status(401).json({ message: "Cuenta desactivada" });
+      }
+
+      await storage.deleteRefreshToken(refreshToken);
+
+      const newAccessToken = generateEmployeePortalAccessToken(employee);
+      const newRefreshToken = generateEmployeePortalRefreshToken(employee);
+
+      await storage.createRefreshToken(employee.id, newRefreshToken, getRefreshTokenExpiry());
+
+      res.cookie("epAccessToken", newAccessToken, {
+        ...EP_COOKIE_OPTIONS,
+        maxAge: 60 * 60 * 1000,
+      });
+
+      res.cookie("epRefreshToken", newRefreshToken, {
+        ...EP_COOKIE_OPTIONS,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const { password: _, id: _id, ...userWithoutSensitive } = employee;
+      res.json({ user: { ...userWithoutSensitive, role: employee.role } });
+    } catch (error) {
+      handleRouteError(res, error, "[EP-REFRESH]");
+    }
+  });
+
+  app.get("/api/auth/employee/me", async (req, res) => {
+    try {
+      const token = req.cookies?.epAccessToken;
+
+      if (!token) {
+        return res.status(401).json({ message: "No autenticado" });
+      }
+
+      const payload = verifyToken(token);
+      if (!payload || payload.type !== "employee-portal") {
+        return res.status(401).json({ message: "Token inválido" });
+      }
+
+      const employee = await storage.getEmployee(payload.employeeId);
+      if (!employee || !employee.isActive) {
+        return res.status(401).json({ message: "Cuenta desactivada" });
+      }
+
+      const { password: _, id: _id, ...userWithoutSensitive } = employee;
+      res.json({ user: { ...userWithoutSensitive, role: employee.role } });
+    } catch (error) {
+      handleRouteError(res, error, "[EP-ME]");
+    }
+  });
+
+  app.post("/api/auth/employee/logout", async (req, res) => {
+    try {
+      const refreshToken = req.cookies?.epRefreshToken;
+      if (refreshToken) {
+        await storage.deleteRefreshToken(refreshToken);
+      }
+
+      res.clearCookie("epAccessToken", { path: "/" });
+      res.clearCookie("epRefreshToken", { path: "/" });
+      res.json({ message: "Sesión cerrada" });
+    } catch (error) {
+      handleRouteError(res, error, "[EP-LOGOUT]");
+    }
+  });
+
+  // ==================== EMPLOYEE PORTAL DATA (READ-ONLY) ====================
+  // TODO: Phase 2 — Add RLS Postgres policy for defense-in-depth
+  // Currently using application-level filtering: WHERE employee_id = req.employee.id
+
+  app.get("/api/me/shifts", authenticateEmployeePortal, async (req, res) => {
+    try {
+      const result = shiftsQuerySchema.safeParse(req.query);
+      if (!result.success) {
+        return res.status(400).json({ message: "Parámetros inválidos", errors: result.error.errors });
+      }
+
+      const { from, to } = result.data;
+      const now = new Date();
+
+      const fromDate = from
+        ? startOfDayInSpain(new Date(from + "T12:00:00Z"))
+        : startOfDayInSpain(new Date(now.getFullYear(), now.getMonth(), 1));
+
+      const toDate = to
+        ? endOfDayInSpain(new Date(to + "T12:00:00Z"))
+        : endOfDayInSpain(now);
+
+      const rawPunches = await storage.getPunchesByEmployeeAndDateRange(
+        req.employee!.id,
+        fromDate,
+        toDate
+      );
+
+      const shifts = pairPunchesIntoShifts(rawPunches);
+
+      res.json({ shifts, period: { from: from || formatDateForQuery(fromDate), to: to || formatDateForQuery(toDate) } });
+    } catch (error) {
+      handleRouteError(res, error, "[ME-SHIFTS]", "Error al obtener fichajes");
+    }
+  });
+
+  app.get("/api/me/shifts/export.pdf", authenticateEmployeePortal, async (req, res) => {
+    try {
+      const result = shiftsQuerySchema.safeParse(req.query);
+      if (!result.success) {
+        return res.status(400).json({ message: "Parámetros inválidos" });
+      }
+
+      const { from, to } = result.data;
+      const now = new Date();
+
+      const fromDate = from
+        ? startOfDayInSpain(new Date(from + "T12:00:00Z"))
+        : startOfDayInSpain(new Date(now.getFullYear(), now.getMonth(), 1));
+
+      const toDate = to
+        ? endOfDayInSpain(new Date(to + "T12:00:00Z"))
+        : endOfDayInSpain(now);
+
+      const rawPunches = await storage.getPunchesByEmployeeAndDateRange(
+        req.employee!.id,
+        fromDate,
+        toDate
+      );
+
+      const shifts = pairPunchesIntoShifts(rawPunches);
+      const employee = req.employee!;
+
+      const records: PunchRecord[] = shifts.map(s => ({
+        lastName: employee.lastName,
+        firstName: employee.firstName,
+        inTimestamp: s.clockIn,
+        inSignatureData: null,
+        inLatitude: s.inLatitude,
+        inLongitude: s.inLongitude,
+        outTimestamp: s.clockOut,
+        outSignatureData: null,
+        outLatitude: s.outLatitude,
+        outLongitude: s.outLongitude,
+      }));
+
+      const fromLabel = from || formatDateForQuery(fromDate);
+      const toLabel = to || formatDateForQuery(toDate);
+
+      const pdfBuffer = await generateReportPDF({
+        title: "Mis Fichajes",
+        subtitle: `${employee.firstName} ${employee.lastName} — ${fromLabel} a ${toLabel}`,
+        records,
+        generatedAt: new Date(),
+        periodStart: fromDate,
+        periodEnd: toDate,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        isEmployeeReport: true,
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="fichajes_${fromLabel}_${toLabel}.pdf"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdfBuffer);
+    } catch (error) {
+      handleRouteError(res, error, "[ME-SHIFTS-PDF]", "Error al generar PDF");
+    }
+  });
+
+  app.get("/api/me/shifts/export.csv", authenticateEmployeePortal, async (req, res) => {
+    try {
+      const result = shiftsQuerySchema.safeParse(req.query);
+      if (!result.success) {
+        return res.status(400).json({ message: "Parámetros inválidos" });
+      }
+
+      const { from, to } = result.data;
+      const now = new Date();
+
+      const fromDate = from
+        ? startOfDayInSpain(new Date(from + "T12:00:00Z"))
+        : startOfDayInSpain(new Date(now.getFullYear(), now.getMonth(), 1));
+
+      const toDate = to
+        ? endOfDayInSpain(new Date(to + "T12:00:00Z"))
+        : endOfDayInSpain(now);
+
+      const rawPunches = await storage.getPunchesByEmployeeAndDateRange(
+        req.employee!.id,
+        fromDate,
+        toDate
+      );
+
+      const shifts = pairPunchesIntoShifts(rawPunches);
+
+      const csvRows = shifts.map(s => ({
+        Fecha: s.date,
+        Entrada: s.clockInTime || "-",
+        Salida: s.clockOutTime || "-",
+        "Duración (min)": s.durationMin !== null ? s.durationMin : "-",
+        Estado: s.status,
+      }));
+
+      const parser = new Parser({ fields: ["Fecha", "Entrada", "Salida", "Duración (min)", "Estado"] });
+      const csv = "\ufeff" + parser.parse(csvRows);
+
+      const fromLabel = from || formatDateForQuery(fromDate);
+      const toLabel = to || formatDateForQuery(toDate);
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="fichajes_${fromLabel}_${toLabel}.csv"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(csv);
+    } catch (error) {
+      handleRouteError(res, error, "[ME-SHIFTS-CSV]", "Error al generar CSV");
+    }
+  });
+
+  // ==================== ADMIN EMPLOYEE MANAGEMENT ====================
 
   app.get("/api/employees", authenticateAdminManager, async (req, res) => {
     try {

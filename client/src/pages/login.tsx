@@ -344,7 +344,7 @@ export default function LoginPage() {
         <Button 
           variant="ghost"
           className="text-blue-200/70 hover:text-white hover:bg-white/10"
-          onClick={() => setLocation("/employee")}
+          onClick={() => setLocation("/empleado")}
           data-testid="button-employee-access"
         >
           <Users className="mr-2 h-4 w-4" />

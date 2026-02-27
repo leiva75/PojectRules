@@ -27,7 +27,7 @@ async function tryRefreshToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-const NO_REFRESH_URLS = ["/api/auth/login", "/api/auth/employee-login", "/api/auth/refresh", "/api/auth/logout"];
+const NO_REFRESH_URLS = ["/api/auth/login", "/api/auth/employee-login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/employee/login", "/api/auth/employee/refresh", "/api/auth/employee/logout", "/api/auth/employee/me", "/api/me/"];
 
 async function fetchWithRefresh(
   input: RequestInfo | URL,

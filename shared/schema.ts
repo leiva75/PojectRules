@@ -290,6 +290,19 @@ export const updateKioskDeviceSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+export const employeePortalLoginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(1, "La contraseña es obligatoria"),
+});
+
+export const shiftsQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD").optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD").optional(),
+});
+
+export type EmployeePortalLoginInput = z.infer<typeof employeePortalLoginSchema>;
+export type ShiftsQuery = z.infer<typeof shiftsQuerySchema>;
+
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type Punch = typeof punches.$inferSelect;
