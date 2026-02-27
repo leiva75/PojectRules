@@ -49,7 +49,10 @@ const COLORS = {
   white: "#ffffff",
   headerBg: "#e8f0f8",
   incidencia: "#b91c1c",
+  incidenciaBg: "#fef2f2",
   correctionYes: "#d97706",
+  pauseOk: "#15803d",
+  pauseMissing: "#b91c1c",
 };
 
 const MONTH_NAMES = [
@@ -108,9 +111,11 @@ interface DayRecord {
   horaFin: string;
   totalMinutes: number;
   totalFormatted: string;
-  descanso: string;
+  pauseTaken: boolean;
+  hasFirma: boolean;
   incidencias: string[];
   hasCorrection: boolean;
+  hasSinSalida: boolean;
 }
 
 interface EmployeeSection {
@@ -132,6 +137,10 @@ function formatDateKeyES(dateKey: string): string {
   return `${d}/${mo}/${y}`;
 }
 
+function hasPunchSignature(punch: RawPunch): boolean {
+  return !!(punch.signatureSha256 || punch.signatureData || punch.signatureSignedAt);
+}
+
 function processPunches(
   punches: RawPunch[],
   corrections: CorrectionRecord[]
@@ -147,7 +156,7 @@ function processPunches(
       name: string;
       dayMap: Map<
         string,
-        { inPunches: RawPunch[]; outPunches: RawPunch[]; hasBreak: boolean; punchIds: string[] }
+        { inPunches: RawPunch[]; outPunches: RawPunch[]; hasBreak: boolean; hasFirma: boolean; punchIds: string[] }
       >;
     }
   >();
@@ -168,11 +177,14 @@ function processPunches(
     const dateKey = toSpainDateKey(ts);
 
     if (!emp.dayMap.has(dateKey)) {
-      emp.dayMap.set(dateKey, { inPunches: [], outPunches: [], hasBreak: false, punchIds: [] });
+      emp.dayMap.set(dateKey, { inPunches: [], outPunches: [], hasBreak: false, hasFirma: false, punchIds: [] });
     }
 
     const day = emp.dayMap.get(dateKey)!;
     day.punchIds.push(punch.id);
+    if (hasPunchSignature(punch)) {
+      day.hasFirma = true;
+    }
 
     if (punch.type === "BREAK_START") {
       day.hasBreak = true;
@@ -210,6 +222,7 @@ function processPunches(
       let totalMinutes = 0;
       const inCopy = [...dayData.inPunches];
       const outCopy = [...dayData.outPunches];
+      let hasSinSalida = false;
 
       const pairs: { inP: RawPunch | null; outP: RawPunch | null }[] = [];
       while (inCopy.length > 0 || outCopy.length > 0) {
@@ -237,25 +250,22 @@ function processPunches(
           const diff = Math.floor((outTime - inTime) / 60000);
           if (diff >= 0) totalMinutes += diff;
         } else if (pair.inP && !pair.outP) {
-          incidencias.push("IN sin OUT");
+          incidencias.push("Sin salida");
+          hasSinSalida = true;
         } else if (!pair.inP && pair.outP) {
-          incidencias.push("OUT sin IN");
+          incidencias.push("Sin entrada");
         }
       }
 
       if (dayData.inPunches.length > 1) {
-        const ins = dayData.inPunches.length;
-        if (ins > pairs.filter((p) => p.inP).length || ins > 1) {
-          const alreadyHasDobleIn = incidencias.includes("Doble IN");
-          if (!alreadyHasDobleIn && ins > 1) incidencias.push("Doble IN");
-        }
+        incidencias.push("Doble entrada");
       }
       if (dayData.outPunches.length > 1) {
-        const outs = dayData.outPunches.length;
-        if (outs > 1) {
-          const alreadyHasDobleOut = incidencias.includes("Doble OUT");
-          if (!alreadyHasDobleOut) incidencias.push("Doble OUT");
-        }
+        incidencias.push("Doble salida");
+      }
+
+      if (totalMinutes >= 300 && !dayData.hasBreak) {
+        incidencias.push("Sin pausa (+5h)");
       }
 
       const horaInicio =
@@ -277,9 +287,11 @@ function processPunches(
         horaFin,
         totalMinutes,
         totalFormatted: formatDurationHHMM(totalMinutes),
-        descanso: dayData.hasBreak ? "20 min" : "—",
+        pauseTaken: dayData.hasBreak,
+        hasFirma: dayData.hasFirma,
         incidencias,
         hasCorrection,
+        hasSinSalida,
       });
     }
 
@@ -303,7 +315,7 @@ function computeDatasetHash(sections: EmployeeSection[]): string {
         start: d.horaInicio,
         end: d.horaFin,
         total: d.totalFormatted,
-        break: d.descanso,
+        pause: d.pauseTaken,
         issues: d.incidencias,
         corrected: d.hasCorrection,
       })),
@@ -358,9 +370,21 @@ export async function generateAuthoritiesPDF(
       totalDays: sections.reduce((sum, s) => sum + s.days.length, 0),
     });
 
-    for (const section of sections) {
-      doc.addPage();
-      drawEmployeeSection(doc, section, pageWidth, marginLeft, logoBuffer);
+    const pageBottom = doc.page.height - doc.page.margins.bottom - 40;
+    let currentY = pageBottom;
+
+    for (let si = 0; si < sections.length; si++) {
+      const section = sections[si];
+      const minRowsToShow = Math.min(section.days.length, 3);
+      const estimatedHeight = 36 + 18 + 18 + (minRowsToShow * 20) + 30 + 14;
+      const spaceLeft = pageBottom - currentY;
+
+      if (si === 0 || spaceLeft < estimatedHeight) {
+        doc.addPage();
+        currentY = drawEmployeeSection(doc, section, pageWidth, marginLeft, logoBuffer, true);
+      } else {
+        currentY = drawEmployeeSection(doc, section, pageWidth, marginLeft, logoBuffer, false, currentY);
+      }
     }
 
     if (options.includeAnnexes) {
@@ -375,14 +399,6 @@ export async function generateAuthoritiesPDF(
       if (options.corrections.length > 0) {
         doc.addPage();
         drawAnnexB(doc, options.corrections, pageWidth, marginLeft, logoBuffer);
-      }
-
-      const signedPunches = inOutPunches.filter(
-        (p) => p.signatureSha256 && p.signatureSignedAt
-      );
-      if (signedPunches.length > 0) {
-        doc.addPage();
-        drawAnnexC(doc, signedPunches, pageWidth, marginLeft, logoBuffer);
       }
     }
 
@@ -424,27 +440,27 @@ function drawSmallHeader(
   let y = doc.page.margins.top;
   if (logoBuffer) {
     try {
-      doc.image(logoBuffer, marginLeft, y, { height: 30 });
+      doc.image(logoBuffer, marginLeft, y, { height: 24 });
     } catch {}
   }
   doc
-    .fontSize(10)
+    .fontSize(9)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyDark)
-    .text("CRONOS FICHAJES", marginLeft + 38, y + 4);
+    .text("CRONOS FICHAJES", marginLeft + 30, y + 3);
   doc
-    .fontSize(9)
+    .fontSize(8)
     .font("Helvetica")
     .fillColor(COLORS.textSecondary)
-    .text(title, marginLeft + 38, y + 18);
-  y += 36;
+    .text(title, marginLeft + 30, y + 14);
+  y += 28;
   doc
     .moveTo(marginLeft, y)
     .lineTo(marginLeft + pageWidth, y)
     .strokeColor(COLORS.borderLight)
     .lineWidth(1)
     .stroke();
-  return y + 8;
+  return y + 6;
 }
 
 interface CoverOptions {
@@ -462,45 +478,45 @@ interface CoverOptions {
 }
 
 function drawCoverPage(doc: typeof PDFDocument.prototype, opts: CoverOptions) {
-  let y = doc.page.margins.top + 40;
+  let y = doc.page.margins.top + 30;
 
   if (opts.logoBuffer) {
     try {
-      doc.image(opts.logoBuffer, opts.marginLeft + opts.pageWidth / 2 - 30, y, {
-        height: 60,
+      doc.image(opts.logoBuffer, opts.marginLeft + opts.pageWidth / 2 - 25, y, {
+        height: 50,
       });
-      y += 70;
+      y += 58;
     } catch {
-      y += 10;
+      y += 8;
     }
   }
 
   doc
-    .fontSize(20)
+    .fontSize(18)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyDark)
     .text("CRONOS FICHAJES", opts.marginLeft, y, {
       width: opts.pageWidth,
       align: "center",
     });
-  y += 30;
+  y += 24;
 
   doc
-    .fontSize(16)
+    .fontSize(14)
     .font("Helvetica-Bold")
     .fillColor(COLORS.textPrimary)
     .text("Registro horario — Informe para Autoridades", opts.marginLeft, y, {
       width: opts.pageWidth,
       align: "center",
     });
-  y += 30;
+  y += 22;
 
   doc
-    .fontSize(14)
+    .fontSize(12)
     .font("Helvetica")
     .fillColor(COLORS.textSecondary)
     .text(opts.subtitle, opts.marginLeft, y, { width: opts.pageWidth, align: "center" });
-  y += 50;
+  y += 30;
 
   doc
     .moveTo(opts.marginLeft + 100, y)
@@ -508,7 +524,7 @@ function drawCoverPage(doc: typeof PDFDocument.prototype, opts: CoverOptions) {
     .strokeColor(COLORS.borderLight)
     .lineWidth(1)
     .stroke();
-  y += 25;
+  y += 18;
 
   const infoItems = [
     { label: "Generado:", value: formatDateTimeES(opts.generatedAt) },
@@ -527,38 +543,38 @@ function drawCoverPage(doc: typeof PDFDocument.prototype, opts: CoverOptions) {
       .fillColor(COLORS.textPrimary)
       .text(item.label, opts.marginLeft + 80, y, { continued: true, width: 120 });
     doc.font("Helvetica").fillColor(COLORS.textSecondary).text(` ${item.value}`);
-    y += 18;
+    y += 16;
   }
 
-  y += 30;
+  y += 20;
   doc
     .moveTo(opts.marginLeft + 100, y)
     .lineTo(opts.marginLeft + opts.pageWidth - 100, y)
     .strokeColor(COLORS.borderLight)
     .lineWidth(0.5)
     .stroke();
-  y += 20;
+  y += 14;
 
   doc
-    .fontSize(8)
+    .fontSize(7)
     .font("Helvetica-Bold")
     .fillColor(COLORS.textMuted)
     .text("ID Documento:", opts.marginLeft + 80, y);
   doc
-    .fontSize(7)
+    .fontSize(6)
     .font("Courier")
-    .text(opts.documentId, opts.marginLeft + 80, y + 12);
-  y += 28;
+    .text(opts.documentId, opts.marginLeft + 80, y + 10);
+  y += 22;
 
   doc
-    .fontSize(8)
+    .fontSize(7)
     .font("Helvetica-Bold")
     .fillColor(COLORS.textMuted)
     .text("Hash SHA-256 del dataset:", opts.marginLeft + 80, y);
   doc
-    .fontSize(6)
+    .fontSize(5)
     .font("Courier")
-    .text(opts.datasetHash, opts.marginLeft + 80, y + 12);
+    .text(opts.datasetHash, opts.marginLeft + 80, y + 10);
 }
 
 function drawEmployeeSection(
@@ -566,31 +582,47 @@ function drawEmployeeSection(
   section: EmployeeSection,
   pageWidth: number,
   marginLeft: number,
-  logoBuffer: Buffer | null
-) {
-  let y = drawSmallHeader(
-    doc,
-    "Registro horario — Informe para Autoridades",
-    pageWidth,
-    marginLeft,
-    logoBuffer
-  );
+  logoBuffer: Buffer | null,
+  isNewPage: boolean,
+  startY?: number
+): number {
+  let y: number;
+
+  if (isNewPage) {
+    y = drawSmallHeader(
+      doc,
+      "Registro horario — Informe para Autoridades",
+      pageWidth,
+      marginLeft,
+      logoBuffer
+    );
+  } else {
+    y = startY! + 8;
+    doc
+      .moveTo(marginLeft, y)
+      .lineTo(marginLeft + pageWidth, y)
+      .strokeColor(COLORS.borderLight)
+      .lineWidth(0.5)
+      .stroke();
+    y += 8;
+  }
 
   doc
-    .fontSize(12)
+    .fontSize(11)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyDark)
     .text(`Empleado: ${section.fullName}`, marginLeft, y);
-  y += 22;
+  y += 18;
 
   const colWidths = {
-    fecha: 68,
-    inicio: 55,
-    fin: 55,
-    total: 50,
-    descanso: 52,
-    incidencias: 175,
-    correcciones: 68,
+    fecha: 62,
+    inicio: 50,
+    fin: 50,
+    total: 45,
+    pausa: 45,
+    firma: 35,
+    incidencias: 165,
+    correcciones: 70,
   };
 
   const headers = [
@@ -598,19 +630,20 @@ function drawEmployeeSection(
     { text: "Inicio", width: colWidths.inicio },
     { text: "Fin", width: colWidths.fin },
     { text: "Total", width: colWidths.total },
-    { text: "Descanso", width: colWidths.descanso },
+    { text: "Pausa", width: colWidths.pausa },
+    { text: "Firma", width: colWidths.firma },
     { text: "Incidencias", width: colWidths.incidencias },
-    { text: "Correcciones", width: colWidths.correcciones },
+    { text: "Corr.", width: colWidths.correcciones },
   ];
 
   y = drawTableHeaderRow(doc, headers, y, pageWidth, marginLeft);
 
-  const ROW_HEIGHT = 22;
+  const ROW_HEIGHT = 20;
 
   for (let i = 0; i < section.days.length; i++) {
     const day = section.days[i];
 
-    if (y + ROW_HEIGHT > doc.page.height - doc.page.margins.bottom - 60) {
+    if (y + ROW_HEIGHT > doc.page.height - doc.page.margins.bottom - 50) {
       doc.addPage();
       y = drawSmallHeader(
         doc,
@@ -620,15 +653,20 @@ function drawEmployeeSection(
         logoBuffer
       );
       doc
-        .fontSize(10)
+        .fontSize(9)
         .font("Helvetica-Bold")
         .fillColor(COLORS.textSecondary)
         .text(`Empleado: ${section.fullName} (cont.)`, marginLeft, y);
-      y += 18;
+      y += 14;
       y = drawTableHeaderRow(doc, headers, y, pageWidth, marginLeft);
     }
 
-    const rowColor = i % 2 === 0 ? COLORS.zebraLight : COLORS.zebraWhite;
+    const hasIssue = day.hasSinSalida || day.incidencias.length > 0;
+    const rowColor = hasIssue
+      ? COLORS.incidenciaBg
+      : i % 2 === 0
+      ? COLORS.zebraLight
+      : COLORS.zebraWhite;
     doc.rect(marginLeft, y, pageWidth, ROW_HEIGHT).fill(rowColor);
     doc
       .moveTo(marginLeft, y + ROW_HEIGHT)
@@ -638,10 +676,10 @@ function drawEmployeeSection(
       .stroke();
 
     let x = marginLeft + 4;
-    const textY = y + 6;
+    const textY = y + 5;
 
     doc
-      .fontSize(8)
+      .fontSize(7.5)
       .font("Helvetica")
       .fillColor(COLORS.textPrimary)
       .text(formatDateKeyES(day.dateKey), x, textY, { width: colWidths.fecha - 8 });
@@ -658,21 +696,36 @@ function drawEmployeeSection(
       .text(day.totalFormatted, x, textY, { width: colWidths.total - 8 });
     x += colWidths.total;
 
+    const showPause = day.totalMinutes >= 300;
+    if (showPause) {
+      doc
+        .font("Helvetica-Bold")
+        .fillColor(day.pauseTaken ? COLORS.pauseOk : COLORS.pauseMissing)
+        .text(day.pauseTaken ? "Sí" : "No", x, textY, { width: colWidths.pausa - 8, align: "center" });
+    } else {
+      doc
+        .font("Helvetica")
+        .fillColor(COLORS.textMuted)
+        .text("—", x, textY, { width: colWidths.pausa - 8, align: "center" });
+    }
+    x += colWidths.pausa;
+
     doc
-      .font("Helvetica")
-      .fillColor(day.descanso !== "—" ? COLORS.navyMedium : COLORS.textMuted)
-      .text(day.descanso, x, textY, { width: colWidths.descanso - 8 });
-    x += colWidths.descanso;
+      .font("Helvetica-Bold")
+      .fillColor(day.hasFirma ? COLORS.navyMedium : COLORS.textMuted)
+      .text(day.hasFirma ? "Sí" : "No", x, textY, { width: colWidths.firma - 8, align: "center" });
+    x += colWidths.firma;
 
     const incText = day.incidencias.length > 0 ? day.incidencias.join(", ") : "—";
     doc
       .fillColor(day.incidencias.length > 0 ? COLORS.incidencia : COLORS.textMuted)
-      .fontSize(7)
+      .fontSize(6.5)
+      .font(day.incidencias.length > 0 ? "Helvetica-Bold" : "Helvetica")
       .text(incText, x, textY + 1, { width: colWidths.incidencias - 8 });
     x += colWidths.incidencias;
 
     doc
-      .fontSize(8)
+      .fontSize(7.5)
       .font("Helvetica-Bold")
       .fillColor(day.hasCorrection ? COLORS.correctionYes : COLORS.textMuted)
       .text(day.hasCorrection ? "Sí" : "No", x, textY, {
@@ -683,9 +736,9 @@ function drawEmployeeSection(
     y += ROW_HEIGHT;
   }
 
-  y += 12;
-  const totalBlockW = 200;
-  const totalBlockH = 32;
+  y += 6;
+  const totalBlockW = 180;
+  const totalBlockH = 24;
   const totalBlockX = marginLeft + pageWidth - totalBlockW;
 
   doc.rect(totalBlockX, y, totalBlockW, totalBlockH).fill(COLORS.headerBg);
@@ -696,31 +749,33 @@ function drawEmployeeSection(
     .stroke();
 
   doc
-    .fontSize(9)
+    .fontSize(8)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyMedium)
-    .text("TOTAL PERÍODO:", totalBlockX + 10, y + 6);
+    .text("TOTAL PERÍODO:", totalBlockX + 8, y + 5);
   doc
-    .fontSize(14)
+    .fontSize(12)
     .font("Helvetica-Bold")
     .fillColor(COLORS.textPrimary)
-    .text(formatDurationHHMM(section.totalMinutes), totalBlockX + 10, y + 6, {
-      width: totalBlockW - 20,
+    .text(formatDurationHHMM(section.totalMinutes), totalBlockX + 8, y + 4, {
+      width: totalBlockW - 16,
       align: "right",
     });
 
-  y += totalBlockH + 10;
+  y += totalBlockH + 4;
 
   doc
-    .fontSize(7)
+    .fontSize(6)
     .font("Helvetica")
     .fillColor(COLORS.textMuted)
     .text(
-      "Total = tiempo efectivo de trabajo. El descanso (20 min) es tiempo efectivo, no se descuenta.",
+      "Total = tiempo efectivo de trabajo. El descanso (20 min) es obligatorio a partir de 6h de trabajo continuado.",
       marginLeft,
       y,
       { width: pageWidth }
     );
+
+  return y + 10;
 }
 
 function drawTableHeaderRow(
@@ -730,13 +785,13 @@ function drawTableHeaderRow(
   pageWidth: number,
   marginLeft: number
 ): number {
-  const headerHeight = 20;
+  const headerHeight = 18;
   doc.rect(marginLeft, y, pageWidth, headerHeight).fill(COLORS.navyDark);
 
-  doc.fillColor(COLORS.white).fontSize(8).font("Helvetica-Bold");
+  doc.fillColor(COLORS.white).fontSize(7).font("Helvetica-Bold");
   let x = marginLeft + 4;
   for (const header of headers) {
-    doc.text(header.text, x, y + 6, { width: header.width - 8, align: "left" });
+    doc.text(header.text, x, y + 5, { width: header.width - 8, align: "left" });
     x += header.width;
   }
   return y + headerHeight + 1;
@@ -758,24 +813,24 @@ function drawAnnexA(
   );
 
   doc
-    .fontSize(11)
+    .fontSize(10)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyDark)
     .text("Anexo A: Detalle de eventos del período", marginLeft, y);
-  y += 20;
+  y += 16;
 
   const sorted = [...punches].sort(
     (a, b) => ensureDateUTC(a.timestamp)!.getTime() - ensureDateUTC(b.timestamp)!.getTime()
   );
 
   const colWidths = {
-    fecha: 75,
-    hora: 55,
-    tipo: 45,
-    empleado: 115,
-    ubicacion: 120,
-    firma: 40,
-    fuente: 73,
+    fecha: 70,
+    hora: 50,
+    tipo: 48,
+    empleado: 130,
+    ubicacion: 115,
+    firma: 35,
+    fuente: 75,
   };
 
   const headers = [
@@ -790,7 +845,7 @@ function drawAnnexA(
 
   y = drawTableHeaderRow(doc, headers, y, pageWidth, marginLeft);
 
-  const ROW_HEIGHT = 18;
+  const ROW_HEIGHT = 16;
 
   for (let i = 0; i < sorted.length; i++) {
     const punch = sorted[i];
@@ -817,8 +872,8 @@ function drawAnnexA(
       .stroke();
 
     let x = marginLeft + 4;
-    const textY = y + 5;
-    doc.fontSize(7).font("Helvetica").fillColor(COLORS.textPrimary);
+    const textY = y + 4;
+    doc.fontSize(6.5).font("Helvetica").fillColor(COLORS.textPrimary);
 
     doc.text(formatDateES(punch.timestamp), x, textY, { width: colWidths.fecha - 8 });
     x += colWidths.fecha;
@@ -854,17 +909,19 @@ function drawAnnexA(
     } else {
       doc
         .fillColor(COLORS.textMuted)
-        .text("No", x, textY, { width: colWidths.ubicacion - 8, align: "center" });
+        .text("—", x, textY, { width: colWidths.ubicacion - 8, align: "center" });
     }
     x += colWidths.ubicacion;
 
-    const hasSig = !!punch.signatureSha256;
+    const hasSig = hasPunchSignature(punch);
     doc
       .fillColor(hasSig ? COLORS.navyMedium : COLORS.textMuted)
+      .font("Helvetica-Bold")
       .text(hasSig ? "Sí" : "No", x, textY, { width: colWidths.firma - 8, align: "center" });
     x += colWidths.firma;
 
     doc
+      .font("Helvetica")
       .fillColor(COLORS.textSecondary)
       .text(punch.source || "—", x, textY, { width: colWidths.fuente - 8 });
 
@@ -888,13 +945,13 @@ function drawAnnexB(
   );
 
   doc
-    .fontSize(11)
+    .fontSize(10)
     .font("Helvetica-Bold")
     .fillColor(COLORS.navyDark)
     .text("Anexo B: Correcciones del período", marginLeft, y);
-  y += 20;
+  y += 16;
 
-  const ROW_HEIGHT = 50;
+  const ROW_HEIGHT = 44;
 
   for (let i = 0; i < corrections.length; i++) {
     const c = corrections[i];
@@ -920,15 +977,15 @@ function drawAnnexB(
 
     const col1 = marginLeft + 6;
     const col2 = marginLeft + pageWidth / 2;
-    let textY = y + 6;
+    let textY = y + 5;
 
-    doc.fontSize(8).font("Helvetica-Bold").fillColor(COLORS.textPrimary);
+    doc.fontSize(7).font("Helvetica-Bold").fillColor(COLORS.textPrimary);
     doc.text(`Empleado: ${c.employeeName}`, col1, textY);
     doc.font("Helvetica").fillColor(COLORS.textSecondary);
     doc.text(`Autor: ${c.correctedByName}`, col2, textY);
-    textY += 12;
+    textY += 11;
 
-    doc.fontSize(7).fillColor(COLORS.textPrimary);
+    doc.fontSize(6.5).fillColor(COLORS.textPrimary);
     doc.text(
       `Original: ${formatDateTimeES(c.originalTimestamp)} (${c.originalType})`,
       col1,
@@ -941,10 +998,10 @@ function drawAnnexB(
         textY
       );
     }
-    textY += 12;
+    textY += 11;
 
     doc
-      .fontSize(7)
+      .fontSize(6.5)
       .fillColor(COLORS.textSecondary)
       .text(`Motivo: ${c.reason}`, col1, textY, { width: pageWidth / 2 - 12 });
     doc.text(`Fecha corrección: ${formatDateTimeES(c.correctionDate)}`, col2, textY);
@@ -953,98 +1010,3 @@ function drawAnnexB(
   }
 }
 
-function drawAnnexC(
-  doc: typeof PDFDocument.prototype,
-  signedPunches: RawPunch[],
-  pageWidth: number,
-  marginLeft: number,
-  logoBuffer: Buffer | null
-) {
-  let y = drawSmallHeader(
-    doc,
-    "Anexo C — Firmas digitales",
-    pageWidth,
-    marginLeft,
-    logoBuffer
-  );
-
-  doc
-    .fontSize(11)
-    .font("Helvetica-Bold")
-    .fillColor(COLORS.navyDark)
-    .text("Anexo C: Registro de firmas digitales", marginLeft, y);
-  y += 20;
-
-  const colWidths = {
-    empleado: 140,
-    tipo: 55,
-    fecha: 100,
-    hash: 228,
-  };
-
-  const headers = [
-    { text: "Empleado", width: colWidths.empleado },
-    { text: "Tipo", width: colWidths.tipo },
-    { text: "Fecha firma", width: colWidths.fecha },
-    { text: "SHA-256", width: colWidths.hash },
-  ];
-
-  y = drawTableHeaderRow(doc, headers, y, pageWidth, marginLeft);
-
-  const ROW_HEIGHT = 18;
-
-  for (let i = 0; i < signedPunches.length; i++) {
-    const punch = signedPunches[i];
-
-    if (y + ROW_HEIGHT > doc.page.height - doc.page.margins.bottom - 40) {
-      doc.addPage();
-      y = drawSmallHeader(
-        doc,
-        "Anexo C — Firmas digitales (cont.)",
-        pageWidth,
-        marginLeft,
-        logoBuffer
-      );
-      y = drawTableHeaderRow(doc, headers, y, pageWidth, marginLeft);
-    }
-
-    const rowColor = i % 2 === 0 ? COLORS.zebraLight : COLORS.zebraWhite;
-    doc.rect(marginLeft, y, pageWidth, ROW_HEIGHT).fill(rowColor);
-    doc
-      .moveTo(marginLeft, y + ROW_HEIGHT)
-      .lineTo(marginLeft + pageWidth, y + ROW_HEIGHT)
-      .strokeColor(COLORS.borderRow)
-      .lineWidth(0.5)
-      .stroke();
-
-    let x = marginLeft + 4;
-    const textY = y + 5;
-    doc.fontSize(7).font("Helvetica").fillColor(COLORS.textPrimary);
-
-    doc.text(
-      `${punch.employee.lastName}, ${punch.employee.firstName}`,
-      x,
-      textY,
-      { width: colWidths.empleado - 8 }
-    );
-    x += colWidths.empleado;
-
-    doc.text(punch.type === "IN" ? "Entrada" : "Salida", x, textY, {
-      width: colWidths.tipo - 8,
-    });
-    x += colWidths.tipo;
-
-    doc.text(formatDateTimeES(punch.signatureSignedAt), x, textY, {
-      width: colWidths.fecha - 8,
-    });
-    x += colWidths.fecha;
-
-    doc
-      .fontSize(5)
-      .font("Courier")
-      .fillColor(COLORS.textSecondary)
-      .text(punch.signatureSha256 || "—", x, textY + 1, { width: colWidths.hash - 8 });
-
-    y += ROW_HEIGHT;
-  }
-}

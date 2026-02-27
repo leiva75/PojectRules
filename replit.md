@@ -33,7 +33,15 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
 - **Overtime System:** Automatically calculates overtime based on configured thresholds and expected daily minutes. Includes an admin approval workflow with audit logging.
 - **Pause System:** Implements a 20-minute break feature with `BREAK_START` and `BREAK_END` punch types. An automatic cron job closes breaks after 20 minutes. Pause is available on both kiosk and mobile interfaces. The `useCountdown` and `formatCountdown` hooks are shared via `client/src/hooks/use-countdown.ts`.
 - **Global Bearer Token Injection:** The global fetcher (`client/src/lib/queryClient.ts`) automatically injects `Authorization: Bearer <token>` from `localStorage("employeeToken")` into all requests via `injectEmployeeToken()`. This ensures employee endpoints (pause status, punches) work consistently across all React Query operations.
-- **Authorities Report:** Generates a detailed PDF report for regulatory compliance, including daily tables, incident tracking, and optional annexes for detailed event and correction logs.
+- **Authorities Report (`server/authorities-pdf.ts`):** Generates a compact PDF for regulatory compliance. Features:
+    - Signature detection uses `signatureData || signatureSha256 || signatureSignedAt` (covers both S3 and inline signatures).
+    - "Pausa" column: shows "Sí"/"No" (green/red) for shifts ≥5h, "—" for shorter shifts. Incidence "Sin pausa (+5h)" added automatically.
+    - "Firma" column: "Sí"/"No" per day based on punch signature data.
+    - Incident highlighting: rows with "Sin salida", "Sin entrada", or other incidents get a light red background.
+    - Labels: "Sin salida" (IN without OUT), "Sin entrada" (OUT without IN), "Doble entrada", "Doble salida".
+    - Compact layout: employees chain on same page when space allows, reduced cover page spacing, 20px row height.
+    - Annexes: A (event detail) and B (corrections) only. Annex C (SHA-256 signature details) removed as unnecessary for authorities.
+    - Employee sections include "Corr." column for corrections.
 - **Error Handling:** Robust database error handling returns 503 for connection issues. All API error messages are in Spanish.
 
 **System Design Choices:**
