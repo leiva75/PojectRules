@@ -1969,10 +1969,14 @@ export async function registerRoutes(
 
       const empId = employeeId as string | undefined;
 
-      const [punchesData, correctionsData] = await Promise.all([
+      const [allPunches, correctionsData] = await Promise.all([
         storage.getAllPunchesForReport({ startDate: periodStart, endDate: periodEnd, employeeId: empId }),
         storage.getCorrectionsInRange({ startDate: periodStart, endDate: periodEnd, employeeId: empId }),
       ]);
+
+      const kioskPunches = allPunches.filter(p => p.source === "kiosk");
+      const kioskPunchIds = new Set(kioskPunches.map(p => p.id));
+      const kioskCorrections = correctionsData.filter(c => kioskPunchIds.has(c.originalPunchId));
 
       const generatedAt = new Date();
       const pdfBuffer = await generateAuthoritiesPDF({
@@ -1983,8 +1987,8 @@ export async function registerRoutes(
         generatedAt,
         periodStart,
         periodEnd,
-        punches: punchesData,
-        corrections: correctionsData,
+        punches: kioskPunches,
+        corrections: kioskCorrections,
       });
 
       await storage.createAuditLog({
