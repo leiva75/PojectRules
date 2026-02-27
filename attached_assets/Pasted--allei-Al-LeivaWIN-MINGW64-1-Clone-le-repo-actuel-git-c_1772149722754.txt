@@ -1,0 +1,222 @@
+
+allei@Al-LeivaWIN MINGW64 ~
+$ # 1. Clone le repo actuel
+git clone https://github.com/leiva75/PojectRules.git PojectRules-clean
+cd PojectRules-clean
+
+# 2. Crée une branche orpheline (sans historique)
+git checkout --orphan clean-main
+
+# 3. Stage tous les fichiers actuels
+git add -A
+
+# 4. Commit initial propre
+git commit -m "Initial commit - Cronos Fichajes v1.0"
+
+# 5. Supprime l'ancienne branche main
+git branch -D main
+
+# 6. Renomme la branche propre en main
+git branch -m main
+
+# 7. Push forcé (écrase tout l'historique)
+git push --force origin main
+Cloning into 'PojectRules-clean'...
+remote: Enumerating objects: 881, done.
+remote: Counting objects: 100% (881/881), done.
+remote: Compressing objects: 100% (374/374), done.
+remote: Total 881 (delta 628), reused 734 (delta 483), pack-reused 0 (from 0)
+Receiving objects: 100% (881/881), 9.35 MiB | 3.85 MiB/s, done.
+Resolving deltas: 100% (628/628), done.
+Switched to a new branch 'clean-main'
+[clean-main (root-commit) b561bf0] Initial commit - Cronos Fichajes v1.0
+ 177 files changed, 33155 insertions(+)
+ create mode 100644 .dockerignore
+ create mode 100644 .env.example
+ create mode 100644 .env.production.example
+ create mode 100644 .gitignore
+ create mode 100644 .prettierignore
+ create mode 100644 .prettierrc
+ create mode 100644 .replit
+ create mode 100644 BUILD.md
+ create mode 100644 Dockerfile
+ create mode 100644 README_PRODUCCION.md
+ create mode 100644 attached_assets/5A8E7C04-87D5-4E90-B1EA-DB02F33CAB69_1768988979519.png
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-01-24_080843_1769238538002.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-01-27_204539_1769543155237.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_085818_1772092708747.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_132337_1772108624954.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_142245_1772112207140.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_144634_1772113601516.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_145948_1772114403472.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_150300_1772114589759.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_150737_1772114867547.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_150943_1772114993615.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_151121_1772115089737.png"
+ create mode 100644 "attached_assets/Capture_d'\303\251cran_2026-02-26_151934_1772115590476.png"
+ create mode 100644 attached_assets/IMG_7632_1771021096877.jpeg
+ create mode 100644 attached_assets/IMG_7633_1771021232974.jpeg
+ create mode 100644 attached_assets/Pasted--workspace-git-add-A-git-commit-m-Fix-production-schema_1772141312947.txt
+ create mode 100644 attached_assets/Pasted--workspace-git-add-A-git-commit-m-Remove-hardcoded-DATA_1772141447043.txt
+ create mode 100644 attached_assets/Pasted-Contexte-je-d-veloppe-une-pointeuse-clock-in-clock-out-_1769544418119.txt
+ create mode 100644 attached_assets/Pasted-Feb-25-23-06-07-Feb-25-23-06-07-rest-express-1-0-0-star_1772062591791.txt
+ create mode 100644 attached_assets/Pasted-Feb-26-08-03-36-Feb-26-08-03-36-rest-express-1-0-0-star_1772093477621.txt
+ create mode 100644 attached_assets/Pasted-Feb-26-09-46-11-Feb-26-09-46-11-rest-express-1-0-0-star_1772099427478.txt
+ create mode 100644 attached_assets/Pasted-Feb-26-13-43-19-Feb-26-13-43-19-rest-express-1-0-0-star_1772113482175.txt
+ create mode 100644 attached_assets/Pasted-Feb-26-13-43-19-Feb-26-13-43-19-rest-express-1-0-0-star_1772113493382.txt
+ create mode 100644 attached_assets/Pasted-Feb-26-19-22-45-Feb-26-19-22-45-rest-express-1-0-0-star_1772140209830.txt
+ create mode 100644 attached_assets/Pasted-I-need-a-full-infrastructure-and-connection-audit-of-my_1772141558615.txt
+ create mode 100644 attached_assets/Pasted-Je-veux-un-audit-correctif-complet-sur-la-gestion-des-h_1771954472288.txt
+ create mode 100644 attached_assets/Pasted-OBJECTIF-pr-parer-la-mise-en-production-sur-un-VPS-ind-_1768933173256.txt
+ create mode 100644 attached_assets/Pasted-OK-ce-retour-d-audit-est-coh-rent-et-surtout-il-pointe-_1772141868708.txt
+ create mode 100644 attached_assets/Pasted-TU-ES-UN-ING-NIEUR-SENIOR-Node-js-Express-React-TypeScr_1769249157200.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-Lead-Product-Designer-UI-Engineer-sur-une-webapp-_1769548627585.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-UI-designer-senior-Objectif-am-liorer-une-web-_1769549710810.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-agent-senior-full-stack-DevOps-Tu-travailles-s_1769598076275.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-auditeur-senior-backend-infra-Node-js-TypeScri_1772061723903.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-auditeur-senior-fullstack-Projet-application-d_1772060015633.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-d-veloppeur-front-back-senior-J-ai-deux-rappor_1769552176919.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-d-veloppeur-front-end-senior-J-ai-un-template-_1769553811343.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-d-veloppeur-full-stack-senior-Je-te-fournis-un_1769551023327.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-d-veloppeur-full-stack-senior-Sur-mon-applicat_1769550709844.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-ing-nieur-SRE-Backend-senior-J-ai-une-applicat_1772132072228.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-ing-nieur-SRE-Backend-senior-J-ai-une-applicat_1772132112921.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-ing-nieur-backend-senior-Node-js-TypeScript-sp_1772062767887.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-ing-nieur-senior-Node-js-Express-React-TypeScr_1769249257244.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-lead-backend-TypeScript-Projet-application-de-_1772060274188.txt
+ create mode 100644 attached_assets/Pasted-Tu-es-un-senior-backend-infra-Node-js-TypeScript-Projet_1772061904442.txt
+ create mode 100644 attached_assets/Pasted-Tu-travailles-sur-le-projet-CronosFichajes-logiciel-de-_1772126531916.txt
+ create mode 100644 attached_assets/ca-certificate_(2)_1772110555703.crt
+ create mode 100644 attached_assets/content-1769543057717.md
+ create mode 100644 attached_assets/image_1772114306730.png
+ create mode 100644 attached_assets/logo_cronosfichajes_1769551032788.PNG
+ create mode 100644 client/index.html
+ create mode 100644 client/public/favicon.png
+ create mode 100644 client/src/App.tsx
+ create mode 100644 client/src/assets/logo-cronos.png
+ create mode 100644 client/src/components/brand-logo.tsx
+ create mode 100644 client/src/components/correction-dialog.tsx
+ create mode 100644 client/src/components/employee-dialog.tsx
+ create mode 100644 client/src/components/export-dialog.tsx
+ create mode 100644 client/src/components/punch-button.tsx
+ create mode 100644 client/src/components/signature-modal.tsx
+ create mode 100644 client/src/components/signature-pad.tsx
+ create mode 100644 client/src/components/status-badge.tsx
+ create mode 100644 client/src/components/ui/accordion.tsx
+ create mode 100644 client/src/components/ui/alert-dialog.tsx
+ create mode 100644 client/src/components/ui/alert.tsx
+ create mode 100644 client/src/components/ui/aspect-ratio.tsx
+ create mode 100644 client/src/components/ui/avatar.tsx
+ create mode 100644 client/src/components/ui/badge.tsx
+ create mode 100644 client/src/components/ui/breadcrumb.tsx
+ create mode 100644 client/src/components/ui/button.tsx
+ create mode 100644 client/src/components/ui/calendar.tsx
+ create mode 100644 client/src/components/ui/card.tsx
+ create mode 100644 client/src/components/ui/carousel.tsx
+ create mode 100644 client/src/components/ui/chart.tsx
+ create mode 100644 client/src/components/ui/checkbox.tsx
+ create mode 100644 client/src/components/ui/collapsible.tsx
+ create mode 100644 client/src/components/ui/command.tsx
+ create mode 100644 client/src/components/ui/context-menu.tsx
+ create mode 100644 client/src/components/ui/dialog.tsx
+ create mode 100644 client/src/components/ui/drawer.tsx
+ create mode 100644 client/src/components/ui/dropdown-menu.tsx
+ create mode 100644 client/src/components/ui/form.tsx
+ create mode 100644 client/src/components/ui/hover-card.tsx
+ create mode 100644 client/src/components/ui/input-otp.tsx
+ create mode 100644 client/src/components/ui/input.tsx
+ create mode 100644 client/src/components/ui/label.tsx
+ create mode 100644 client/src/components/ui/menubar.tsx
+ create mode 100644 client/src/components/ui/navigation-menu.tsx
+ create mode 100644 client/src/components/ui/pagination.tsx
+ create mode 100644 client/src/components/ui/popover.tsx
+ create mode 100644 client/src/components/ui/progress.tsx
+ create mode 100644 client/src/components/ui/radio-group.tsx
+ create mode 100644 client/src/components/ui/resizable.tsx
+ create mode 100644 client/src/components/ui/scroll-area.tsx
+ create mode 100644 client/src/components/ui/select.tsx
+ create mode 100644 client/src/components/ui/separator.tsx
+ create mode 100644 client/src/components/ui/sheet.tsx
+ create mode 100644 client/src/components/ui/sidebar.tsx
+ create mode 100644 client/src/components/ui/skeleton.tsx
+ create mode 100644 client/src/components/ui/slider.tsx
+ create mode 100644 client/src/components/ui/switch.tsx
+ create mode 100644 client/src/components/ui/table.tsx
+ create mode 100644 client/src/components/ui/tabs.tsx
+ create mode 100644 client/src/components/ui/textarea.tsx
+ create mode 100644 client/src/components/ui/toast.tsx
+ create mode 100644 client/src/components/ui/toaster.tsx
+ create mode 100644 client/src/components/ui/toggle-group.tsx
+ create mode 100644 client/src/components/ui/toggle.tsx
+ create mode 100644 client/src/components/ui/tooltip.tsx
+ create mode 100644 client/src/config/brand.ts
+ create mode 100644 client/src/hooks/use-mobile.tsx
+ create mode 100644 client/src/hooks/use-toast.ts
+ create mode 100644 client/src/index.css
+ create mode 100644 client/src/lib/auth.tsx
+ create mode 100644 client/src/lib/duration.ts
+ create mode 100644 client/src/lib/queryClient.ts
+ create mode 100644 client/src/lib/timezone.ts
+ create mode 100644 client/src/lib/utils.ts
+ create mode 100644 client/src/main.tsx
+ create mode 100644 client/src/pages/admin.tsx
+ create mode 100644 client/src/pages/employee-login.tsx
+ create mode 100644 client/src/pages/kiosk.tsx
+ create mode 100644 client/src/pages/login.tsx
+ create mode 100644 client/src/pages/mobile.tsx
+ create mode 100644 client/src/pages/not-found.tsx
+ create mode 100644 components.json
+ create mode 100644 design_guidelines.md
+ create mode 100644 do-ca.crt
+ create mode 100644 docker-compose.yml
+ create mode 100644 drizzle.config.ts
+ create mode 100644 eslint.config.js
+ create mode 100644 migrations/0000_known_ozymandias.sql
+ create mode 100644 migrations/meta/0000_snapshot.json
+ create mode 100644 migrations/meta/_journal.json
+ create mode 100755 ops/backup.sh
+ create mode 100755 ops/restore.sh
+ create mode 100644 package-lock.json
+ create mode 100644 package.json
+ create mode 100644 postcss.config.js
+ create mode 100644 replit.md
+ create mode 100644 script/build.ts
+ create mode 100644 script/start-prod.ts
+ create mode 100755 scripts/backup.sh
+ create mode 100644 scripts/fix-production-schema.sql
+ create mode 100644 scripts/migrate.ts
+ create mode 100644 server/assets/logo.png
+ create mode 100644 server/auth.ts
+ create mode 100644 server/db.ts
+ create mode 100644 server/errors.ts
+ create mode 100644 server/index.ts
+ create mode 100644 server/json2csv.d.ts
+ create mode 100644 server/kiosk.ts
+ create mode 100644 server/logger.ts
+ create mode 100644 server/overtime.test.ts
+ create mode 100644 server/overtime.ts
+ create mode 100644 server/pdf-generator.ts
+ create mode 100644 server/routes.ts
+ create mode 100644 server/seed.ts
+ create mode 100644 server/spaces.ts
+ create mode 100644 server/static.ts
+ create mode 100644 server/storage.ts
+ create mode 100644 server/timezone.ts
+ create mode 100644 server/vite.ts
+ create mode 100644 shared/schema.ts
+ create mode 100644 tailwind.config.ts
+ create mode 100644 tsconfig.json
+ create mode 100644 vite.config.ts
+ create mode 100644 vitest.config.ts
+Deleted branch main (was 5838692).
+Enumerating objects: 193, done.
+Counting objects: 100% (193/193), done.
+Delta compression using up to 12 threads
+Compressing objects: 100% (176/176), done.
+Writing objects: 100% (193/193), 9.22 MiB | 7.65 MiB/s, done.
+Total 193 (delta 14), reused 142 (delta 9), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (14/14), done.
+To https://github.com/leiva75/PojectRules.git
+ + 5838692...b561bf0 main -> main (forced update)
+
+allei@Al-LeivaWIN MINGW64 ~/PojectRules-clean (main)

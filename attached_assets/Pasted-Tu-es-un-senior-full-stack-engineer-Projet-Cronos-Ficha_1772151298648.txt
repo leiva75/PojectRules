@@ -1,0 +1,63 @@
+Tu es un senior full-stack engineer. Projet “Cronos Fichajes”.
+Stack: React 18 + TS + Vite + Tailwind + shadcn/ui + TanStack Query + Wouter.
+Backend: Node 20 + Express + TS + PostgreSQL 16 + Drizzle + Zod.
+Auth: JWT access 15min + refresh 7j cookies httpOnly. Timezone: Europe/Madrid. PDF: PDFKit.
+
+CONTRAINTE UI (non négociable)
+Le lien “Acceso Empleado” existe déjà sur l’écran Kiosk (keypad PIN). NE CRÉE PAS un nouveau lien.
+Tu dois localiser ce lien dans le code et uniquement brancher sa navigation vers /empleado/login.
+
+OBJECTIF
+Accès employé mobile/tablette optimisé:
+- /empleado/login (email+password)
+- /empleado/mis-fichajes (lecture seule: prises + fins de service)
+- export PDF téléchargeable depuis mobile (iOS/Android) + CSV optionnel
+
+ÉTAPE 1 — LOCALISATION OBLIGATOIRE
+Avant de coder, montre les fichiers exacts où “Acceso Empleado” est rendu (chemin + extrait).
+Utilise ripgrep: rg -n "Acceso Empleado|Acceso Admin|Gerente" .
+
+MOBILE/TABLET FIRST (OBLIGATOIRE)
+A) /empleado/login
+- Layout centré, padding confortable, champs >= 44px hauteur.
+- Autocomplete: email -> username, password -> current-password.
+- inputMode/type adaptés.
+- Bouton “Entrar” full-width.
+- Respect safe-areas (iOS): utilise padding bottom (env(safe-area-inset-bottom)) si nécessaire.
+
+B) /empleado/mis-fichajes
+- Mobile (<640px): ne PAS utiliser une table. Utiliser des “cards” (shadcn Card) par jour:
+  * Fecha (grand)
+  * Entrada / Salida / Duración (lisible)
+- Tablet/Desktop (>=640px): table shadcn.
+- Filtre période mobile-friendly:
+  * Par défaut mois courant
+  * Sélecteur simple “Mois” (ex: 2026-02) + appliquer
+  * Option plage custom dans un drawer/bottom-sheet (optionnel)
+- Ajoute un CTA “Descargar PDF” sticky en bas sur mobile (barre d’actions), et normal sur tablet/desktop.
+
+C) Téléchargement PDF (robuste iOS/Android)
+- NE PAS utiliser fetch(blob) comme solution principale.
+- Utiliser un lien direct:
+  <a href="/api/me/shifts/export.pdf?from=...&to=..." target="_blank" rel="noreferrer">
+- Le backend doit renvoyer Content-Disposition: attachment; filename="fichajes_from_to.pdf".
+
+BACKEND SÉCURITÉ (NON NÉGOCIABLE)
+- POST /api/auth/employee/login -> cookies httpOnly access+refresh
+- GET /api/me/shifts?from&to -> Zod validation, filtre strict par sub JWT, aucun employeeId accepté
+- GET /api/me/shifts/export.pdf?from&to -> PDFKit, mêmes données que /api/me/shifts
+- Aucun endpoint /employees/:id accessible au rôle employee (anti-IDOR)
+
+PERFORMANCE MOBILE
+- Par défaut: charge uniquement le mois courant.
+- TanStack Query: cache + staleTime (ex 60s) + skeleton.
+- Éviter re-fetch sur focus agressif.
+
+LIVRABLES
+1) Preuve de localisation du lien existant “Acceso Empleado”.
+2) Diff minimal pour le router vers /empleado/login.
+3) Pages responsive mobile/tablet.
+4) Endpoints backend /me + PDF.
+5) Test: employee A ne peut jamais lire les données de B.
+
+Commence par backend + auth, puis UI. Ne crée pas de nouveau lien “Acceso Empleado”.

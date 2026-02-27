@@ -1,0 +1,185 @@
+C’est très propre. Tu as déjà fait 90% du boulot de cadrage. Je te fais un review “architecte + sécu + mobile” et je te propose les micro-ajustements qui vont éviter les bugs vicieux (cookies, CORS, iOS download, pairing IN/OUT, timezone, refresh).
+
+1) Branchement du lien “Acceso Empleado”
+
+✅ Nickel : modif 1 ligne, aucun redesign.
+
+⚠️ Deux détails à verrouiller :
+
+Ta preuve montre setLocation("/employee"). Tu proposes "/empleado".
+
+OK, mais assure-toi que Wouter route /empleado existe (tu l’as prévu).
+
+Garde une cohérence : si le backend utilise /api/auth/employee/*, côté client, évite de mélanger employee et empleado dans les noms de routes/pages (ça va finir en bug de routing).
+→ Routes UI en espagnol : /empleado, /empleado/mis-fichajes.
+→ API en anglais : /api/auth/employee/* (très bien).
+
+2) Auth employé : cookies, sécurité, et refresh
+
+T001 est bon, mais je te conseille 3 améliorations “pro” :
+
+A) Durée access token
+
+Tu dis access 1h. Tu avais initialement 15 min sur le reste de l’app.
+
+Pour un portail employé, 1h c’est OK (moins de frictions sur mobile).
+
+Mais alors refresh token doit être solide (rotation).
+
+B) Refresh token : ne le laisse pas “statique”
+
+Tu as listé epRefreshToken mais sans stratégie.
+Je recommande :
+
+epRefreshToken = opaque token stocké hashé en DB (ou table sessions), rotation à chaque refresh.
+
+Endpoint : POST /api/auth/employee/refresh (sinon tu vas forcer re-login trop souvent).
+
+Ou si tu veux minimal : access 1h + refresh 7j, mais rotation quand même.
+
+Si tu ne veux pas implémenter refresh now : fais simple mais explicite :
+
+Mets access token à 15–30 min, et garde login fluide (autofill).
+Mais ton choix “1h + refresh” est viable si tu fais la rotation.
+
+C) Cookies : paramètres à figer
+
+Pour que ça marche iOS/Android + export PDF :
+
+httpOnly: true
+
+secure: process.env.NODE_ENV === "production"
+
+sameSite: "lax" (souvent le meilleur compromis)
+
+path: "/" (sinon ton PDF export peut ne pas recevoir le cookie selon la route)
+
+domain: uniquement si tu as un sous-domaine (sinon ne mets rien)
+
+3) /api/me/shifts : la partie où les bugs aiment se cacher
+
+T002 est bien cadré, mais je te propose une logique défensive pour le pairing IN→OUT.
+
+A) Pairing IN/OUT robuste
+
+Règles recommandées :
+
+Trier les punches par timestamp asc.
+
+Parcourir :
+
+si IN et pas de openShift → ouvre
+
+si OUT et openShift → ferme et calcule durée
+
+si OUT sans IN → marque “incomplet” (ou ignore selon ta politique)
+
+si IN alors qu’un shift est déjà ouvert → soit tu fermes l’ancien à IN-1min (dangereux), soit tu marques anomalie et réinitialises.
+Le mieux : marquer “incomplete/invalid” et ne pas inventer.
+
+Expose dans la réponse un champ status: "OK" | "INCOMPLETE" (optionnel). Même si l’UI l’ignore, ça aide.
+
+B) Timezone Europe/Madrid
+
+Tu dis “Dates en Europe/Madrid”.
+Très bien, mais concrètement :
+
+DB en timestamptz UTC.
+
+from/to sont des dates “locales” (YYYY-MM-DD).
+
+Tu dois construire :
+
+start = Europe/Madrid 00:00:00 du from
+
+end = Europe/Madrid 23:59:59.999 du to
+et convertir en UTC pour la requête.
+
+Sinon tu vas avoir des journées tronquées sur changement d’heure.
+
+C) “Défaut mois courant”
+
+Ok, mais fixe le comportement :
+
+si from absent → premier jour du mois courant Madrid
+
+si to absent → dernier jour du mois courant Madrid
+
+4) Export PDF/CSV : mobile-friendly (et stable)
+
+T003 demande lien direct <a href> : parfait.
+
+Deux points à imposer côté serveur :
+
+Content-Disposition: attachment; filename="fichajes_YYYY-MM-DD_YYYY-MM-DD.pdf"
+
+Cache-Control: no-store (évite que Safari serve une version ancienne si l’employé change de période)
+
+CSV :
+
+Encodage UTF-8 + BOM (\ufeff) si tu veux que Excel Windows ouvre bien les accents (sinon “Duración” devient parfois illisible).
+
+5) Front mobile-first : ce que tu as écrit est excellent
+
+Tu as mis :
+
+cards mobile <640 ✅
+
+table tablet/desktop ✅
+
+sticky CTA ✅
+
+safe-area iOS ✅
+
+TanStack Query staleTime ✅
+
+Je rajoute juste 3 touches UX qui changent tout sur téléphone :
+
+Skeletons sur cards (pas juste spinner)
+
+Bouton “Aplicar” gros, et un “Mes” selector simple (YYYY-MM)
+
+Totaux : affiche “Total del período: Xh Ym” en bas (tu l’as prévu)
+
+6) Isolation / anti-IDOR : ton plan est bon, mais impose aussi ça
+
+En plus de “aucun endpoint n’accepte employeeId” :
+
+Ne retourne jamais employeeId dans les payloads /api/me/* (inutile, et ça évite des fuites).
+
+Dans authenticateEmployeePortal, vérifie aussi :
+
+type === "employee-portal"
+
+et idéalement tokenVersion (si tu implémentes invalidation)
+
+7) Ce que je modifierais dans ton backlog (petits edits)
+T001
+
+Ajoute : POST /api/auth/employee/refresh (même minimal).
+
+Ajoute : options cookies (path "/", sameSite lax, secure prod).
+
+T002
+
+Ajoute : status “INCOMPLETE” si pair manquant.
+
+Ajoute : Cache-Control: no-store sur PDF/CSV.
+
+Ajoute : CSV UTF-8 BOM.
+
+T003
+
+Dans queryKey, évite ['/api/me/shifts', from, to] (ça marche, mais ce n’est pas idiomatique).
+
+Préfère ['meShifts', from, to] et garde l’URL dans le fetcher.
+
+Bouton PDF/CSV : utilise <a> comme tu l’as prévu (très bien).
+
+T004
+
+Ajoute test manuel : iOS Safari téléchargement PDF (c’est là que ça casse souvent).
+
+Verdict
+
+Ton plan est exécutable tel quel. Si tu appliques les ajustements ci-dessus (cookies path/samesite, pairing IN/OUT défensif, timezone propre, cache-control), tu évites 80% des tickets “ça marche chez moi”.

@@ -1,0 +1,50 @@
+Tu es un senior full-stack engineer sur Cronos Fichajes.
+
+IMPORTANT UI (non négociable)
+Sur l’écran Kiosk (keypad PIN 6 digits), il existe déjà en bas un lien “Acceso Empleado” (à droite, icône utilisateur) et un lien “Acceso Admin / Gerente” (à gauche). 
+NE CRÉE PAS de nouveau lien/bouton “Acceso Empleado”. Tu dois brancher celui qui existe déjà.
+
+OBJECTIF
+Quand on clique sur le lien existant “Acceso Empleado”, on doit naviguer vers /empleado/login.
+Ensuite login employé (email+password), puis accès lecture seule à /empleado/mis-fichajes avec uniquement ses prises/fin de service (début/fin) + export PDF.
+
+ÉTAPE 1 — LOCALISATION OBLIGATOIRE (tu dois le prouver)
+Avant de coder, fais une recherche dans le repo et montre-moi :
+- le(s) fichier(s) exact(s) où la string “Acceso Empleado” est rendue
+- et le composant/page qui correspond à l’écran du keypad PIN
+Commandes à utiliser :
+  rg -n "Acceso Empleado|Acceso Admin|Gerente" .
+  rg -n "PIN|Keypad|Kiosk|Fichaje|Clock" .
+Tu dois me donner le chemin de fichier + extrait de code (quelques lignes autour) AVANT de proposer un diff.
+
+ÉTAPE 2 — BRANCHER LE LIEN EXISTANT (modif minimale)
+Dans le composant trouvé :
+- Si c’est un <a href="...">, change uniquement le href vers "/empleado/login"
+- Si c’est un onClick, utilise Wouter: const [, navigate] = useLocation(); puis navigate("/empleado/login")
+- Ne change pas le texte “Acceso Empleado”, ne change pas l’UI, ne change pas la mise en page.
+
+ÉTAPE 3 — ROUTES WOUTER
+Ajoute/assure ces routes :
+- /empleado/login
+- /empleado/mis-fichajes
+
+ÉTAPE 4 — BACKEND (sécurité scellée)
+- POST /api/auth/employee/login (cookie httpOnly access+refresh)
+- GET /api/me/shifts?from&to (lecture seule, filtré par sub JWT, aucun employeeId accepté)
+- GET /api/me/shifts/export.pdf?from&to (PDFKit)
+Zod pour valider from/to. Europe/Madrid pour l’affichage.
+
+CONTRAINTES SÉCURITÉ
+- Aucun endpoint employé n’accepte employeeId.
+- Pas de /employees/:id accessible au rôle employee.
+- Filtrage serveur strict sur employee_id = req.user.employeeId.
+- Optionnel: RLS Postgres (TODO si trop long).
+
+LIVRABLE
+1) Preuve de localisation du lien existant (“Acceso Empleado”) avec le fichier exact.
+2) Diff minimal qui branche ce lien vers /empleado/login.
+3) Pages /empleado/login et /empleado/mis-fichajes.
+4) Endpoints backend /me + PDF.
+5) Test: un employé A ne peut jamais lire les shifts de B.
+
+Ne commence pas par créer de nouveaux composants de navigation. Commence par la localisation du lien existant.

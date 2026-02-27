@@ -1,0 +1,92 @@
+Tu es un senior full-stack engineer. Je travaille sur “Cronos Fichajes” (React 18 + TS + Vite + Tailwind + shadcn/ui + TanStack Query + Wouter) et un backend Node.js 20 + Express + TS + PostgreSQL 16 (DigitalOcean) + Drizzle ORM + Zod. Auth: JWT access 15min + refresh 7j en cookies httpOnly (Admin/Manager), et un mode Employé/Kiosk. Timezone: Europe/Madrid (date-fns-tz). PDF: PDFKit. Sécurité: Helmet, rate-limit, CORS strict.
+
+OBJECTIF
+Implémente un accès “Empleado” où, après login (email+password), l’employé ne peut consulter QUE ses propres prises/fin de service (clock-in/clock-out) et rien d’autre. Lecture seule. Pas d’édition. Pas d’accès aux données des autres employés. Ajoute aussi un export PDF/CSV en lecture seule.
+
+CONTRAINTES DE SÉCURITÉ (NON NÉGOCIABLES)
+1) AUCUN endpoint employé ne doit accepter employeeId en paramètre (URL/body/query). Utiliser uniquement /me et le sub du JWT.
+2) La sécurité doit être côté serveur (API + DB). Ne pas compter sur l’UI.
+3) Bloquer IDOR: pas de /employees/:id pour role=employee.
+4) Idéalement un “defense in depth”: policy RLS Postgres optionnelle mais recommandée.
+
+PLAN DE LIVRAISON
+A) BACKEND
+- Ajoute un rôle JWT “employee”.
+- Auth employé: POST /api/auth/employee/login {email,password}
+  -> set cookies httpOnly: accessToken + refreshToken (SameSite=Lax/Strict selon env), Secure en prod.
+- Middleware requireAuth: valide accessToken, injecte req.user = { employeeId: sub, role, tenantId? }.
+- Middleware requireRole('employee').
+- Endpoints read-only:
+  1) GET /api/me/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD
+     -> renvoie uniquement [{date, clockIn, clockOut, durationMin, locationName? , status?}]
+     -> from/to validés Zod. Par défaut: mois courant.
+     -> Toutes dates interprétées en Europe/Madrid (date-fns-tz). Stockage DB en timestamptz.
+     -> Query Drizzle DOIT filtrer WHERE employee_id = req.user.employeeId (et tenantId si existant).
+  2) GET /api/me/shifts/export.pdf?from&to
+     -> PDFKit, Content-Disposition attachment; filename="fichajes_{from}_{to}.pdf"
+     -> mêmes données que /api/me/shifts (pas de logique parallèle).
+  3) (Optionnel) GET /api/me/shifts/export.csv?from&to
+
+- Schéma DB (si pas déjà en place, propose une migration Drizzle):
+  Option simple (si déjà shifts):
+    shifts: id, employee_id, tenant_id?, clock_in timestamptz, clock_out timestamptz, source, created_at
+  Option robuste (append-only):
+    clock_events: id, employee_id, tenant_id?, type ('IN'|'OUT'), at timestamptz, source, created_at
+    + vue/requête pour reconstituer les shifts IN/OUT.
+  Choisis l’option la plus compatible avec une base existante: si shifts existe, garde-la.
+
+- Option RLS Postgres (si possible dans DO Managed):
+  * Activer RLS sur shifts/clock_events
+  * Policy: employee_id = current_setting('app.employee_id', true)
+  * Dans chaque requête “employee” mettre SET LOCAL app.employee_id = '<sub>' dans une transaction.
+  Si c’est trop long, implémente d’abord le filtrage applicatif + ajoute un TODO clair.
+
+- CORS/Headers:
+  * CORS allowlist stricte + credentials: true.
+  * Helmet activé.
+  * Rate-limit sur login.
+
+- Tests (minimum):
+  * Un employé A ne peut jamais récupérer les shifts de B.
+  * Un employé ne peut pas appeler un endpoint admin.
+  * /api/me/shifts renvoie 401 sans token, 403 si rôle != employee.
+
+B) FRONTEND
+- Crée une page “Acceso Empleado” (lien déjà visible sur l’écran kiosk).
+- Flow:
+  1) Form login employee (email+password) -> POST /api/auth/employee/login
+  2) Redirection vers /empleado/mis-fichajes
+  3) Page read-only:
+     - Header: “Mis fichajes”
+     - Sélecteur période (mois courant par défaut) + filtres from/to
+     - Table shadcn/ui:
+       columns: Fecha, Entrada, Salida, Duración
+     - Boutons:
+       “Descargar PDF” -> ouvre /api/me/shifts/export.pdf?from&to
+       (Optionnel) “Descargar CSV”
+- Data fetching via TanStack Query:
+  * queryKey ['meShifts', from, to]
+  * fetch avec credentials: 'include'
+- AUCUNE édition. Aucun champ modifiable.
+- Gestion erreurs:
+  * 401 -> renvoyer sur login employé.
+  * 500 -> toast + message.
+
+C) UX KIOSK (optionnel, ne casse pas l’existant)
+- L’écran PIN (6 digits) reste pour kiosk/clocking.
+- Ajouter un lien clair “Acceso Empleado” qui mène au login employé.
+- S’assurer que les sessions ne se mélangent pas (kiosk peut rester localStorage, mais l’employé doit fonctionner en cookies httpOnly).
+
+LIVRABLES ATTENDUS
+1) Code backend: routes, middlewares, Zod schemas, Drizzle queries, PDFKit generator.
+2) Code frontend: routes Wouter, pages login employé + mis fichajes, components shadcn, query hooks.
+3) Migrations Drizzle si nécessaire.
+4) README court: comment lancer, variables env, et comment tester le scénario “employee voit seulement ses données”.
+
+IMPORTANT
+- Ne crée pas d’API “GET /employees/:id/shifts” accessible à l’employé.
+- Ne passe jamais employeeId depuis le client.
+- Tous les accès employé doivent être scellés par sub du JWT.
+- Utilise Europe/Madrid partout pour l’affichage.
+
+Commence par implémenter le backend (endpoints + auth) puis le frontend (pages + table + PDF).
