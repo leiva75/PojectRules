@@ -1,0 +1,105 @@
+OBJETIVO
+Implementar una pausa fija de 20 minutos (Pausa 20 min) en la App #1 sin romper nada.
+Debe ser una feature aislada: nuevos endpoints + pequeña adaptación en reportes para ignorar eventos de pausa en el emparejamiento IN/OUT.
+Todo el UI y textos en español.
+
+CONTEXTO DE CÓDIGO (IMPORTANTE)
+- Tabla `punches` y enum `punch_type` están definidos en `shared/schema.ts`.
+  Actualmente: punchTypeEnum = ["IN","OUT"].
+- La lógica de emparejamiento IN/OUT se usa en:
+  - `server/routes.ts` en `/api/reports/general` (bloque que dice: if type==="IN" else { ... }).
+  - `server/routes.ts` en `/api/reports/employee/:id` (mismo patrón).
+- Hay una función `pairPunchesIntoShifts(...)` que ya ignora tipos desconocidos (solo procesa IN/OUT). Mantenerla compatible.
+- `punchRequestSchema` requiere firma (signatureData) y solo permite IN/OUT. NO TOCAR este schema para no romper el flujo actual de fichaje.
+
+DECISIÓN “NO ROMPER”
+- NO modificar `/api/punches` existente ni `punchRequestSchema`.
+- Crear endpoints nuevos para pausa con su propio schema (sin firma obligatoria).
+- Añadir valores al enum SQL `punch_type` de forma segura.
+- Corregir emparejamiento de reportes para que solo procese IN/OUT y ignore BREAK_*.
+
+CAMBIOS EN BASE DE DATOS (MÍNIMOS Y RETROCOMPATIBLES)
+1) Extender el enum PostgreSQL `punch_type`:
+   - Añadir valores: 'BREAK_START' y 'BREAK_END'
+   - Migración segura: ALTER TYPE punch_type ADD VALUE ... (en el orden que necesites).
+2) (Opcional, recomendado) Añadir columna nullable a `punches`:
+   - `is_auto` boolean NULL
+   Para marcar BREAK_END creados automáticamente. Si no quieres migrar esto, registra el “auto” en `audit_log`.
+
+API NUEVA (SIN TOCAR LA EXISTENTE)
+Crear 2 endpoints protegidos con `authenticateEmployee` (o el mismo auth que usa el empleado al fichar):
+
+A) POST /api/pause/start
+- Valida que el empleado esté en estado ON:
+  - Consultar último punch del empleado (`storage.getLastPunchByEmployee`).
+  - Determinar estado:
+    - OFF si no hay punch o último == OUT
+    - ON si último == IN o BREAK_END
+    - BREAK si último == BREAK_START (sin BREAK_END posterior)
+- Si estado != ON: devolver 400 con mensaje en español.
+- Insertar un punch:
+  - type: "BREAK_START"
+  - timestamp: now
+  - source: "mobile" (o el que venga)
+  - (opcional) guardar lat/long/accuracy si ya las recoges, pero NO obligatorio.
+- Audit log:
+  - action: "create"
+  - targetType: "punch"
+  - details: {"type":"BREAK_START","mode":"manual"}
+
+B) POST /api/pause/end
+- Solo permitido si estado == BREAK.
+- Insertar punch:
+  - type: "BREAK_END"
+  - timestamp: now
+  - is_auto = false (si existe)
+- Audit log correspondiente.
+
+AUTO-FIN DE PAUSA (SIN PUSH, SIN WHATSAPP, SIN JOB QUEUE)
+Implementar un “cierre automático” robusto con cron interno (setInterval) en el backend:
+
+- En `server/index.ts`, después de `registerRoutes(...)` y antes de `httpServer.listen(...)`:
+  - setInterval cada 60s:
+    1) Buscar pausas abiertas:
+       - BREAK_START sin BREAK_END posterior para ese empleado (en la práctica: para cada empleado, último evento BREAK_START y no hay BREAK_END después).
+       - Simplificación: consulta SQL que encuentre BREAK_START donde no exista BREAK_END con timestamp > start.
+    2) Si now >= start + 20 minutos:
+       - Insertar BREAK_END con timestamp = start + 20min (no “now”, para ser consistente).
+       - Marcar is_auto=true si existe.
+       - Audit log: {"type":"BREAK_END","mode":"auto","startId":..., "durationMin":20}
+
+REGLAS PARA NO CREAR DATOS BASURA
+1) No permitir BREAK_START si ya hay una pausa abierta.
+2) Si el empleado intenta “Fin de servicio” durante pausa:
+   - NO tocar el endpoint existente si no hace falta.
+   - Solución segura: en el frontend, si estado BREAK y pulsa “Fin de servicio”, primero llamar a /api/pause/end (manual) y luego al flujo OUT normal.
+   - Alternativa backend (si decides tocarlo): al procesar OUT, si pausa abierta -> crear BREAK_END antes de OUT.
+   (Elige una. Preferible frontend para no tocar el core.)
+
+CAMBIOS EN FRONTEND (ESPAÑOL, MÍNIMOS)
+- En la pantalla del empleado:
+  - Si estado OFF: botón verde “Inicio de servicio”
+  - Si estado ON: botón naranja “Fin de servicio” + botón secundario “Pausa (20 min)”
+  - Si estado BREAK: mostrar “Pausa en curso” + contador + botón “Reanudar ahora”
+- La pausa no pide firma. IN/OUT sigue pidiendo firma como ahora.
+
+CAMBIOS CRÍTICOS EN REPORTES (PARA QUE NO SE ROMPA NADA)
+Modificar SOLO los emparejamientos que hoy hacen “else => OUT”:
+
+1) En `server/routes.ts` endpoint `/api/reports/general`:
+   - Cambiar:
+     if (punch.type === "IN") { ... } else { ... }
+     por:
+     if (punch.type === "IN") { ... }
+     else if (punch.type === "OUT") { ... }
+     else { continue; }   // ignorar BREAK_START/BREAK_END
+
+2) En `server/routes.ts` endpoint `/api/reports/employee/:id`:
+   - Mismo cambio: procesar solo IN/OUT; ignorar BREAK_*.
+
+Esto garantiza que añadir pausas no altera los informes actuales.
+
+TESTS MÍNIMOS
+- OFF -> ON -> BREAK_START -> auto BREAK_END -> OUT
+- Reportes general/employee siguen generando PDF sin interpretar BREAK como OUT.
+- Ninguna regresión en /api/me/shifts/export.pdf y export.csv.

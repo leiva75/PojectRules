@@ -1,0 +1,97 @@
+Objective
+Implement a fixed 20-minute pause feature ("Pausa 20 min") in the time-tracking app. New BREAK_START/BREAK_END punch types, new API endpoints for starting/ending pauses, a backend cron that auto-closes pauses at 20 minutes, frontend pause UI on the mobile page, and report pairing fixes to ignore BREAK events in ALL pairing locations. No changes to existing /api/punches or punchRequestSchema. All UI in Spanish.
+
+Tasks
+T001: Database — Extend punch_type enum + add is_auto column via SQL migration
+Blocked By: []
+Details:
+In shared/schema.ts: extend punchTypeEnum from ["IN", "OUT"] to ["IN", "OUT", "BREAK_START", "BREAK_END"]
+Add isAuto boolean nullable column to punches table: isAuto: boolean("is_auto")
+Write a manual SQL migration (not db:push for enum): create migrations/0001_add_break_types.sql with:
+ALTER TYPE punch_type ADD VALUE IF NOT EXISTS 'BREAK_START';
+ALTER TYPE punch_type ADD VALUE IF NOT EXISTS 'BREAK_END';
+ALTER TABLE punches ADD COLUMN IF NOT EXISTS is_auto boolean;
+Run migration via npx tsx scripts/migrate.ts
+Verify existing punchRequestSchema is NOT touched (it restricts to IN/OUT via its own Zod validation)
+Files: shared/schema.ts, migrations/0001_add_break_types.sql
+Acceptance: DB has BREAK_START/BREAK_END in enum, is_auto column exists, existing code still compiles
+T002: Backend — Pause start/end/status endpoints + state helper
+Blocked By: [T001]
+Details:
+Add helper getEmployeeStatus(employeeId) in server/routes.ts:
+Query last punch via storage.getLastPunchByEmployee(employeeId)
+Returns: "OFF" (no punch or last=OUT), "ON" (last=IN or BREAK_END), "BREAK" (last=BREAK_START)
+Add pauseRequestSchema in shared/schema.ts: { source: z.enum(["mobile","kiosk"]).default("mobile"), latitude/longitude/accuracy optional }
+POST /api/pause/start (protected by authenticateEmployee):
+If status ≠ ON → 400 "Debe estar en servicio para iniciar pausa"
+Insert punch: type BREAK_START, timestamp now, isAuto false
+Audit log: action "create", targetType "punch", details {"type":"BREAK_START","mode":"manual"}
+POST /api/pause/end (protected by authenticateEmployee):
+If status ≠ BREAK → 400 "No hay pausa activa"
+Insert punch: type BREAK_END, timestamp now, isAuto false
+Audit log: action "create", details {"type":"BREAK_END","mode":"manual"}
+GET /api/pause/status (protected by authenticateEmployee):
+Return { status: "OFF"|"ON"|"BREAK", breakStartedAt?: ISO string }
+This is the single source of truth for the frontend UI state
+Rate-limit: use existing employeeLimiter
+Files: server/routes.ts, shared/schema.ts
+Acceptance: Start/end pause works, prevents double-break, correct state transitions
+T003: Backend — Auto-end cron (setInterval 60s) with dev guard
+Blocked By: [T001]
+Details:
+Add storage method getOpenBreaks() in server/storage.ts + IStorage interface:
+SQL subquery: find BREAK_START punches where no BREAK_END exists with later timestamp for same employee
+In server/index.ts, after registerRoutes() and before httpServer.listen():
+Dev double-fire guard: use a module-level let pauseCronStarted = false flag to prevent duplicate intervals during Vite HMR restarts
+setInterval every 60s
+Call storage.getOpenBreaks(), filter those where now >= start + 20min
+For each: insert BREAK_END with timestamp = breakStart.timestamp + 20min (not "now"), isAuto = true
+Audit log: {"type":"BREAK_END","mode":"auto","startId":..., "durationMin":20}
+Log: [PAUSE-CRON] Auto-closed N pauses (only when N > 0 to reduce noise)
+Files: server/index.ts, server/storage.ts
+Acceptance: Open breaks auto-close at exactly startTime+20min; BREAK_END has isAuto=true; no double setInterval in dev
+T004: Fix ALL pairing logic to ignore BREAK events
+Blocked By: [T001]
+Details:
+Exhaustive list of pairing locations to fix:
+/api/reports/general (line ~1680): change } else { → } else if (punch.type === "OUT") { + else { continue; }
+/api/reports/employee/:id (line ~1769): same fix
+pairPunchesIntoShifts() (line 154): already uses if/else if for IN/OUT — already safe (verify only)
+client/src/pages/mobile.tsx duration computation (line ~86): add explicit punch.type === "IN" and punch.type === "OUT" guards so BREAK entries are skipped in duration calc
+/api/me/shifts + export.pdf + export.csv: all use pairPunchesIntoShifts() which is already safe — verify only
+CSV export in /api/reports/general or similar: verify BREAK events don't appear as rows
+Files: server/routes.ts, client/src/pages/mobile.tsx
+Acceptance: ALL reports, exports, and duration computations only process IN/OUT; BREAK_START/BREAK_END completely ignored in pairing
+T005: Frontend — Mobile page pause UI (3 states from /api/pause/status)
+Blocked By: [T002, T004]
+Details:
+In client/src/pages/mobile.tsx:
+Source of truth for UI state: GET /api/pause/status response (NOT lastPunch.type)
+Add query: useQuery({ queryKey: ["/api/pause/status"], enabled: !!user }) → returns { status, breakStartedAt? }
+Derive employeeStatus exclusively from this endpoint's status field
+State OFF: Green ENTRADA button (no change)
+State ON: Orange SALIDA button (existing) + secondary "Pausa (20 min)" button below it
+"Pausa (20 min)": indigo/blue, calls POST /api/pause/start via mutation, NO signature required
+State BREAK: Replace punch button area with:
+"Pausa en curso" label
+Countdown timer (20:00→00:00) computed from breakStartedAt in the status response
+"Reanudar ahora" button → calls POST /api/pause/end
+When timer reaches 0: auto-refetch /api/pause/status
+Fin de servicio during BREAK (safety): if status=BREAK, first auto-call /api/pause/end then proceed with normal OUT flow
+After pause mutations: invalidate /api/punches/my, /api/punches/last, /api/pause/status
+In history list: render BREAK_START/BREAK_END with distinct coffee-cup icon, muted styling
+Update StatusBadge to handle BREAK_START/BREAK_END types
+Files: client/src/pages/mobile.tsx, client/src/components/status-badge.tsx
+Acceptance: Three states render correctly based on /api/pause/status (never lastPunch), countdown works, pause doesn't require signature
+T006: Build, verify, test, docs
+Blocked By: [T005]
+Details:
+TypeScript compile clean
+Restart app, check for [PAUSE-CRON] log messages
+Curl test: OFF→IN→BREAK_START→auto BREAK_END→OUT flow
+Verify reports still generate correctly (BREAK ignored in ALL locations from T004)
+Verify employee portal /api/me/shifts and PDF/CSV exports ignore BREAK events
+Update replit.md with pause system documentation
+e2e test: mobile page state transitions
+Files: replit.md
+Acceptance: Full flow works, no regressions

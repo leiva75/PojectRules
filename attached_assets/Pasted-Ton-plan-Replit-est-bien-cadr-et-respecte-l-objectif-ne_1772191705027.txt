@@ -1,0 +1,112 @@
+Ton plan Replit est bien cadré et respecte l’objectif “ne pas casser” (pas de touche à /api/punches ni punchRequestSchema). 👍
+Mais je te recommande 2 corrections obligatoires + 2 améliorations de sécurité/robustesse avant d’exécuter.
+
+1) Correction obligatoire : ALTER TYPE ... IF NOT EXISTS
+
+Sur Postgres, ALTER TYPE ... ADD VALUE IF NOT EXISTS n’est pas garanti selon version. Sur DigitalOcean, tu peux tomber sur une version où ça plante.
+
+✅ Fais une migration idempotente via un bloc DO $$ qui vérifie pg_enum :
+
+-- migrations/0001_add_break_types.sql
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_enum e
+    JOIN pg_type t ON t.oid = e.enumtypid
+    WHERE t.typname = 'punch_type' AND e.enumlabel = 'BREAK_START'
+  ) THEN
+    ALTER TYPE punch_type ADD VALUE 'BREAK_START';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_enum e
+    JOIN pg_type t ON t.oid = e.enumtypid
+    WHERE t.typname = 'punch_type' AND e.enumlabel = 'BREAK_END'
+  ) THEN
+    ALTER TYPE punch_type ADD VALUE 'BREAK_END';
+  END IF;
+END $$;
+
+ALTER TABLE punches
+  ADD COLUMN IF NOT EXISTS is_auto boolean;
+
+Ça, c’est “safe” sur quasiment toutes les versions.
+
+2) Correction obligatoire : l’UI ne doit plus déduire le statut depuis lastPunch.type
+
+Ton plan dit déjà “source of truth = /api/pause/status”. C’est non négociable.
+
+✅ Dans mobile.tsx, tu dois retirer (ou neutraliser) toute logique type :
+
+nextPunchType = lastPunch?.type === "IN" ? "OUT" : "IN"
+
+Parce que BREAK_START ferait bugger l’UI et/ou l’envoi.
+
+3) Robustesse recommandée : getEmployeeStatus() doit ignorer les types BREAK pour décider ON/OFF
+
+Ton plan actuel dit : ON si last = IN ou BREAK_END. Ça marche si les données sont toujours cohérentes.
+
+✅ Version plus robuste (et toujours simple) :
+
+status OFF/ON se base sur le dernier événement IN/OUT (en ignorant BREAK)
+
+status BREAK se base sur le dernier BREAK_START/BREAK_END dans un shift ouvert
+
+Concrètement : dans storage, ajoute une méthode getLastWorkPunch(employeeId) (ne retourne que IN/OUT).
+Ça évite des états “impossibles” si un jour tu as des données sales.
+
+(Ce n’est pas “casser”, c’est juste plus solide.)
+
+4) Robustesse recommandée : cron idempotent + anti-double interval
+
+Tu as déjà prévu un guard pauseCronStarted. Bien.
+
+✅ Ajoute aussi une protection “double BREAK_END” :
+
+getOpenBreaks() doit retourner uniquement des BREAK_START sans BREAK_END ultérieur
+
+juste avant insert, revérifie (ou fais une insertion conditionnelle/transactionnelle si tu peux)
+
+Ça t’évite des doublons en cas de redémarrage, latence, ou deux ticks.
+
+Tout le reste : ✅ OK
+
+Ajout des types dans shared/schema.ts : OK (mais après migration DB).
+
+Nouvelle colonne is_auto nullable : OK.
+
+Endpoints /api/pause/start|end|status : OK.
+
+Fix des 2 blocs de pairing dans server/routes.ts : OBLIGATOIRE, et ton plan le couvre.
+
+Countdown + “Reanudar ahora” + libellés espagnols : OK.
+
+Petit détail de wording espagnol (cohérence UX)
+
+Choisis un seul vocabulaire partout :
+
+soit “Entrada / Salida”
+
+soit “Inicio de servicio / Fin de servicio”
+
+Et garde :
+
+“Pausa (20 min)”
+
+“Pausa en curso”
+
+“Reanudar ahora”
+
+Conclusion
+
+Oui, tu peux lancer la build si tu ajustes :
+
+migration enum via DO $$ (au lieu de IF NOT EXISTS direct),
+
+UI 100% pilotée par /api/pause/status,
+
+idéalement status ON/OFF basé sur dernier IN/OUT (ignore BREAK),
+
+cron idempotent.
+
+Si tu me colles le contenu exact de migrations/0001_add_break_types.sql quand il sera généré, je te valide ligne par ligne avant exécution sur DigitalOcean.
