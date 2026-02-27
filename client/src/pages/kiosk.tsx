@@ -464,14 +464,13 @@ export default function KioskPage() {
                     <Button
                       onClick={() => pauseStartMutation.mutate()}
                       disabled={pauseStartMutation.isPending}
-                      variant="outline"
-                      className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 px-6 py-2"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500 px-8 py-3 text-base font-medium shadow-lg"
                       data-testid="button-pause-start"
                     >
                       {pauseStartMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                       ) : (
-                        <Coffee className="h-4 w-4 mr-2" />
+                        <Coffee className="h-5 w-5 mr-2" />
                       )}
                       Pausa (20 min)
                     </Button>
