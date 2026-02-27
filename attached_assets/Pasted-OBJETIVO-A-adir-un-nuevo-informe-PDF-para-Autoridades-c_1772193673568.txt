@@ -1,0 +1,94 @@
+OBJETIVO
+Añadir un nuevo informe PDF “para Autoridades” con selector:
+- Mensual (mes/año)
+- Anual (año)
+Sin romper los informes actuales ni los exports existentes.
+Todo el contenido del PDF en español.
+
+CONTEXTO DE CÓDIGO
+- Ya existe `server/pdf-generator.ts` (PDFKit) con estilos y cabecera en español.
+- Ya existen endpoints PDF:
+  - `/api/reports/general` (genera “Informe General de Fichajes”)
+  - `/api/reports/employee/:id`
+- Queremos un PDF nuevo y separado, no modificar los existentes.
+
+NUEVO ENDPOINT
+GET /api/reports/authorities.pdf?scope=month&year=YYYY&month=MM
+GET /api/reports/authorities.pdf?scope=year&year=YYYY
+Opcional: employeeId para filtrar (si no, todos).
+
+Auth: `authenticateAdminManager` (mismo que reportes admin).
+
+CÁLCULO (SOLO LECTURA, SIN CAMBIAR BD)
+1) Determinar rango:
+   - scope=month: start = 1 del mes (startOfDayInSpain), end = último día (endOfDayInSpain)
+   - scope=year: start = 1 enero, end = 31 diciembre
+2) Obtener punches:
+   - usar `storage.getAllPunchesForReport({ startDate, endDate, employeeId? })`
+3) IMPORTANTÍSIMO: al procesar punches, usar solo:
+   - IN y OUT
+   - Ignorar BREAK_START/BREAK_END (para que el registro diario sea estable)
+4) Agrupar por empleado y por día (timezone Madrid):
+   - dateKey = toSpainDateKey(punch.timestamp)
+5) Para cada día:
+   - inicio = primer IN del día
+   - fin = último OUT del día
+   - total = suma de pares IN->OUT (si hay inconsistencias, marcar incidencia)
+   - incidencias:
+     - “IN sin OUT”
+     - “OUT sin IN”
+     - “Doble IN”
+     - “Doble OUT”
+6) Correcciones:
+   - si existen punch_corrections en ese rango:
+     - marcar “Correcciones: Sí”
+     - añadir anexo de correcciones (original vs corregido, motivo, autor, fecha)
+
+CONTENIDO DEL PDF (ESPAÑOL)
+Título: “Registro horario — Informe para Autoridades”
+Subtítulo:
+- Mensual: “Mes: <NombreMes> <Año>”
+- Anual: “Año: <Año>”
+Incluir:
+- Generado: fecha/hora
+- Período: fechas inicio/fin (Madrid)
+- (Opcional) Datos empresa si existen en config
+- Un “ID de documento” + “Hash SHA256” del dataset (o del PDF)
+
+CUERPO PRINCIPAL: REGISTRO DIARIO (por empleado)
+Para cada empleado:
+- Encabezado: “Empleado: Apellidos Nombre”
+- Tabla por día con columnas:
+  - Fecha
+  - Hora inicio
+  - Hora fin
+  - Total (hh:mm)
+  - Descanso (si quieres reflejarlo: “20 min (tiempo efectivo)” cuando aplique; si no hay datos, “—”)
+  - Incidencias
+  - Correcciones (Sí/No)
+
+ANEXOS (opcionales, pero recomendados)
+A) Detalle de eventos del período (cronológico) SOLO IN/OUT:
+   - fecha/hora, tipo, geolocalización (lat/long ya redondeadas si quieres), “firma: sí/no”
+B) Correcciones (si hay)
+C) Firmas:
+   - mostrar hash/fecha; evitar URLs públicas
+
+IMPLEMENTACIÓN PDF (CHIRÚRGICA)
+- Crear un nuevo generador: `server/authorities-pdf.ts` usando PDFKit (puedes copiar estructura de `pdf-generator.ts` para cabecera/estilos).
+- No tocar `generateReportPDF(...)` si no quieres; añadir uno nuevo:
+  - `generateAuthoritiesPDF(options)`
+- En `server/routes.ts` añadir el endpoint nuevo y escribir audit_log:
+  - action: "export"
+  - targetType: "report"
+  - targetId: "authorities"
+  - details: scope/year/month/employeeId
+
+NO REGRESIONES
+- No modificar comportamiento de `/api/reports/general` ni `/api/reports/employee/:id`.
+- El nuevo informe convive con los anteriores.
+
+LÍMITES
+- En anual “todos los empleados” puede ser grande:
+  - Si PDF supera X páginas, permitir generar por empleado o dividir por secciones con saltos de página.
+  - Generación por streaming (PDFKit ya streamea) para no reventar memoria.
