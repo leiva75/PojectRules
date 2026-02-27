@@ -47,6 +47,7 @@ import {
   Trash2,
   Power,
   Pencil,
+  Shield,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -204,7 +205,7 @@ interface KioskDevice {
 
 function ReportsTab({ employees }: { employees: Employee[] }) {
   const { toast } = useToast();
-  const [reportType, setReportType] = useState<"general" | "employee">("general");
+  const [reportType, setReportType] = useState<"general" | "employee" | "authorities">("general");
   const [period, setPeriod] = useState<"month" | "week">("month");
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -213,6 +214,11 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [authScope, setAuthScope] = useState<"month" | "year">("month");
+  const [authYear, setAuthYear] = useState(new Date().getFullYear());
+  const [authMonth, setAuthMonth] = useState(new Date().getMonth() + 1);
+  const [authEmployeeId, setAuthEmployeeId] = useState<string>("");
+  const [authIncludeAnnexes, setAuthIncludeAnnexes] = useState(true);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -327,6 +333,51 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
     }
   };
 
+  const handleGenerateAuthorities = async () => {
+    setIsGenerating(true);
+    try {
+      const params = new URLSearchParams({
+        scope: authScope,
+        year: authYear.toString(),
+        ...(authScope === "month" ? { month: authMonth.toString() } : {}),
+        ...(authEmployeeId && authEmployeeId !== "all" ? { employeeId: authEmployeeId } : {}),
+        includeAnnexes: authIncludeAnnexes.toString(),
+      });
+
+      const response = await fetch(`/api/reports/authorities.pdf?${params}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Error al generar informe");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `informe-autoridades-${authScope === "month" ? `${authYear}-${authMonth}` : authYear}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Informe generado",
+        description: "El PDF para autoridades se ha descargado correctamente",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al generar informe",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card className="shadow-sm border border-border/50">
@@ -344,7 +395,7 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-6">
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <Button
               variant={reportType === "general" ? "default" : "outline"}
               onClick={() => setReportType("general")}
@@ -362,6 +413,15 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
             >
               <Users className="h-4 w-4 mr-2" />
               Por Empleado
+            </Button>
+            <Button
+              variant={reportType === "authorities" ? "default" : "outline"}
+              onClick={() => setReportType("authorities")}
+              data-testid="button-report-authorities"
+              className="flex-1 sm:flex-none"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Para Autoridades
             </Button>
           </div>
 
@@ -514,6 +574,114 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
                   <>
                     <Download className="h-4 w-4 mr-2" />
                     Descargar PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {reportType === "authorities" && (
+            <div className="space-y-4 p-5 bg-muted/30 rounded-lg border border-border/50">
+              <h3 className="font-semibold text-foreground">Informe para Autoridades</h3>
+              <p className="text-sm text-muted-foreground">
+                Registro horario oficial con detalle diario por empleado, incidencias y correcciones.
+              </p>
+              
+              <div className="flex gap-4 flex-wrap">
+                <div className="space-y-2">
+                  <Label>Ámbito</Label>
+                  <Select value={authScope} onValueChange={(v) => {
+                    setAuthScope(v as "month" | "year");
+                    setAuthIncludeAnnexes(v === "month");
+                  }}>
+                    <SelectTrigger className="w-32" data-testid="select-auth-scope">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="month">Mensual</SelectItem>
+                      <SelectItem value="year">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Año</Label>
+                  <Select value={authYear.toString()} onValueChange={(v) => setAuthYear(parseInt(v))}>
+                    <SelectTrigger className="w-24" data-testid="select-auth-year">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((y) => (
+                        <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {authScope === "month" && (
+                  <div className="space-y-2">
+                    <Label>Mes</Label>
+                    <Select value={authMonth.toString()} onValueChange={(v) => setAuthMonth(parseInt(v))}>
+                      <SelectTrigger className="w-36" data-testid="select-auth-month">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map((m) => (
+                          <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Empleado (opcional)</Label>
+                  <Select value={authEmployeeId} onValueChange={setAuthEmployeeId}>
+                    <SelectTrigger className="w-52" data-testid="select-auth-employee">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los empleados</SelectItem>
+                      {employees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.lastName} {emp.firstName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant={authIncludeAnnexes ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setAuthIncludeAnnexes(!authIncludeAnnexes)}
+                  data-testid="button-toggle-annexes"
+                >
+                  {authIncludeAnnexes ? "Anexos: Sí" : "Anexos: No"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {authScope === "year" && !authIncludeAnnexes
+                    ? "Recomendado sin anexos para informes anuales"
+                    : "Incluye detalle de eventos, correcciones y firmas"}
+                </span>
+              </div>
+
+              <Button 
+                onClick={handleGenerateAuthorities} 
+                disabled={isGenerating}
+                data-testid="button-generate-authorities"
+              >
+                {isGenerating ? (
+                  <>
+                    <Activity className="h-4 w-4 mr-2 animate-spin" />
+                    Generando...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Descargar PDF Autoridades
                   </>
                 )}
               </Button>

@@ -69,6 +69,7 @@ function handleRouteError(res: Response, error: unknown, context: string, fallba
   return res.status(500).json({ message: fallbackMessage });
 }
 import { generateReportPDF, type PunchRecord } from "./pdf-generator";
+import { generateAuthoritiesPDF } from "./authorities-pdf";
 import { formatDateES, formatTimeES, formatDateTimeES, formatInMadrid, toSpainDateKey, startOfDayInSpain, endOfDayInSpain, ensureDateUTC } from "./timezone";
 
 function pdfSortKey(r: PunchRecord): number {
@@ -1922,6 +1923,90 @@ export async function registerRoutes(
       res.send(pdfBuffer);
     } catch (error) {
       handleRouteError(res, error, "[REPORT-EMPLOYEE]", "Error al generar informe");
+    }
+  });
+
+  app.get("/api/reports/authorities.pdf", authenticateAdminManager, async (req, res) => {
+    try {
+      const { scope, year: yearStr, month: monthStr, employeeId, includeAnnexes: annexesStr } = req.query;
+
+      if (!scope || (scope !== "month" && scope !== "year")) {
+        return res.status(400).json({ error: { code: "INVALID_SCOPE", message: "Scope debe ser 'month' o 'year'" } });
+      }
+
+      const yearNum = parseInt(yearStr as string);
+      if (!yearNum || yearNum < 2020 || yearNum > 2100) {
+        return res.status(400).json({ error: { code: "INVALID_YEAR", message: "Año inválido" } });
+      }
+
+      let monthNum: number | undefined;
+      if (scope === "month") {
+        monthNum = parseInt(monthStr as string);
+        if (!monthNum || monthNum < 1 || monthNum > 12) {
+          return res.status(400).json({ error: { code: "INVALID_MONTH", message: "Mes inválido (1-12)" } });
+        }
+      }
+
+      let periodStart: Date;
+      let periodEnd: Date;
+
+      if (scope === "month") {
+        const refStart = new Date(Date.UTC(yearNum, monthNum! - 1, 1, 12, 0, 0));
+        const lastDay = new Date(Date.UTC(yearNum, monthNum!, 0)).getUTCDate();
+        const refEnd = new Date(Date.UTC(yearNum, monthNum! - 1, lastDay, 12, 0, 0));
+        periodStart = startOfDayInSpain(refStart);
+        periodEnd = endOfDayInSpain(refEnd);
+      } else {
+        const refStart = new Date(Date.UTC(yearNum, 0, 1, 12, 0, 0));
+        const refEnd = new Date(Date.UTC(yearNum, 11, 31, 12, 0, 0));
+        periodStart = startOfDayInSpain(refStart);
+        periodEnd = endOfDayInSpain(refEnd);
+      }
+
+      const includeAnnexes = annexesStr !== undefined
+        ? annexesStr === "true"
+        : scope === "month";
+
+      const empId = employeeId as string | undefined;
+
+      const [punchesData, correctionsData] = await Promise.all([
+        storage.getAllPunchesForReport({ startDate: periodStart, endDate: periodEnd, employeeId: empId }),
+        storage.getCorrectionsInRange({ startDate: periodStart, endDate: periodEnd, employeeId: empId }),
+      ]);
+
+      const generatedAt = new Date();
+      const pdfBuffer = await generateAuthoritiesPDF({
+        scope: scope as "month" | "year",
+        year: yearNum,
+        month: monthNum,
+        includeAnnexes,
+        generatedAt,
+        periodStart,
+        periodEnd,
+        punches: punchesData,
+        corrections: correctionsData,
+      });
+
+      await storage.createAuditLog({
+        action: "export",
+        actorId: req.employee!.id,
+        targetType: "report",
+        targetId: "authorities",
+        details: JSON.stringify({ scope, year: yearNum, month: monthNum, employeeId: empId, includeAnnexes }),
+      });
+
+      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      const fileLabel = scope === "month"
+        ? `${monthNames[(monthNum || 1) - 1]}-${yearNum}`
+        : `${yearNum}`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="informe-autoridades-${fileLabel}.pdf"`);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdfBuffer);
+    } catch (error) {
+      handleRouteError(res, error, "[REPORT-AUTHORITIES]", "Error al generar informe para autoridades");
     }
   });
 

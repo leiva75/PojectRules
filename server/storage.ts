@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { startOfDayInSpain, endOfDayInSpain, toSpainDateKey } from "./timezone";
 
 export interface IStorage {
@@ -64,6 +65,21 @@ export interface IStorage {
 
   getLastWorkPunch(employeeId: string): Promise<Punch | undefined>;
   getOpenBreaks(): Promise<Punch[]>;
+
+  getCorrectionsInRange(options: { startDate: Date; endDate: Date; employeeId?: string }): Promise<CorrectionRecord[]>;
+}
+
+export interface CorrectionRecord {
+  originalPunchId: string;
+  originalTimestamp: Date;
+  originalType: string;
+  newTimestamp: Date | null;
+  newType: string | null;
+  reason: string;
+  correctedByName: string;
+  correctionDate: Date;
+  employeeId: string;
+  employeeName: string;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -622,6 +638,54 @@ export class DatabaseStorage implements IStorage {
         )`
       ));
     return result;
+  }
+
+  async getCorrectionsInRange(options: { startDate: Date; endDate: Date; employeeId?: string }): Promise<CorrectionRecord[]> {
+    const correctedByEmployee = alias(employees, "corrected_by_employee");
+
+    const conditions = [
+      gte(punches.timestamp, options.startDate),
+      lte(punches.timestamp, options.endDate),
+    ];
+
+    if (options.employeeId) {
+      conditions.push(eq(punches.employeeId, options.employeeId));
+    }
+
+    const results = await db
+      .select({
+        originalPunchId: punchCorrections.originalPunchId,
+        originalTimestamp: punches.timestamp,
+        originalType: punches.type,
+        newTimestamp: punchCorrections.newTimestamp,
+        newType: punchCorrections.newType,
+        reason: punchCorrections.reason,
+        correctionDate: punchCorrections.createdAt,
+        correctedByFirstName: correctedByEmployee.firstName,
+        correctedByLastName: correctedByEmployee.lastName,
+        employeeId: punches.employeeId,
+        employeeFirstName: employees.firstName,
+        employeeLastName: employees.lastName,
+      })
+      .from(punchCorrections)
+      .innerJoin(punches, eq(punchCorrections.originalPunchId, punches.id))
+      .innerJoin(employees, eq(punches.employeeId, employees.id))
+      .innerJoin(correctedByEmployee, eq(punchCorrections.correctedById, correctedByEmployee.id))
+      .where(and(...conditions))
+      .orderBy(punches.timestamp, punchCorrections.createdAt);
+
+    return results.map(r => ({
+      originalPunchId: r.originalPunchId,
+      originalTimestamp: r.originalTimestamp,
+      originalType: r.originalType,
+      newTimestamp: r.newTimestamp,
+      newType: r.newType,
+      reason: r.reason,
+      correctedByName: `${r.correctedByLastName}, ${r.correctedByFirstName}`,
+      correctionDate: r.correctionDate,
+      employeeId: r.employeeId,
+      employeeName: `${r.employeeLastName}, ${r.employeeFirstName}`,
+    }));
   }
 }
 
