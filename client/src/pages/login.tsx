@@ -11,7 +11,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Delete, ShieldCheck, Users } from "lucide-react";
+import { Loader2, Delete, ShieldCheck, Users, Coffee, Play } from "lucide-react";
+import { useCountdown, formatCountdown } from "@/hooks/use-countdown";
 import { LOGO_SRC, APP_NAME } from "@/config/brand";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -30,6 +31,12 @@ interface KioskEmployee {
   lastName: string;
 }
 
+interface PauseStatus {
+  status: "OFF" | "ON" | "BREAK";
+  breakStartedAt?: string;
+  pauseAlreadyTaken?: boolean;
+}
+
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
@@ -42,6 +49,7 @@ export default function LoginPage() {
   const [employee, setEmployee] = useState<KioskEmployee | null>(null);
   const [kioskToken, setKioskToken] = useState<string | null>(null);
   const [lastPunchType, setLastPunchType] = useState<"IN" | "OUT" | null>(null);
+  const [pauseStatus, setPauseStatus] = useState<PauseStatus | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // Admin login dialog state
@@ -67,6 +75,20 @@ export default function LoginPage() {
     setEmployee(null);
     setKioskToken(null);
     setLastPunchType(null);
+    setPauseStatus(null);
+  }, []);
+
+  const fetchPauseStatus = useCallback(async (token: string) => {
+    try {
+      const res = await fetch("/api/pause/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: PauseStatus = await res.json();
+        setPauseStatus(data);
+      }
+    } catch {
+    }
   }, []);
 
   // Auto-reset after 30 seconds of employee view
@@ -98,6 +120,7 @@ export default function LoginPage() {
       setEmployee(data.user);
       setKioskToken(data.token);
       setLastPunchType(data.lastPunchType);
+      await fetchPauseStatus(data.token);
     } catch (error) {
       toast({
         title: "Error",
@@ -147,6 +170,75 @@ export default function LoginPage() {
     },
   });
 
+  const pauseStartMutation = useMutation({
+    mutationFn: async () => {
+      if (!kioskToken) throw new Error("No autenticado");
+      const res = await fetch("/api/pause/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${kioskToken}`,
+        },
+        body: JSON.stringify({ source: "kiosk" }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Error al iniciar pausa");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Pausa iniciada", description: "Descanso de 20 minutos en curso" });
+      setTimeout(resetKiosk, 3000);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al iniciar pausa",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const pauseEndMutation = useMutation({
+    mutationFn: async () => {
+      if (!kioskToken) throw new Error("No autenticado");
+      const res = await fetch("/api/pause/end", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${kioskToken}`,
+        },
+        body: JSON.stringify({ source: "kiosk" }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Error al finalizar pausa");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Pausa finalizada", description: "Ha reanudado su actividad" });
+      setTimeout(resetKiosk, 3000);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al finalizar pausa",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const employeeStatus = pauseStatus?.status ?? (lastPunchType === "IN" ? "ON" : "OFF");
+  const countdown = useCountdown(pauseStatus?.breakStartedAt);
+
+  useEffect(() => {
+    if (countdown !== null && countdown <= 0 && kioskToken) {
+      fetchPauseStatus(kioskToken);
+    }
+  }, [countdown, kioskToken, fetchPauseStatus]);
+
   const handleKeypadPress = (digit: string) => {
     if (pin.length < 6) {
       const newPin = pin + digit;
@@ -161,7 +253,7 @@ export default function LoginPage() {
     setPin(prev => prev.slice(0, -1));
   };
 
-  const nextPunchType = lastPunchType === "IN" ? "OUT" : "IN";
+  const nextPunchType: "IN" | "OUT" = employeeStatus === "OFF" ? "IN" : "OUT";
 
   // Admin login handler
   const onSubmit = async (data: LoginFormData) => {
@@ -308,19 +400,64 @@ export default function LoginPage() {
                 {employee.firstName} {employee.lastName}
               </CardTitle>
               <CardDescription className="text-blue-100/80">
-                {lastPunchType === "IN" 
-                  ? "Actualmente está fichado/a como presente" 
+                {employeeStatus === "ON"
+                  ? "Actualmente está fichado/a como presente"
+                  : employeeStatus === "BREAK"
+                  ? "En pausa — descanso en curso"
                   : "No está fichado/a como presente"}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center py-8 space-y-6">
-              <PunchButton
-                type={nextPunchType}
-                onPunch={punchMutation.mutateAsync}
-                source="kiosk"
-                disabled={punchMutation.isPending}
-                size="large"
-              />
+              {employeeStatus === "BREAK" ? (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-36 h-36 rounded-full bg-indigo-500/20 border-4 border-indigo-400/50 flex flex-col items-center justify-center shadow-2xl">
+                    <Coffee className="h-7 w-7 text-indigo-300 mb-1" />
+                    <span className="text-2xl font-mono font-bold text-white" data-testid="text-pause-countdown">
+                      {countdown !== null ? formatCountdown(countdown) : "--:--"}
+                    </span>
+                    <span className="text-xs text-indigo-300 mt-1">Pausa en curso</span>
+                  </div>
+                  <Button
+                    onClick={() => pauseEndMutation.mutate()}
+                    disabled={pauseEndMutation.isPending}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 text-base"
+                    data-testid="button-pause-end"
+                  >
+                    {pauseEndMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-2" />
+                    )}
+                    Reanudar ahora
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <PunchButton
+                    type={nextPunchType}
+                    onPunch={punchMutation.mutateAsync}
+                    source="kiosk"
+                    disabled={punchMutation.isPending}
+                    size="large"
+                  />
+
+                  {employeeStatus === "ON" && !pauseStatus?.pauseAlreadyTaken && (
+                    <Button
+                      onClick={() => pauseStartMutation.mutate()}
+                      disabled={pauseStartMutation.isPending}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500 px-8 py-3 text-base font-medium shadow-lg"
+                      data-testid="button-pause-start"
+                    >
+                      {pauseStartMutation.isPending ? (
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      ) : (
+                        <Coffee className="h-5 w-5 mr-2" />
+                      )}
+                      Pausa (20 min)
+                    </Button>
+                  )}
+                </>
+              )}
 
               <p className="text-sm text-blue-200/70">
                 Retorno automático en 30 segundos
