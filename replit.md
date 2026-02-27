@@ -91,6 +91,35 @@ A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia w
 - **Startup diagnostics**: `validateConfig()` logs presence of all required env vars (DATABASE_URL, JWT secrets, CORS_ORIGIN, KIOSK_KEY, DO_SPACES_KEY) without exposing values
 - **Auth error handling**: All auth catch blocks (`login`, `employee-login`, `kiosk-login`, `refresh`, `me`, `logout`) use `handleRouteError` for 503 on DB errors
 
+## Pause System (20-minute break)
+- **Punch types**: `BREAK_START` and `BREAK_END` added to `punch_type` enum
+- **DB column**: `is_auto` boolean on punches table (true for cron-generated BREAK_END)
+- **Migration**: `migrations/0001_add_break_types.sql` (idempotent DO $$ block)
+- **Endpoints** (all `authenticateEmployee`):
+  - `GET /api/pause/status` — returns `{ status: "OFF"|"ON"|"BREAK", breakStartedAt?: ISO }` (single source of truth)
+  - `POST /api/pause/start` — starts a 20-min break (validates status=ON)
+  - `POST /api/pause/end` — ends break early (validates status=BREAK)
+- **Status helper** `getEmployeeStatus()`:
+  - `getLastWorkPunch()` queries only IN/OUT → determines ON/OFF base
+  - If ON and last overall punch is BREAK_START → status=BREAK
+  - Robust against dirty data (orphan BREAK without IN, etc.)
+- **Auto-close cron**: `setInterval(60s)` in `server/index.ts`
+  - Module-level `pauseCronStarted` guard prevents double-fire in dev (HMR)
+  - Finds open BREAK_START with no subsequent BREAK_END via NOT EXISTS subquery
+  - Re-checks before insert (idempotent)
+  - Sets BREAK_END timestamp = startTime + 20min (not "now")
+  - `isAuto: true` on auto-generated BREAK_END
+  - Log prefix: `[PAUSE-CRON]`
+- **Frontend (mobile.tsx)**: 3 states driven by `/api/pause/status`
+  - OFF: green ENTRADA button
+  - ON: orange SALIDA button + indigo "Pausa (20 min)" button
+  - BREAK: countdown timer (20:00→00:00) + "Reanudar ahora" button
+  - Auto-refetch when countdown reaches 0
+- **Pairing safety**: All report/export pairing logic uses `if (IN) / else if (OUT)` to skip BREAK events
+- **StatusBadge**: Extended with BREAK_START ("Pausa") and BREAK_END ("Fin pausa") styles (indigo theme)
+- **CSV export**: BREAK events labeled "Inicio Pausa" / "Fin Pausa" in Tipo column
+- **No changes** to existing `/api/punches` or `punchRequestSchema`
+
 ## Localization
 - All API error messages are in **Spanish** (no French remaining)
 - Frontend UI is fully in Spanish

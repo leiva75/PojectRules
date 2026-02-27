@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PunchButton } from "@/components/punch-button";
 import { StatusBadge, GeoBadge, TimeBadge } from "@/components/status-badge";
-import { LogOut, Clock, History, User, Timer } from "lucide-react";
+import { LogOut, Clock, History, User, Timer, Coffee, Play } from "lucide-react";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import type { Punch, PunchRequest } from "@shared/schema";
 import { computeDurationMinutes, formatDuration } from "@/lib/duration";
 
@@ -20,19 +21,77 @@ interface PunchWithEmployee extends Punch {
   };
 }
 
+interface PauseStatus {
+  status: "OFF" | "ON" | "BREAK";
+  breakStartedAt?: string;
+}
+
+const PAUSE_DURATION_MS = 20 * 60 * 1000;
+
+function useCountdown(breakStartedAt?: string) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!breakStartedAt) {
+      setRemaining(null);
+      return;
+    }
+
+    const endTime = new Date(breakStartedAt).getTime() + PAUSE_DURATION_MS;
+
+    const tick = () => {
+      const left = Math.max(0, endTime - Date.now());
+      setRemaining(left);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [breakStartedAt]);
+
+  return remaining;
+}
+
+function formatCountdown(ms: number): string {
+  const totalSec = Math.ceil(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+}
+
 export default function MobilePage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: punches, isLoading: punchesLoading } = useQuery<PunchWithEmployee[]>({
     queryKey: ["/api/punches/my"],
     enabled: !!user,
   });
 
-  const { data: lastPunch } = useQuery<Punch | null>({
-    queryKey: ["/api/punches/last"],
+  const { data: pauseStatus } = useQuery<PauseStatus>({
+    queryKey: ["/api/pause/status"],
     enabled: !!user,
+    refetchInterval: 30_000,
   });
+
+  const employeeStatus = pauseStatus?.status ?? "OFF";
+  const nextPunchType: "IN" | "OUT" = employeeStatus === "OFF" ? "IN" : "OUT";
+
+  const countdown = useCountdown(pauseStatus?.breakStartedAt);
+
+  useEffect(() => {
+    if (countdown !== null && countdown <= 0) {
+      queryClient.invalidateQueries({ queryKey: ["/api/pause/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/punches/my"] });
+    }
+  }, [countdown]);
+
+  const invalidatePauseQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/punches/my"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/punches/last"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/pause/status"] });
+  }, []);
 
   const punchMutation = useMutation({
     mutationFn: async (data: PunchRequest) => {
@@ -53,8 +112,61 @@ export default function MobilePage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/punches/my"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/punches/last"] });
+      invalidatePauseQueries();
+    },
+  });
+
+  const pauseStartMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem("employeeToken");
+      const res = await fetch("/api/pause/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({ source: "mobile" }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Error al iniciar pausa");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidatePauseQueries();
+      toast({ title: "Pausa iniciada", description: "20 minutos de descanso" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const pauseEndMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem("employeeToken");
+      const res = await fetch("/api/pause/end", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Error al finalizar pausa");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidatePauseQueries();
+      toast({ title: "Pausa finalizada", description: "Continuando jornada" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
@@ -63,10 +175,8 @@ export default function MobilePage() {
     setLocation("/");
   };
 
-  const nextPunchType = lastPunch?.type === "IN" ? "OUT" : "IN";
   const initials = user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "?";
 
-  // Compute vacation durations and total for employee's punches
   const { punchDurations, totalMinutes, hasCompletedVacations } = useMemo(() => {
     const durationMap = new Map<string, { duration: number | null; isInProgress: boolean }>();
     let totalMins = 0;
@@ -76,7 +186,6 @@ export default function MobilePage() {
       return { punchDurations: durationMap, totalMinutes: 0, hasCompletedVacations: false };
     }
     
-    // Sort punches chronologically (oldest first)
     const sorted = [...punches].sort((a, b) => 
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
@@ -85,14 +194,12 @@ export default function MobilePage() {
     
     for (const punch of sorted) {
       if (punch.type === "IN") {
-        // If there's already an open entry, mark it as orphaned/in-progress
         if (currentEntry) {
           durationMap.set(currentEntry.id, { duration: null, isInProgress: true });
         }
         currentEntry = punch;
       } else if (punch.type === "OUT") {
         if (currentEntry) {
-          // Calculate duration for this vacation pair
           const duration = computeDurationMinutes(currentEntry.timestamp, punch.timestamp);
           durationMap.set(punch.id, { duration, isInProgress: false });
           durationMap.set(currentEntry.id, { duration, isInProgress: false });
@@ -102,11 +209,9 @@ export default function MobilePage() {
           }
           currentEntry = null;
         }
-        // Orphan OUT (no matching IN) - don't show duration
       }
     }
     
-    // If there's an open entry (no matching OUT), mark as in progress
     if (currentEntry) {
       durationMap.set(currentEntry.id, { duration: null, isInProgress: true });
     }
@@ -145,40 +250,66 @@ export default function MobilePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Último fichaje</span>
-              {lastPunch ? (
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={lastPunch.type as "IN" | "OUT"} />
-                  <TimeBadge time={lastPunch.timestamp} showRelative />
-                </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">Sin fichajes</span>
-              )}
+              <span className="text-muted-foreground">Estado</span>
+              <Badge
+                variant={employeeStatus === "OFF" ? "secondary" : employeeStatus === "BREAK" ? "outline" : "default"}
+                className={
+                  employeeStatus === "OFF"
+                    ? "bg-gray-400 text-white"
+                    : employeeStatus === "BREAK"
+                    ? "bg-indigo-100 text-indigo-700 border-indigo-300"
+                    : "bg-green-600 text-white"
+                }
+                data-testid="badge-employee-status"
+              >
+                {employeeStatus === "OFF" ? "Fuera de servicio" : employeeStatus === "BREAK" ? "En pausa" : "En servicio"}
+              </Badge>
             </div>
-            
-            {lastPunch && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Posición</span>
-                <GeoBadge 
-                  hasLocation={!!(lastPunch.latitude && lastPunch.longitude)} 
-                  needsReview={lastPunch.needsReview}
-                  latitude={lastPunch.latitude}
-                  longitude={lastPunch.longitude}
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
 
-        <div className="flex justify-center py-8">
-          <PunchButton
-            type={nextPunchType}
-            onPunch={punchMutation.mutateAsync}
-            source="mobile"
-            disabled={punchMutation.isPending}
-            size="large"
-          />
-        </div>
+        {employeeStatus === "BREAK" ? (
+          <div className="flex flex-col items-center py-8 space-y-4" data-testid="pause-active-section">
+            <div className="w-40 h-40 rounded-full bg-indigo-100 border-4 border-indigo-300 flex flex-col items-center justify-center shadow-2xl">
+              <Coffee className="h-8 w-8 text-indigo-600 mb-1" />
+              <span className="text-3xl font-mono font-bold text-indigo-700" data-testid="text-pause-countdown">
+                {countdown !== null ? formatCountdown(countdown) : "--:--"}
+              </span>
+              <span className="text-xs text-indigo-500 mt-1">Pausa en curso</span>
+            </div>
+            <Button
+              onClick={() => pauseEndMutation.mutate()}
+              disabled={pauseEndMutation.isPending}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 text-base"
+              data-testid="button-pause-end"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Reanudar ahora
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-8 space-y-4">
+            <PunchButton
+              type={nextPunchType}
+              onPunch={punchMutation.mutateAsync}
+              source="mobile"
+              disabled={punchMutation.isPending}
+              size="large"
+            />
+            {employeeStatus === "ON" && (
+              <Button
+                onClick={() => pauseStartMutation.mutate()}
+                disabled={pauseStartMutation.isPending}
+                variant="outline"
+                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 px-6 py-2"
+                data-testid="button-pause-start"
+              >
+                <Coffee className="h-4 w-4 mr-2" />
+                Pausa (20 min)
+              </Button>
+            )}
+          </div>
+        )}
 
         <Card className="border-card-border">
           <CardHeader className="pb-2">
@@ -198,14 +329,15 @@ export default function MobilePage() {
               <div className="space-y-3">
                 {punches.slice(0, 10).map((punch) => {
                   const durationInfo = punchDurations.get(punch.id);
+                  const isBreakType = punch.type === "BREAK_START" || punch.type === "BREAK_END";
                   return (
                   <div 
                     key={punch.id} 
-                    className="flex items-center justify-between py-2 border-b last:border-0"
+                    className={`flex items-center justify-between py-2 border-b last:border-0 ${isBreakType ? "opacity-60" : ""}`}
                     data-testid={`punch-item-${punch.id}`}
                   >
                     <div className="flex items-center gap-3">
-                      <StatusBadge status={punch.type as "IN" | "OUT"} />
+                      <StatusBadge status={punch.type as "IN" | "OUT" | "BREAK_START" | "BREAK_END"} />
                       <div className="text-sm">
                         <p className="font-mono">
                           {new Date(punch.timestamp).toLocaleDateString("es-ES", {

@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const roleEnum = pgEnum("role", ["admin", "manager", "employee"]);
-export const punchTypeEnum = pgEnum("punch_type", ["IN", "OUT"]);
+export const punchTypeEnum = pgEnum("punch_type", ["IN", "OUT", "BREAK_START", "BREAK_END"]);
 
 export const employees = pgTable("employees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -38,6 +38,7 @@ export const punches = pgTable("punches", {
   kioskUserAgent: text("kiosk_user_agent"),
   kioskIp: text("kiosk_ip"),
   status: punchStatusEnum("status").notNull().default("SIGNED"),
+  isAuto: boolean("is_auto"),
 });
 
 export const kioskDevices = pgTable("kiosk_devices", {
@@ -192,7 +193,6 @@ export const employeeLoginSchema = z.object({
 
 export const insertPunchSchema = createInsertSchema(punches).omit({
   id: true,
-  timestamp: true,
 });
 
 export const insertPunchCorrectionSchema = createInsertSchema(punchCorrections).omit({
@@ -300,8 +300,16 @@ export const shiftsQuerySchema = z.object({
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD").optional(),
 });
 
+export const pauseRequestSchema = z.object({
+  source: z.enum(["mobile", "kiosk"]).default("mobile"),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  accuracy: z.number().optional(),
+});
+
 export type EmployeePortalLoginInput = z.infer<typeof employeePortalLoginSchema>;
 export type ShiftsQuery = z.infer<typeof shiftsQuerySchema>;
+export type PauseRequest = z.infer<typeof pauseRequestSchema>;
 
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;

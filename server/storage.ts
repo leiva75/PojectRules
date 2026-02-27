@@ -61,6 +61,9 @@ export interface IStorage {
   deleteKioskDevice(id: string): Promise<void>;
 
   updatePunchSignature(punchId: string, data: { signatureUrl: string; signatureSha256: string; kioskDeviceId?: string; kioskUserAgent?: string; kioskIp?: string }): Promise<Punch | undefined>;
+
+  getLastWorkPunch(employeeId: string): Promise<Punch | undefined>;
+  getOpenBreaks(): Promise<Punch[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -153,6 +156,7 @@ export class DatabaseStorage implements IStorage {
         kioskDeviceId: punches.kioskDeviceId,
         kioskUserAgent: punches.kioskUserAgent,
         kioskIp: punches.kioskIp,
+        isAuto: punches.isAuto,
         employee: {
           id: employees.id,
           firstName: employees.firstName,
@@ -202,6 +206,7 @@ export class DatabaseStorage implements IStorage {
         kioskDeviceId: punches.kioskDeviceId,
         kioskUserAgent: punches.kioskUserAgent,
         kioskIp: punches.kioskIp,
+        isAuto: punches.isAuto,
         employee: {
           id: employees.id,
           firstName: employees.firstName,
@@ -236,6 +241,7 @@ export class DatabaseStorage implements IStorage {
       kioskDeviceId: r.kioskDeviceId,
       kioskUserAgent: r.kioskUserAgent,
       kioskIp: r.kioskIp,
+      isAuto: r.isAuto,
       employee: r.employee,
       reviewed: r.reviewId !== null,
       corrected: r.correctionId !== null,
@@ -271,6 +277,7 @@ export class DatabaseStorage implements IStorage {
         kioskUserAgent: punches.kioskUserAgent,
         kioskIp: punches.kioskIp,
         status: punches.status,
+        isAuto: punches.isAuto,
         employee: {
           id: employees.id,
           firstName: employees.firstName,
@@ -348,6 +355,7 @@ export class DatabaseStorage implements IStorage {
         kioskDeviceId: punches.kioskDeviceId,
         kioskUserAgent: punches.kioskUserAgent,
         kioskIp: punches.kioskIp,
+        isAuto: punches.isAuto,
         employee: {
           id: employees.id,
           firstName: employees.firstName,
@@ -381,6 +389,7 @@ export class DatabaseStorage implements IStorage {
       kioskDeviceId: r.kioskDeviceId,
       kioskUserAgent: r.kioskUserAgent,
       kioskIp: r.kioskIp,
+      isAuto: r.isAuto,
       employee: r.employee,
       reviewed: r.reviewId !== null,
       corrected: r.correctionId !== null,
@@ -589,6 +598,30 @@ export class DatabaseStorage implements IStorage {
       status: "SIGNED",
     }).where(eq(punches.id, punchId)).returning();
     return updated || undefined;
+  }
+  async getLastWorkPunch(employeeId: string): Promise<Punch | undefined> {
+    const [punch] = await db.select().from(punches)
+      .where(and(
+        eq(punches.employeeId, employeeId),
+        sql`${punches.type} IN ('IN', 'OUT')`
+      ))
+      .orderBy(desc(punches.timestamp))
+      .limit(1);
+    return punch || undefined;
+  }
+
+  async getOpenBreaks(): Promise<Punch[]> {
+    const result = await db.select().from(punches)
+      .where(and(
+        eq(punches.type, "BREAK_START"),
+        sql`NOT EXISTS (
+          SELECT 1 FROM punches p2
+          WHERE p2.employee_id = ${punches.employeeId}
+            AND p2.type = 'BREAK_END'
+            AND p2.timestamp > ${punches.timestamp}
+        )`
+      ));
+    return result;
   }
 }
 

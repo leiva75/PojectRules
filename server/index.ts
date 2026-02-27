@@ -11,6 +11,9 @@ import { logger, logInfo, logError } from "./logger";
 import { ApiError } from "./errors";
 import { initSpaces, isSpacesConfigured } from "./spaces";
 import { verifyTimezoneSupport } from "./timezone";
+import { storage } from "./storage";
+
+let pauseCronStarted = false;
 
 const tzCheck = verifyTimezoneSupport();
 if (tzCheck.ok) {
@@ -185,6 +188,56 @@ export const cookieOptions = {
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
+  }
+
+  if (!pauseCronStarted) {
+    pauseCronStarted = true;
+    const PAUSE_DURATION_MS = 20 * 60 * 1000;
+
+    setInterval(async () => {
+      try {
+        const openBreaks = await storage.getOpenBreaks();
+        const now = Date.now();
+        let closed = 0;
+
+        for (const brk of openBreaks) {
+          const startTime = new Date(brk.timestamp).getTime();
+          if (now >= startTime + PAUSE_DURATION_MS) {
+            const lastPunch = await storage.getLastPunchByEmployee(brk.employeeId);
+            if (!lastPunch || lastPunch.type !== "BREAK_START") {
+              continue;
+            }
+
+            const endTimestamp = new Date(startTime + PAUSE_DURATION_MS);
+            const punch = await storage.createPunch({
+              employeeId: brk.employeeId,
+              type: "BREAK_END",
+              timestamp: endTimestamp,
+              source: "system",
+              isAuto: true,
+            });
+
+            await storage.createAuditLog({
+              action: "create",
+              actorId: brk.employeeId,
+              targetType: "punch",
+              targetId: punch.id,
+              details: JSON.stringify({ type: "BREAK_END", mode: "auto", startId: brk.id, durationMin: 20 }),
+            });
+
+            closed++;
+          }
+        }
+
+        if (closed > 0) {
+          logInfo(`[PAUSE-CRON] Auto-closed ${closed} pauses`);
+        }
+      } catch (error) {
+        logError("[PAUSE-CRON] Error", error);
+      }
+    }, 60_000);
+
+    logInfo("[PAUSE-CRON] Cron de pausas iniciado (intervalo: 60s)");
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);

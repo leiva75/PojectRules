@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, AlertTriangle, CheckCircle, LogOut } from "lucide-react";
+import { Clock, MapPin, AlertTriangle, CheckCircle, LogOut, Coffee } from "lucide-react";
 
-type StatusType = "IN" | "OUT" | "NEEDS_REVIEW" | "ACTIVE" | "INACTIVE";
+type StatusType = "IN" | "OUT" | "BREAK_START" | "BREAK_END" | "NEEDS_REVIEW" | "ACTIVE" | "INACTIVE";
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -20,6 +20,18 @@ const statusConfig: Record<StatusType, { label: string; variant: "default" | "se
     variant: "secondary",
     icon: <LogOut className="w-3 h-3" />,
     className: "bg-orange-500 hover:bg-orange-600 text-white border-orange-600",
+  },
+  BREAK_START: {
+    label: "Pausa",
+    variant: "outline",
+    icon: <Coffee className="w-3 h-3" />,
+    className: "bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border-indigo-300",
+  },
+  BREAK_END: {
+    label: "Fin pausa",
+    variant: "outline",
+    icon: <Coffee className="w-3 h-3" />,
+    className: "bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border-indigo-300",
   },
   NEEDS_REVIEW: {
     label: "Por verificar",

@@ -37,7 +37,8 @@ import {
   kioskDeviceSchema,
   updateKioskDeviceSchema,
   employeePortalLoginSchema,
-  shiftsQuerySchema
+  shiftsQuerySchema,
+  pauseRequestSchema
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
@@ -1069,6 +1070,102 @@ export async function registerRoutes(
     }
   });
 
+  async function getEmployeeStatus(employeeId: string): Promise<{ status: "OFF" | "ON" | "BREAK"; breakStartedAt?: string }> {
+    const lastWorkPunch = await storage.getLastWorkPunch(employeeId);
+    const lastOverall = await storage.getLastPunchByEmployee(employeeId);
+
+    let base: "OFF" | "ON" = "OFF";
+    if (lastWorkPunch && lastWorkPunch.type === "IN") {
+      base = "ON";
+    }
+
+    if (base === "ON" && lastOverall && lastOverall.type === "BREAK_START") {
+      return { status: "BREAK", breakStartedAt: lastOverall.timestamp.toISOString() };
+    }
+
+    return { status: base };
+  }
+
+  app.get("/api/pause/status", authenticateEmployee, async (req, res) => {
+    try {
+      const employee = req.employee!;
+      const result = await getEmployeeStatus(employee.id);
+      res.json(result);
+    } catch (error) {
+      handleRouteError(res, error, "[PAUSE-STATUS]");
+    }
+  });
+
+  app.post("/api/pause/start", employeeLimiter, authenticateEmployee, async (req, res) => {
+    try {
+      const employee = req.employee!;
+      const body = pauseRequestSchema.safeParse(req.body || {});
+      if (!body.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: body.error.errors });
+      }
+
+      const status = await getEmployeeStatus(employee.id);
+      if (status.status !== "ON") {
+        return res.status(400).json({ message: "Debe estar en servicio para iniciar pausa" });
+      }
+
+      const punch = await storage.createPunch({
+        employeeId: employee.id,
+        type: "BREAK_START",
+        timestamp: new Date(),
+        source: body.data.source,
+        latitude: body.data.latitude?.toString(),
+        longitude: body.data.longitude?.toString(),
+        accuracy: body.data.accuracy?.toString(),
+        isAuto: false,
+      });
+
+      await storage.createAuditLog({
+        action: "create",
+        actorId: employee.id,
+        targetType: "punch",
+        targetId: punch.id,
+        details: JSON.stringify({ type: "BREAK_START", mode: "manual" }),
+      });
+
+      logInfo(`[PAUSE-START] employee=${employee.id} punch=${punch.id}`);
+      res.json({ message: "Pausa iniciada", punch });
+    } catch (error) {
+      handleRouteError(res, error, "[PAUSE-START]");
+    }
+  });
+
+  app.post("/api/pause/end", employeeLimiter, authenticateEmployee, async (req, res) => {
+    try {
+      const employee = req.employee!;
+      const status = await getEmployeeStatus(employee.id);
+      if (status.status !== "BREAK") {
+        return res.status(400).json({ message: "No hay pausa activa" });
+      }
+
+      const punch = await storage.createPunch({
+        employeeId: employee.id,
+        type: "BREAK_END",
+        timestamp: new Date(),
+        source: "mobile",
+        isAuto: false,
+      });
+
+      await storage.createAuditLog({
+        action: "create",
+        actorId: employee.id,
+        targetType: "punch",
+        targetId: punch.id,
+        details: JSON.stringify({ type: "BREAK_END", mode: "manual" }),
+      });
+
+      logInfo(`[PAUSE-END] employee=${employee.id} punch=${punch.id}`);
+      res.json({ message: "Pausa finalizada", punch });
+    } catch (error) {
+      handleRouteError(res, error, "[PAUSE-END]");
+    }
+  });
+
   app.get("/api/punches", authenticateAdminManager, async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
@@ -1274,7 +1371,7 @@ export async function registerRoutes(
         return {
           "ID": punch.id,
           "Empleado": `${punch.employee.firstName} ${punch.employee.lastName}`,
-          "Tipo": punch.type === "IN" ? "Entrada" : "Salida",
+          "Tipo": punch.type === "IN" ? "Entrada" : punch.type === "OUT" ? "Salida" : punch.type === "BREAK_START" ? "Inicio Pausa" : punch.type === "BREAK_END" ? "Fin Pausa" : punch.type,
           "Fecha": formatDateES(punch.timestamp),
           "Hora": formatTimeES(punch.timestamp),
           "Latitud": punch.latitude || "",
@@ -1679,13 +1776,15 @@ export async function registerRoutes(
         
         if (punch.type === "IN") {
           pairs.push({ in: punch, out: null, employee: punch.employee });
-        } else {
+        } else if (punch.type === "OUT") {
           const lastPair = pairs[pairs.length - 1];
           if (lastPair && lastPair.in && !lastPair.out) {
             lastPair.out = punch;
           } else {
             pairs.push({ in: null, out: punch, employee: punch.employee });
           }
+        } else {
+          continue;
         }
       }
 
@@ -1768,13 +1867,15 @@ export async function registerRoutes(
       for (const punch of punchesData) {
         if (punch.type === "IN") {
           punchPairs.push({ in: punch, out: null });
-        } else {
+        } else if (punch.type === "OUT") {
           const lastPair = punchPairs[punchPairs.length - 1];
           if (lastPair && lastPair.in && !lastPair.out) {
             lastPair.out = punch;
           } else {
             punchPairs.push({ in: null, out: punch });
           }
+        } else {
+          continue;
         }
       }
 
