@@ -7,12 +7,18 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PunchButton } from "@/components/punch-button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
-import { X, Delete, Loader2, AlertTriangle } from "lucide-react";
+import { useCountdown, formatCountdown } from "@/hooks/use-countdown";
+import { X, Delete, Loader2, AlertTriangle, Coffee, Play } from "lucide-react";
 import type { Employee, PunchRequest } from "@shared/schema";
 import { LOGO_SRC, APP_NAME } from "@/config/brand";
 
 const IDLE_TIMEOUT = 30000;
 const KIOSK_TOKEN_KEY = "kiosk_device_token";
+
+interface PauseStatus {
+  status: "OFF" | "ON" | "BREAK";
+  breakStartedAt?: string;
+}
 
 export default function KioskPage() {
   const [, setLocation] = useLocation();
@@ -24,6 +30,7 @@ export default function KioskPage() {
   const [kioskToken, setKioskToken] = useState<string | null>(null);
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [lastPunchType, setLastPunchType] = useState<"IN" | "OUT" | null>(null);
+  const [pauseStatus, setPauseStatus] = useState<PauseStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const authenticatedPinRef = useRef<string>("");
 
@@ -57,14 +64,28 @@ export default function KioskPage() {
       }, IDLE_TIMEOUT);
       return () => clearTimeout(timeout);
     }
-  }, [employee]);
+  }, [employee, pauseStatus]);
 
   const resetKiosk = useCallback(() => {
     setEmployee(null);
     setKioskToken(null);
     setLastPunchType(null);
+    setPauseStatus(null);
     setPin("");
     authenticatedPinRef.current = "";
+  }, []);
+
+  const fetchPauseStatus = useCallback(async (token: string) => {
+    try {
+      const res = await fetch("/api/pause/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: PauseStatus = await res.json();
+        setPauseStatus(data);
+      }
+    } catch {
+    }
   }, []);
 
   const handlePinChange = (value: string) => {
@@ -99,6 +120,7 @@ export default function KioskPage() {
       setKioskToken(data.token);
       setLastPunchType(data.lastPunchType);
       authenticatedPinRef.current = pinValue;
+      await fetchPauseStatus(data.token);
     } catch (error) {
       toast({
         title: "Error",
@@ -179,12 +201,77 @@ export default function KioskPage() {
         description: `Fichaje confirmado con firma`,
       });
 
-      setTimeout(resetKiosk, 3000);
+      if (data.type === "IN" && kioskToken) {
+        setLastPunchType("IN");
+        fetchPauseStatus(kioskToken);
+      } else {
+        setTimeout(resetKiosk, 3000);
+      }
     },
     onError: (error) => {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Fallo al fichar",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const pauseStartMutation = useMutation({
+    mutationFn: async () => {
+      if (!kioskToken) throw new Error("No autenticado");
+      const res = await fetch("/api/pause/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${kioskToken}`,
+        },
+        body: JSON.stringify({ source: "kiosk" }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Error al iniciar pausa");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Pausa iniciada", description: "Descanso de 20 minutos en curso" });
+      if (kioskToken) fetchPauseStatus(kioskToken);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al iniciar pausa",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const pauseEndMutation = useMutation({
+    mutationFn: async () => {
+      if (!kioskToken) throw new Error("No autenticado");
+      const res = await fetch("/api/pause/end", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${kioskToken}`,
+        },
+        body: JSON.stringify({ source: "kiosk" }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Error al finalizar pausa");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Pausa finalizada", description: "Ha reanudado su actividad" });
+      if (kioskToken) fetchPauseStatus(kioskToken);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al finalizar pausa",
         variant: "destructive",
       });
     },
@@ -204,8 +291,16 @@ export default function KioskPage() {
     setPin(pin.slice(0, -1));
   };
 
-  const nextPunchType = lastPunchType === "IN" ? "OUT" : "IN";
+  const employeeStatus = pauseStatus?.status ?? (lastPunchType === "IN" ? "ON" : "OFF");
+  const nextPunchType: "IN" | "OUT" = employeeStatus === "OFF" ? "IN" : "OUT";
   const initials = employee ? `${employee.firstName?.[0] || ""}${employee.lastName?.[0] || ""}`.toUpperCase() : "";
+  const countdown = useCountdown(pauseStatus?.breakStartedAt);
+
+  useEffect(() => {
+    if (countdown !== null && countdown <= 0 && kioskToken) {
+      fetchPauseStatus(kioskToken);
+    }
+  }, [countdown, kioskToken, fetchPauseStatus]);
 
   return (
     <div className="min-h-screen bg-bg-app flex flex-col">
@@ -328,19 +423,65 @@ export default function KioskPage() {
               </Button>
             </CardHeader>
             <CardContent className="flex flex-col items-center py-6 sm:py-8 space-y-4 sm:space-y-6">
-              <p className="text-base sm:text-lg text-muted-foreground text-center px-2">
-                {lastPunchType === "IN" 
-                  ? "Actualmente está fichado/a como presente" 
+              <p className="text-base sm:text-lg text-muted-foreground text-center px-2" data-testid="text-kiosk-status">
+                {employeeStatus === "ON"
+                  ? "Actualmente está fichado/a como presente"
+                  : employeeStatus === "BREAK"
+                  ? "En pausa — descanso en curso"
                   : "No está fichado/a como presente"}
               </p>
-              
-              <PunchButton
-                type={nextPunchType}
-                onPunch={punchMutation.mutateAsync}
-                source="kiosk"
-                disabled={punchMutation.isPending}
-                size="large"
-              />
+
+              {employeeStatus === "BREAK" ? (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-36 h-36 sm:w-40 sm:h-40 rounded-full bg-indigo-100 border-4 border-indigo-300 flex flex-col items-center justify-center shadow-2xl">
+                    <Coffee className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-600 mb-1" />
+                    <span className="text-2xl sm:text-3xl font-mono font-bold text-indigo-700" data-testid="text-pause-countdown">
+                      {countdown !== null ? formatCountdown(countdown) : "--:--"}
+                    </span>
+                    <span className="text-xs text-indigo-500 mt-1">Pausa en curso</span>
+                  </div>
+                  <Button
+                    onClick={() => pauseEndMutation.mutate()}
+                    disabled={pauseEndMutation.isPending}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 text-base"
+                    data-testid="button-pause-end"
+                  >
+                    {pauseEndMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-2" />
+                    )}
+                    Reanudar ahora
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <PunchButton
+                    type={nextPunchType}
+                    onPunch={punchMutation.mutateAsync}
+                    source="kiosk"
+                    disabled={punchMutation.isPending}
+                    size="large"
+                  />
+
+                  {employeeStatus === "ON" && (
+                    <Button
+                      onClick={() => pauseStartMutation.mutate()}
+                      disabled={pauseStartMutation.isPending}
+                      variant="outline"
+                      className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 px-6 py-2"
+                      data-testid="button-pause-start"
+                    >
+                      {pauseStartMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Coffee className="h-4 w-4 mr-2" />
+                      )}
+                      Pausa (20 min)
+                    </Button>
+                  )}
+                </>
+              )}
 
               <p className="text-xs sm:text-sm text-muted-foreground">
                 Retorno automático en 30 segundos

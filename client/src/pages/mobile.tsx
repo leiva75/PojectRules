@@ -13,6 +13,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import type { Punch, PunchRequest } from "@shared/schema";
 import { computeDurationMinutes, formatDuration } from "@/lib/duration";
+import { useCountdown, formatCountdown } from "@/hooks/use-countdown";
 
 interface PunchWithEmployee extends Punch {
   employee?: {
@@ -24,39 +25,6 @@ interface PunchWithEmployee extends Punch {
 interface PauseStatus {
   status: "OFF" | "ON" | "BREAK";
   breakStartedAt?: string;
-}
-
-const PAUSE_DURATION_MS = 20 * 60 * 1000;
-
-function useCountdown(breakStartedAt?: string) {
-  const [remaining, setRemaining] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!breakStartedAt) {
-      setRemaining(null);
-      return;
-    }
-
-    const endTime = new Date(breakStartedAt).getTime() + PAUSE_DURATION_MS;
-
-    const tick = () => {
-      const left = Math.max(0, endTime - Date.now());
-      setRemaining(left);
-    };
-
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [breakStartedAt]);
-
-  return remaining;
-}
-
-function formatCountdown(ms: number): string {
-  const totalSec = Math.ceil(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
 }
 
 export default function MobilePage() {

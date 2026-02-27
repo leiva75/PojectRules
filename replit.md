@@ -31,7 +31,8 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
     - Uses `X-KIOSK-TOKEN` header for authentication.
     - Captures digital signatures (JPEG, 0.5 quality) uploaded to S3-compatible storage with SHA-256 checksums and audit trails.
 - **Overtime System:** Automatically calculates overtime based on configured thresholds and expected daily minutes. Includes an admin approval workflow with audit logging.
-- **Pause System:** Implements a 20-minute break feature with `BREAK_START` and `BREAK_END` punch types. An automatic cron job closes breaks after 20 minutes.
+- **Pause System:** Implements a 20-minute break feature with `BREAK_START` and `BREAK_END` punch types. An automatic cron job closes breaks after 20 minutes. Pause is available on both kiosk and mobile interfaces. The `useCountdown` and `formatCountdown` hooks are shared via `client/src/hooks/use-countdown.ts`.
+- **Global Bearer Token Injection:** The global fetcher (`client/src/lib/queryClient.ts`) automatically injects `Authorization: Bearer <token>` from `localStorage("employeeToken")` into all requests via `injectEmployeeToken()`. This ensures employee endpoints (pause status, punches) work consistently across all React Query operations.
 - **Authorities Report:** Generates a detailed PDF report for regulatory compliance, including daily tables, incident tracking, and optional annexes for detailed event and correction logs.
 - **Error Handling:** Robust database error handling returns 503 for connection issues. All API error messages are in Spanish.
 
