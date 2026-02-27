@@ -64,28 +64,13 @@ export default function MobilePage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const employeeFetch = useCallback(async (url: string) => {
-    const token = localStorage.getItem("employeeToken");
-    const res = await fetch(url, {
-      credentials: "include",
-      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`${res.status}: ${text}`);
-    }
-    return res.json();
-  }, []);
-
   const { data: punches, isLoading: punchesLoading } = useQuery<PunchWithEmployee[]>({
     queryKey: ["/api/punches/my"],
-    queryFn: () => employeeFetch("/api/punches/my"),
     enabled: !!user,
   });
 
   const { data: pauseStatus } = useQuery<PauseStatus>({
     queryKey: ["/api/pause/status"],
-    queryFn: () => employeeFetch("/api/pause/status"),
     enabled: !!user,
     refetchInterval: 30_000,
   });

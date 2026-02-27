@@ -29,11 +29,22 @@ async function tryRefreshToken(): Promise<boolean> {
 
 const NO_REFRESH_URLS = ["/api/auth/login", "/api/auth/employee-login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/employee/login", "/api/auth/employee/refresh", "/api/auth/employee/logout", "/api/auth/employee/me", "/api/me/"];
 
+function injectEmployeeToken(init?: RequestInit): RequestInit {
+  const token = typeof window !== "undefined" ? localStorage.getItem("employeeToken") : null;
+  if (!token) return init ?? {};
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return { ...init, headers };
+}
+
 async function fetchWithRefresh(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const res = await fetch(input, init);
+  const enrichedInit = injectEmployeeToken(init);
+  const res = await fetch(input, enrichedInit);
 
   const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : (input as Request).url;
   const isAuthRoute = NO_REFRESH_URLS.some((p) => url.includes(p));
@@ -41,7 +52,7 @@ async function fetchWithRefresh(
   if (res.status === 401 && !isAuthRoute) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      return fetch(input, init);
+      return fetch(input, enrichedInit);
     }
 
     window.dispatchEvent(new CustomEvent("auth:session-expired"));
