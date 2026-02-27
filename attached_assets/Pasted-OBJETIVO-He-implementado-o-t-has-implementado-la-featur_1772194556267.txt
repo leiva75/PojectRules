@@ -1,0 +1,57 @@
+OBJETIVO
+He implementado (o tú has implementado) la feature de “Pausa (20 min)” con /api/pause/status como fuente de verdad. Pero en el preview NO veo ningún cambio en la UI (no aparece el botón azul “Pausa (20 min)”).
+Quiero que hagas un DIAGNÓSTICO, no suposiciones: verifica paso a paso que el backend, el frontend y el estado real se alinean.
+
+REQUISITO CLAVE
+El botón “Pausa (20 min)” SOLO debe aparecer si el estado devuelto por GET /api/pause/status es status="ON". Si status="OFF" no debe aparecer. Si status="BREAK" debe mostrar “Pausa en curso” + contador + “Reanudar ahora”.
+
+TAREA 1 — Verificar si el frontend llama /api/pause/status
+1) Abre el preview y DevTools → Network.
+2) Recarga la página móvil del empleado (la misma que muestra botón verde/naranja).
+3) Confirma si existe la petición GET /api/pause/status.
+   - Si NO existe: indica por qué (useQuery no se ejecuta, enabled=false, user=null, ruta equivocada, componente no montado, etc.).
+   - Si existe: anota HTTP status y body exacto.
+
+TAREA 2 — Verificar el endpoint backend
+1) Confirma que GET /api/pause/status está registrado en server/routes.ts y accesible bajo el mismo server del preview.
+2) Desde el preview, abre directamente /api/pause/status (con la sesión activa) y pega el JSON.
+   - Si devuelve 404: el backend no está sirviendo la ruta (o no reinició, o está en otro server).
+   - Si devuelve 401/403: problema de autenticación (cookie/token no viaja).
+   - Si devuelve 200 pero status="OFF": entonces el sistema cree que el empleado NO está en servicio.
+
+TAREA 3 — Verificar la lógica de estado (OFF/ON/BREAK)
+En server/routes.ts (o helper), revisa getEmployeeStatus(employeeId):
+- OFF si no hay punch o último IN/OUT indica fuera.
+- ON si último evento efectivo de trabajo es IN (o BREAK_END).
+- BREAK si último es BREAK_START y no existe BREAK_END posterior.
+IMPORTANTE: Ignorar BREAK al decidir ON/OFF cuando corresponda, o al menos no romper.
+Imprime logs temporales (solo en dev) para:
+- employeeId real
+- lastPunch.type y timestamp
+- status calculado
+
+TAREA 4 — Confirmar que el botón está condicionado por pauseStatus.status (no lastPunch)
+En client/src/pages/mobile.tsx:
+1) Localiza dónde se renderizan los botones Entrada/Salida.
+2) Confirma que la UI NO usa nextPunchType basado en lastPunch.type.
+3) Confirma que el botón “Pausa (20 min)” se renderiza SOLO con (pauseStatus.status === "ON").
+4) Si pauseStatus llega como undefined por caché o race, añade loading state para no ocultar todo.
+
+TAREA 5 — Reproducir el flujo correcto (sin ambigüedad)
+En preview, prueba exactamente:
+1) Con empleado OFF: debería ver “Entrada”.
+2) Pulsa “Entrada” (firma) → crea punch IN.
+3) Sin cerrar sesión: recarga y vuelve a la pantalla principal.
+4) Verifica /api/pause/status ahora devuelve status="ON".
+5) En ese estado, el botón “Pausa (20 min)” DEBE aparecer.
+
+ENTREGABLE (ANTES DE CAMBIAR MÁS COSAS)
+Devuélveme:
+- Captura o texto del Network call a /api/pause/status (status code + response JSON)
+- Qué pantalla exacta estás usando (ruta/URL)
+- Qué devuelve getEmployeeStatus (logs)
+- El fragmento JSX donde debería renderizarse el botón “Pausa (20 min)”
+- La causa raíz (1 frase) y el fix mínimo (diff o descripción exacta de líneas a cambiar)
+
+NOTA
+No quiero reescribir nada ni “añadir features”. Solo quiero que verifiques por qué NO se ve el botón y lo arregles con el menor cambio posible.

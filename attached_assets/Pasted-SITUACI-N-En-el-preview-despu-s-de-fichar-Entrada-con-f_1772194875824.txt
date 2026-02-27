@@ -1,0 +1,45 @@
+SITUACIÓN
+En el preview, después de fichar “Entrada” con firma, vuelvo a la pantalla principal y veo el botón grande naranja “Salida”, pero NO aparece el botón azul “Pausa (20 min)”. Esto indica una desalineación: el botón principal parece basarse en lastPunch, pero el botón de pausa depende de /api/pause/status (o viceversa).
+
+OBJETIVO
+Sin que yo revise archivos, quiero que confirmes la causa raíz con evidencias (Network + logs) y apliques el FIX mínimo para que, cuando el empleado esté en status="ON", SIEMPRE aparezca “Pausa (20 min)” debajo de “Salida”.
+
+REGLA
+La pantalla móvil debe depender EXCLUSIVAMENTE de GET /api/pause/status (OFF/ON/BREAK). Si status="ON" => mostrar “Salida” + “Pausa (20 min)”. Si status="OFF" => “Entrada”. Si status="BREAK" => contador + “Reanudar ahora”.
+
+TAREA A — Evidencia (OBLIGATORIA)
+1) En el preview, abre DevTools → Network y captura el resultado de:
+   GET /api/pause/status
+   Incluye: status code + response body.
+2) Indica si el request incluye cookies/sesión (credentials). Si devuelve 401/403, es un problema de auth/cookies.
+3) Ejecuta el flujo exacto:
+   OFF -> click “Entrada” (firma) -> volver a la pantalla -> comprobar /api/pause/status.
+   Pega el JSON devuelto después de fichar la entrada.
+
+TAREA B — Diagnóstico (elige 1 causa)
+Según la evidencia anterior, clasifica el problema:
+- Caso 1: /api/pause/status NO se llama (frontend no ejecuta useQuery, enabled=false, etc.)
+- Caso 2: /api/pause/status devuelve 404 (ruta no montada / server no reiniciado / path equivocado)
+- Caso 3: /api/pause/status devuelve 401/403 (cookies/sesión no viajan; falta credentials: "include")
+- Caso 4: /api/pause/status devuelve 200 pero status="OFF" aunque lastPunch=IN (bug en getEmployeeStatus o en storage.getLastPunchByEmployee)
+- Caso 5: /api/pause/status devuelve 200 con status="ON", pero el botón no aparece (bug en JSX/condición de render)
+
+TAREA C — Fix mínimo (sin romper nada)
+Aplica SOLO el fix mínimo según el caso:
+- Si 401/403: asegurar que el fetcher de React Query usa credentials:"include" para /api/pause/status y mutations /api/pause/*
+- Si 404: asegurar que la ruta GET /api/pause/status está registrada y el servidor se reinicia; confirmar base URL /api correcta en el preview
+- Si 200 OFF con IN: añade logs temporales en getEmployeeStatus (employeeId + lastPunch.type+timestamp) y corrige storage.getLastPunchByEmployee (ORDER BY timestamp DESC, filtro por employeeId correcto)
+- Si 200 ON pero sin botón: corrige la condición de render para que “Pausa (20 min)” se muestre cuando pauseStatus.status==="ON"
+- En TODOS los casos: elimina cualquier lógica residual del botón principal basada en lastPunch.type; todo debe depender de pauseStatus.
+
+TAREA D — Entregable
+1) Confirma el caso elegido (1..5).
+2) Describe el cambio exacto realizado (archivo y líneas aproximadas).
+3) Adjunta evidencia final:
+   - Network: GET /api/pause/status => 200 con status="ON" tras “Entrada”
+   - Captura/confirmación: aparece “Salida” + botón “Pausa (20 min)” en la UI
+
+RESTRICCIONES
+- No tocar /api/punches ni punchRequestSchema ni el flujo de firma IN/OUT.
+- Mantener UI 100% en español.
+- Cambios mínimos: arreglar el cableado /api/pause/status -> UI.
