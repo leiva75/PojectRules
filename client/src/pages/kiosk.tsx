@@ -18,6 +18,7 @@ const KIOSK_TOKEN_KEY = "kiosk_device_token";
 interface PauseStatus {
   status: "OFF" | "ON" | "BREAK";
   breakStartedAt?: string;
+  pauseAlreadyTaken?: boolean;
 }
 
 export default function KioskPage() {
@@ -201,12 +202,7 @@ export default function KioskPage() {
         description: `Fichaje confirmado con firma`,
       });
 
-      if (data.type === "IN" && kioskToken) {
-        setLastPunchType("IN");
-        fetchPauseStatus(kioskToken);
-      } else {
-        setTimeout(resetKiosk, 3000);
-      }
+      setTimeout(resetKiosk, 3000);
     },
     onError: (error) => {
       toast({
@@ -236,7 +232,7 @@ export default function KioskPage() {
     },
     onSuccess: () => {
       toast({ title: "Pausa iniciada", description: "Descanso de 20 minutos en curso" });
-      if (kioskToken) fetchPauseStatus(kioskToken);
+      setTimeout(resetKiosk, 3000);
     },
     onError: (error) => {
       toast({
@@ -464,7 +460,7 @@ export default function KioskPage() {
                     size="large"
                   />
 
-                  {employeeStatus === "ON" && (
+                  {employeeStatus === "ON" && !pauseStatus?.pauseAlreadyTaken && (
                     <Button
                       onClick={() => pauseStartMutation.mutate()}
                       disabled={pauseStartMutation.isPending}

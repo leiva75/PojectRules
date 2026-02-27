@@ -3,7 +3,9 @@ import { createServer, type Server } from "http";
 import { createHash } from "crypto";
 import multer from "multer";
 import { storage } from "./storage";
-import { pool } from "./db";
+import { pool, db } from "./db";
+import { punches } from "@shared/schema";
+import { eq, and, gt } from "drizzle-orm";
 import { 
   hashPassword, 
   verifyPassword, 
@@ -1071,7 +1073,7 @@ export async function registerRoutes(
     }
   });
 
-  async function getEmployeeStatus(employeeId: string): Promise<{ status: "OFF" | "ON" | "BREAK"; breakStartedAt?: string }> {
+  async function getEmployeeStatus(employeeId: string): Promise<{ status: "OFF" | "ON" | "BREAK"; breakStartedAt?: string; pauseAlreadyTaken: boolean }> {
     const lastWorkPunch = await storage.getLastWorkPunch(employeeId);
     const lastOverall = await storage.getLastPunchByEmployee(employeeId);
 
@@ -1081,10 +1083,22 @@ export async function registerRoutes(
     }
 
     if (base === "ON" && lastOverall && lastOverall.type === "BREAK_START") {
-      return { status: "BREAK", breakStartedAt: lastOverall.timestamp.toISOString() };
+      return { status: "BREAK", breakStartedAt: lastOverall.timestamp.toISOString(), pauseAlreadyTaken: false };
     }
 
-    return { status: base };
+    let pauseAlreadyTaken = false;
+    if (base === "ON" && lastWorkPunch) {
+      const breakEndAfterIn = await db.select({ id: punches.id }).from(punches)
+        .where(and(
+          eq(punches.employeeId, employeeId),
+          eq(punches.type, "BREAK_END"),
+          gt(punches.timestamp, lastWorkPunch.timestamp)
+        ))
+        .limit(1);
+      pauseAlreadyTaken = breakEndAfterIn.length > 0;
+    }
+
+    return { status: base, pauseAlreadyTaken };
   }
 
   app.get("/api/pause/status", authenticateEmployee, async (req, res) => {
