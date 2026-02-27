@@ -87,6 +87,7 @@ A full-stack TypeScript time-tracking application for Cronos Gimnasio Palencia w
 - **DB error handling**: `isDbError()` helper detects connection errors → returns 503 instead of 500; client shows "Servicio temporalmente no disponible"
 - **Instrumented logging**: `[KIOSK-PUNCH]` prefix on all kiosk punch operations for production debugging
 - **Pool config**: `max:10`, `connectionTimeoutMillis:5000`, `idleTimeoutMillis:30000` — fails fast instead of 134s timeout
+- **SSL with CA certificate**: `certs/ca-certificate.crt` (DigitalOcean CA) loaded by `server/db.ts`; if present → `rejectUnauthorized: true` (full verification); fallback → `rejectUnauthorized: false`; for `drizzle-kit`: use `NODE_EXTRA_CA_CERTS=./certs/ca-certificate.crt npm run db:push`
 - **DATABASE_URL hardening**: Validated at startup (non-empty, starts with `postgres://`), cleaned via `URL` API, masked in logs (`[PG-URL]`), `process.exit(1)` on invalid
 - **Startup diagnostics**: `validateConfig()` logs presence of all required env vars (DATABASE_URL, JWT secrets, CORS_ORIGIN, KIOSK_KEY, DO_SPACES_KEY) without exposing values
 - **Auth error handling**: All auth catch blocks (`login`, `employee-login`, `kiosk-login`, `refresh`, `me`, `logout`) use `handleRouteError` for 503 on DB errors

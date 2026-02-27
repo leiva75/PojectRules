@@ -1,6 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
+import fs from "fs";
+import path from "path";
 
 pg.types.setTypeParser(1114, (str: string) => new Date(str + "+00"));
 
@@ -59,7 +61,14 @@ if (!cleanDbUrl || !/^postgres(ql)?:\/\//i.test(cleanDbUrl)) {
 let ssl: pg.PoolConfig["ssl"];
 let sslMode: string;
 
-if (isProd || hasSslInUrl) {
+const caPath = path.resolve(process.cwd(), "certs/ca-certificate.crt");
+const caExists = fs.existsSync(caPath);
+
+if (caExists) {
+  const ca = fs.readFileSync(caPath, "utf-8");
+  ssl = { ca, rejectUnauthorized: true };
+  sslMode = "encrypted-ca-verified";
+} else if (isProd || hasSslInUrl) {
   ssl = { rejectUnauthorized: false };
   sslMode = "encrypted-no-verify";
 } else {
