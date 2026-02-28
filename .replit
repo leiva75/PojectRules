@@ -48,7 +48,5 @@ EXPECTED_DAILY_MINUTES = "480"
 OVERTIME_MIN_THRESHOLD = "15"
 
 [userenv.development]
-DATABASE_URL = "postgresql://doadmin:AVNS_5EfkYrGwmj65NYBPiU2@db-postgresql-fra1-69239-do-user-32429959-0.d.db.ondigitalocean.com:25060/cronosdb?sslmode=require"
 
 [userenv.production]
-DATABASE_URL = "postgresql://doadmin:AVNS_5EfkYrGwmj65NYBPiU2@db-postgresql-fra1-69239-do-user-32429959-0.d.db.ondigitalocean.com:25060/cronosdb?sslmode=require"
