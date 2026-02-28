@@ -53,7 +53,7 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
 - **Environment Variables:** Critical configurations are managed via environment variables and validated at startup.
 
 ## External Dependencies
-- **PostgreSQL:** Primary database for storing application data.
+- **PostgreSQL:** Shared database (`defaultdb` on DigitalOcean `db-postgresql-fra1-86634`) with Gimnasio Cronos app. Cronos Fichajes manages its own tables (`employees`, `punches`, `punch_corrections`, `punch_reviews`, `overtime_requests`, `audit_log`, `kiosk_devices`, `refresh_tokens`). The Gimnasio Cronos app has 34+ tables in the same database — DO NOT modify or delete them. The `monitors` table (Gimnasio Cronos) can be linked to `employees` via email.
 - **Drizzle ORM:** Used for database interaction and schema management.
 - **React:** Frontend library for building user interfaces.
 - **Vite:** Build tool for the React frontend.
