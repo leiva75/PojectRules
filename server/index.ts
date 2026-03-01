@@ -31,8 +31,8 @@ const isProd = process.env.NODE_ENV === "production";
 function validateConfig() {
   const errors: string[] = [];
 
-  if (!process.env.DATABASE_URL) {
-    errors.push("DATABASE_URL es obligatorio");
+  if (!process.env.EXTERNAL_DATABASE_URL && !process.env.DATABASE_URL) {
+    errors.push("EXTERNAL_DATABASE_URL o DATABASE_URL es obligatorio");
   }
 
   if (isProd) {
@@ -67,6 +67,7 @@ function validateConfig() {
   }
 
   const envStatus = {
+    EXTERNAL_DATABASE_URL: !!process.env.EXTERNAL_DATABASE_URL,
     DATABASE_URL: !!process.env.DATABASE_URL,
     JWT_ACCESS_SECRET: !!process.env.JWT_ACCESS_SECRET,
     JWT_REFRESH_SECRET: !!process.env.JWT_REFRESH_SECRET,
@@ -104,8 +105,16 @@ app.use(
   })
 );
 
-// Health check endpoint for PaaS platforms
+// Health check endpoints
 app.get("/health", (_req, res) => {
+  res.status(200).json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || "1.0.0"
+  });
+});
+
+app.get("/healthz", (_req, res) => {
   res.status(200).json({ 
     status: "ok", 
     timestamp: new Date().toISOString(),

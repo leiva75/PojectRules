@@ -47,7 +47,8 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
 **System Design Choices:**
 - **Monorepo Structure:** Divided into `client`, `server`, and `shared` directories.
 - **Database Migrations:** Drizzle versioned migrations are used for schema evolution.
-- **Dockerization:** `Dockerfile` and `docker-compose.yml` for containerized deployment.
+- **Dockerization:** Multi-stage `Dockerfile` (node:20-alpine + tini) with `docker-entrypoint.sh`. SSL cert embedded at build time. `docker-compose.yml` exposes port 3001 (Gimnasio Cronos uses 3000). Container name: `cronos_fichajes_app`. Healthcheck on `/healthz`. Reference Nginx config in `nginx.conf.example`.
+- **Database URL Priority:** `EXTERNAL_DATABASE_URL` (preferred) → `DATABASE_URL` (fallback). Auto-detects DigitalOcean hosts for SSL. Looks for CA cert in `certs/ca-certificate.crt` or `certs/do-ca-certificate.crt`.
 - **Security:** JWTs are signed with separate secrets for access, refresh, and employee tokens. Kiosk tokens are SHA-256 hashed. Rate limiting is applied to authentication endpoints.
 - **Logging:** Instrumented logging (e.g., `[KIOSK-PUNCH]`, `[PAUSE-CRON]`) for debugging and monitoring.
 - **Environment Variables:** Critical configurations are managed via environment variables and validated at startup.

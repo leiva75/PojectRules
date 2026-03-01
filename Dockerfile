@@ -1,7 +1,7 @@
 # ================================
 # Stage 1: Dependencies
 # ================================
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -9,17 +9,16 @@ RUN npm ci
 # ================================
 # Stage 2: Build
 # ================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Build client (Vite) and server (esbuild bundle to dist/index.cjs)
 RUN npm run build
 
 # ================================
 # Stage 3: Production Dependencies
 # ================================
-FROM node:18-alpine AS production-deps
+FROM node:20-alpine AS production-deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
@@ -27,34 +26,29 @@ RUN npm ci --omit=dev
 # ================================
 # Stage 4: Runtime
 # ================================
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tini tzdata
 
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV TZ=UTC
 
-# Copy production dependencies
 COPY --from=production-deps /app/node_modules ./node_modules
-
-# Copy built assets (client static files + server bundle)
 COPY --from=builder /app/dist ./dist
-
-# Copy package files for npm start
 COPY package*.json ./
 
-# Create backups directory
+COPY certs/ca-certificate.crt ./certs/ca-certificate.crt
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 RUN mkdir -p /backups && chmod 755 /backups
 
-# Expose port
 EXPOSE 3000
 
-# Health check - uses lightweight /health endpoint (no DB dependency)
-# /api/health is still available for deep checks but not used for platform healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/healthz || exit 1
 
-# Start: runs "node dist/index.cjs" via npm run start
-CMD ["npm", "run", "start"]
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["./docker-entrypoint.sh"]
