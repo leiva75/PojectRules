@@ -1,0 +1,642 @@
+root@ubuntu-s-1vcpu-1gb-fra1-01:/var/www/app# git pull origin main
+docker compose build --no-cache
+docker compose up -d
+docker compose logs --tail 20
+fatal: detected dubious ownership in repository at '/var/www/app'
+To add an exception for this directory, call:
+
+        git config --global --add safe.directory /var/www/app
+WARN[0000] The "DATABASE_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+WARN[0000] Docker Compose requires buildx plugin to be installed 
+Sending build context to Docker daemon  5.978MB
+Step 1/25 : FROM node:18-alpine AS deps
+ ---> ee77c6cd7c18
+Step 2/25 : WORKDIR /app
+ ---> Running in 17b155022c9c
+ ---> Removed intermediate container 17b155022c9c
+ ---> 7466377c2248
+Step 3/25 : COPY package*.json ./
+ ---> 24cb08951d0e
+Step 4/25 : RUN npm ci
+ ---> Running in 26fc859ad486
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/client-s3@3.975.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/client-sso@3.974.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/core@3.973.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/crc64-nvme@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-env@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-http@3.972.2',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-ini@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-login@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-node@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-process@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-sso@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-web-identity@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-bucket-endpoint@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-expect-continue@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-flexible-checksums@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-host-header@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-location-constraint@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-logger@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-recursion-detection@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-sdk-s3@3.972.2',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-ssec@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-user-agent@3.972.2',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/nested-clients@3.974.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/region-config-resolver@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/s3-request-presigner@3.975.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/signature-v4-multi-region@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/core@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-sdk-s3@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/types@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-arn-parser@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/xml-builder@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/token-providers@3.974.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/types@3.973.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-arn-parser@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-endpoints@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/types@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-format-url@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-locate-window@3.965.3',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-user-agent-node@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/xml-builder@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'thread-stream@4.0.0',
+npm warn EBADENGINE   required: { node: '>=20' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vite@7.3.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vitest@4.0.17',
+npm warn EBADENGINE   required: { node: '^20.0.0 || ^22.0.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn deprecated lodash.get@4.4.2: This package is deprecated. Use the optional chaining (?.) operator instead.
+npm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+
+added 780 packages, and audited 781 packages in 42s
+
+116 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (1 low, 2 moderate, 9 high, 1 critical)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container 26fc859ad486
+ ---> d33dc3cb297e
+Step 5/25 : FROM node:18-alpine AS builder
+ ---> ee77c6cd7c18
+Step 6/25 : WORKDIR /app
+ ---> Running in 1558bba67ba5
+ ---> Removed intermediate container 1558bba67ba5
+ ---> c5cffdcf4db0
+Step 7/25 : COPY --from=deps /app/node_modules ./node_modules
+ ---> df3ac98ef81d
+Step 8/25 : COPY . .
+ ---> 0bc02edee545
+Step 9/25 : RUN npm run build
+ ---> Running in b2877d684daf
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1740 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                           0.92 kB │ gzip:   0.48 kB
+../dist/public/assets/logo-cronos-C7LUbuHU.png  1,947.53 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+../dist/public/assets/index-B5SmNBRj.css           80.95 kB │ gzip:  13.16 kB
+../dist/public/assets/index-DNrC1TXf.js           522.10 kB │ gzip: 157.35 kB
+✓ built in 18.13s
+building server...
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:24:24:
+      24 │       "@": path.resolve(import.meta.dirname, "client", "src"),
+         ╵                         ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:25:30:
+      25 │       "@shared": path.resolve(import.meta.dirname, "shared"),
+         ╵                               ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:26:30:
+      26 │ ...  "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+         ╵                              ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:29:21:
+      29 │   root: path.resolve(import.meta.dirname, "client"),
+         ╵                      ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:31:25:
+      31 │     outDir: path.resolve(import.meta.dirname, "dist/public"),
+         ╵                          ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+5 warnings
+
+  dist/index.cjs  1.4mb ⚠️
+
+⚡ Done in 1128ms
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container b2877d684daf
+ ---> bc7a5f01dba7
+Step 10/25 : FROM node:18-alpine AS production-deps
+ ---> ee77c6cd7c18
+Step 11/25 : WORKDIR /app
+ ---> Running in 35366b0f571e
+ ---> Removed intermediate container 35366b0f571e
+ ---> f27c8340a2b3
+Step 12/25 : COPY package*.json ./
+ ---> 19ad912fea50
+Step 13/25 : RUN npm ci --omit=dev
+ ---> Running in 20fcdf0e6bcf
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/client-s3@3.975.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/client-sso@3.974.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/core@3.973.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/crc64-nvme@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-env@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-http@3.972.2',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-ini@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-login@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-node@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-process@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-sso@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/credential-provider-web-identity@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-bucket-endpoint@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-expect-continue@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-flexible-checksums@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-host-header@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-location-constraint@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-logger@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-recursion-detection@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-sdk-s3@3.972.2',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-ssec@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-user-agent@3.972.2',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/nested-clients@3.974.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/region-config-resolver@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/s3-request-presigner@3.975.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/signature-v4-multi-region@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/core@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/middleware-sdk-s3@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/types@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-arn-parser@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/xml-builder@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/token-providers@3.974.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/types@3.973.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-arn-parser@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-endpoints@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/types@3.972.0',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-format-url@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-locate-window@3.965.3',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/util-user-agent-node@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@aws-sdk/xml-builder@3.972.1',
+npm warn EBADENGINE   required: { node: '>=20.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'thread-stream@4.0.0',
+npm warn EBADENGINE   required: { node: '>=20' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vite@7.3.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vitest@4.0.17',
+npm warn EBADENGINE   required: { node: '^20.0.0 || ^22.0.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v18.20.8', npm: '10.8.2' }
+npm warn EBADENGINE }
+npm warn deprecated lodash.get@4.4.2: This package is deprecated. Use the optional chaining (?.) operator instead.
+npm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+
+added 712 packages, and audited 713 packages in 44s
+
+109 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (1 low, 2 moderate, 9 high, 1 critical)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container 20fcdf0e6bcf
+ ---> 758dcca82292
+Step 14/25 : FROM node:18-alpine AS runner
+ ---> ee77c6cd7c18
+Step 15/25 : WORKDIR /app
+ ---> Running in 2f9cda59f3ec
+ ---> Removed intermediate container 2f9cda59f3ec
+ ---> f5d8eebf0466
+Step 16/25 : ENV NODE_ENV=production
+ ---> Running in 46f98c056ca1
+ ---> Removed intermediate container 46f98c056ca1
+ ---> 4f3b84f4b641
+Step 17/25 : ENV PORT=3000
+ ---> Running in bf90bd0cbd68
+ ---> Removed intermediate container bf90bd0cbd68
+ ---> 8eb7a415b40e
+Step 18/25 : COPY --from=production-deps /app/node_modules ./node_modules
+ ---> 975740df0711
+Step 19/25 : COPY --from=builder /app/dist ./dist
+ ---> 67b986ffa1dd
+Step 20/25 : COPY package*.json ./
+ ---> 6e57d18c1eb6
+Step 21/25 : RUN mkdir -p /backups && chmod 755 /backups
+ ---> Running in 70de6fd47d96
+ ---> Removed intermediate container 70de6fd47d96
+ ---> 5ca3fcfcda9a
+Step 22/25 : EXPOSE 3000
+ ---> Running in f4344ac86dbe
+ ---> Removed intermediate container f4344ac86dbe
+ ---> d9702fa13657
+Step 23/25 : HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+ ---> Running in cf10a183ef81
+ ---> Removed intermediate container cf10a183ef81
+ ---> 26688a3e55c9
+Step 24/25 : CMD ["npm", "run", "start"]
+ ---> Running in d29cee27f302
+ ---> Removed intermediate container d29cee27f302
+ ---> f615eb6f3dd7
+Step 25/25 : LABEL com.docker.compose.image.builder=classic
+ ---> Running in 9506c3680b8e
+ ---> Removed intermediate container 9506c3680b8e
+ ---> 9aabff47251f
+Successfully built 9aabff47251f
+Successfully tagged app-app:latest
+[+] build 1/1
+ ✔ Image app-app Built                                                279.2s
+WARN[0000] The "DATABASE_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] up 2/2
+ ✔ Network app_cronos_network Created                                   0.1s
+ ✔ Container cronos_app       Started                                   0.3s
+WARN[0000] The "DATABASE_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
