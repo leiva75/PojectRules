@@ -1,0 +1,43 @@
+Voici les réponses complètes à chacune de tes questions :
+
+1. Comment Gimnasio Cronos est déployée
+Sur Replit (dev) : Express.js lancé directement via tsx server/index.ts (TypeScript à la volée), avec Vite en mode middleware pour le frontend.
+
+En production : l'app est prête pour Docker. Le repo contient :
+
+Un Dockerfile multi-stage : build avec node:20-alpine (esbuild pour le backend, Vite pour le frontend), puis image de production légère avec tini comme init process et postgresql-client (pour pg_dump).
+Un docker-compose.yml avec 3 services : db (PostgreSQL 16), migrator (lance les migrations), et app (le serveur Express sur le port 3000).
+Un healthcheck intégré sur http://127.0.0.1:3000/healthz.
+Le point d'entrée : docker-entrypoint.sh → node dist/index.cjs.
+Pas de PM2 — l'app utilise tini comme superviseur de processus dans Docker.
+
+2. Comment elle se connecte à la base de données
+Priorité : EXTERNAL_DATABASE_URL (DigitalOcean) > DATABASE_URL (fallback Replit).
+Driver : pg (node-postgres) avec connection pool (20 connexions max, idle timeout 30s).
+SSL : Détection automatique — si le host contient .db.ondigitalocean.com, SSL s'active automatiquement. L'app cherche un certificat CA dans certs/do-ca-certificate.crt (présent dans le repo). Si trouvé → rejectUnauthorized: true (vérification stricte).
+Sessions : stockées dans PostgreSQL via connect-pg-simple, dans la table session.
+ORM : Drizzle ORM. Migrations versionnées dans migrations/, appliquées au boot avec un advisory lock (pg_advisory_lock(728349)) pour éviter les conflits multi-instance.
+3. Reverse proxy
+Il n'y a pas de reverse proxy intégré dans le repo. L'app est conçue pour fonctionner derrière un proxy externe :
+
+Sur DigitalOcean App Platform : TLS/HTTPS est géré automatiquement par DO. L'app met TRUST_PROXY=true.
+Sur un Droplet/VPS : Le fichier DEPLOYMENT.md contient une config Nginx de référence qui gère SSL (port 443), la redirection HTTP→HTTPS, le proxy vers 127.0.0.1:3000, et le support WebSocket.
+Sur Replit : le réseau Replit mappe les ports automatiquement (5000→3000 externe, 5001→80).
+Accès distant : Ngrok intégré dans l'admin (server/tunnel.ts).
+En résumé : chaque domaine (cronosfichajes.es, etc.) devrait être géré par un reverse proxy externe (Nginx/Caddy sur un VPS, ou le load balancer de DO App Platform) qui pointe vers le bon conteneur Docker.
+
+4. Aligner Cronos Fichajes sur le même modèle ?
+Oui, c'est faisable et recommandé. Voici ce qu'il faudrait pour aligner Fichajes :
+
+Aspect	Gimnasio Cronos (actuel)	Ce que Fichajes devrait avoir
+Conteneur	Dockerfile multi-stage + tini	Même structure Dockerfile
+Base de données	EXTERNAL_DATABASE_URL → DO PostgreSQL, SSL vérifié	Même variable, même base defaultdb
+Migrations	Drizzle avec advisory lock	Drizzle avec un lock ID différent (ex: 728360)
+Sessions	Table session via connect-pg-simple	Table séparée (ex: fichajes_session) pour éviter les conflits
+Port	3000	Un port différent (ex: 3001) si même serveur, ou 3000 si conteneur séparé
+Proxy	Nginx pointant vers :3000	Nginx avec un server_name cronosfichajes.es pointant vers le conteneur Fichajes
+Healthcheck	/healthz	Idem
+Backups	pg_dump → DO Spaces	Partagé (un seul backup de defaultdb suffit pour les deux)
+Le point critique : les deux apps doivent avoir des tables de session séparées (session pour Fichajes, cronos_session pour Gimnasio Cronos) pour éviter exactement le type d'erreur que tu vois maintenant.
+
+Pour l'erreur actuelle sur cronosfichajes.es : le problème vient très probablement du fait que les deux apps partagent la table session. 
