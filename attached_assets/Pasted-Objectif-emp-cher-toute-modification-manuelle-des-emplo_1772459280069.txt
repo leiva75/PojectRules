@@ -1,0 +1,77 @@
+Objectif : empêcher toute modification manuelle des employés synchronisés depuis Gestion, tout en gardant le sync automatique.
+
+Codebase
+
+Backend routes : server/routes.ts
+
+GET /api/employees (admin/manager)
+
+POST /api/employees (admin/manager)
+
+PATCH /api/employees/:id (~903)
+
+DELETE /api/employees/:id (~956)
+
+UI : client/src/pages/admin.tsx (onglet Employees)
+
+Dialog : client/src/components/employee-dialog.tsx
+
+Sync : server/monitor-sync.ts
+
+Règle fonctionnelle
+
+Si employee.monitorId != null (employé synchronisé) :
+
+Interdire POST/PATCH/DELETE côté API (sauf si l’appel provient explicitement du job de sync).
+
+UI en mode consultatif : pas de bouton Edit/Delete, pas de formulaire d’édition, badge “Managed by Gestion”.
+
+Retour API standard : 403 avec code/raison MANAGED_BY_GESTION.
+
+Si employee.monitorId == null :
+
+Autoriser la gestion normale (admin/manager), pour les comptes internes Fichajes.
+
+Implémentation backend (dans server/routes.ts)
+
+Ajouter un guard réutilisable :
+
+Charger l’employé par id
+
+Si monitorId != null ⇒ res.status(403).json({ code:"MANAGED_BY_GESTION", message:"Employee managed in Gestion (monitors)." })
+
+Appliquer le guard à :
+
+PATCH /api/employees/:id
+
+DELETE /api/employees/:id
+
+POST /api/employees : empêcher de créer un employé avec monitorId défini depuis l’UI admin (sauf sync).
+
+Exception sync :
+
+Le job monitor-sync.ts doit pouvoir upsert les employés liés.
+
+Deux options rapides :
+
+Option A : le sync appelle une fonction storage interne qui bypass les routes HTTP (idéal si déjà le cas).
+
+Option B : ajouter un header secret (ex X-Sync-Token) et autoriser uniquement si token = env var (SYNC_TOKEN).
+
+Implémentation UI
+
+Dans admin.tsx (onglet Employees) :
+
+Pour chaque employé : si monitorId != null ⇒ masquer actions, afficher badge.
+
+Dans employee-dialog.tsx :
+
+Si monitorId != null ⇒ ouvrir en mode “view” (champs disabled) ou empêcher ouverture.
+
+Résultat attendu
+
+Un admin/manager ne peut plus modifier/supprimer un employé synchronisé.
+
+Le sync continue de mettre à jour employees toutes les 5 minutes.
+
+Les comptes internes (monitorId null) restent gérables.
