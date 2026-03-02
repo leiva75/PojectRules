@@ -1,0 +1,72 @@
+TU ES DANS LE PROJET "FICHAJES" (cronosfichajes.es). Objectif: supprimer les doublons de comptes admin en permettant aux admins/managers de se connecter à l’admin Fichajes avec les mêmes identifiants que Gestion (table users). Fichajes garde son système employees pour les employés/kiosk/portail.
+
+CONTEXTE
+- Stack: Express + TypeScript, Drizzle, PostgreSQL partagé.
+- Auth Fichajes admin: JWT access+refresh en cookies httpOnly.
+- Table employees (Fichajes): id UUID, email, password, role admin/manager/employee, pin, isActive, monitor_id nullable unique.
+- Table users (Gestion): id int, username, email, password bcrypt, role enum (admin/director/manager/instructor/viewer), potentiellement isActive.
+
+OBJECTIF NON NEGOCIABLE
+- Pour l’ADMIN UI Fichajes, l’auth doit être basée sur users (Gestion), pas sur employees.
+- Aucun nouvel admin/manager ne doit être créé manuellement dans employees pour administrer Fichajes.
+- Les employés kiosque/portail (PIN, punches) restent inchangés.
+- Fichajes n’écrit JAMAIS dans users.
+
+TRAVAIL À FAIRE DANS CE REPO (FICHAJES)
+1) AJOUTER UN LOGIN ADMIN "VIA GESTION USERS"
+- Ajouter un endpoint distinct: POST /api/admin/login-gestion (ou /api/admin/login)
+- Payload: { identifier: usernameOuEmail, password }
+- Traitement:
+  a) SELECT dans table users (Gestion) où username = identifier OR email = identifier
+  b) bcrypt.compare(password, users.password)
+  c) Vérifier autorisation: users.role ∈ {admin, director, manager}
+     - Si users.isActive existe: exiger isActive=true
+  d) Mapper le rôle:
+     - director => admin
+     - admin => admin
+     - manager => manager
+  e) Générer les tokens JWT admin Fichajes (comme le flux existant), MAIS avec claims:
+     - sub = users.id (int)
+     - source = "gestion_users"
+     - role = "admin" | "manager"
+  f) Stocker accessToken/refreshToken dans cookies httpOnly comme aujourd’hui.
+
+2) MODIFIER LE MIDDLEWARE D’AUTORISATION ADMIN
+- Modifier authenticateAdminManager pour accepter:
+  - tokens avec source="gestion_users" et role in ("admin","manager")
+- Ne plus dépendre de employees.role pour autoriser l’admin UI (au moins pour cette voie "gestion_users").
+
+3) (RECOMMANDÉ) TRACE / MAPPING POUR AUDIT
+- Ajouter une table: gestion_admin_links
+  - gestion_user_id INT UNIQUE
+  - last_login_at timestamp
+  - disabled boolean default false
+- À chaque login réussi: UPSERT last_login_at.
+- Aucun password stocké ici.
+
+4) PLAN DE MIGRATION / NETTOYAGE DES DOUBLONS
+- Ajouter un script admin (ou doc) pour lister:
+  - employees WHERE role IN ('admin','manager') AND monitor_id IS NULL
+- Stratégie de transition:
+  a) Activer d’abord login-gestion, tester qu’un admin Gestion peut se connecter.
+  b) Ensuite désactiver (isActive=false) ces employees admins legacy (au lieu de delete pour rollback).
+- Ajouter un flag env de secours:
+  - ALLOW_LEGACY_EMPLOYEE_ADMINS=false par défaut
+  - si true, l’ancien mode (employees admin) reste accepté (uniquement temporaire).
+
+5) UX
+- Mettre à jour l’écran login admin Fichajes:
+  - texte: "Utiliser identifiants Gestion"
+- En cas d’erreur 403:
+  - message: "Votre rôle dans Gestion ne permet pas l’accès à Fichajes."
+
+CONTRAINTES
+- Ne pas casser kiosk/portal.
+- Ne jamais logger password ni pin.
+- Ne pas modifier la table users (lecture seule).
+
+ACCEPTANCE TESTS
+- Un user Gestion role=manager (et isActive=true si présent) peut se connecter à l’admin Fichajes.
+- Un user Gestion role=viewer ne peut pas.
+- Si on change le role dans Gestion (manager->viewer), l’accès Fichajes est refusé au prochain login/refresh.
+- Les punch/kiosk continuent à fonctionner normalement.

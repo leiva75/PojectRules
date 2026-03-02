@@ -1,0 +1,18 @@
+root@ubuntu-s-1vcpu-1gb-fra1-01:~# find / -name "docker-compose.yml" 2>/dev/null
+/var/lib/docker/overlay2/dd478b7ec7c6e93446bb2900543f568741aee4126187af310f8ff3613d80ae13/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/b4da743966e17f551915359db0cd2af95484e8ca84253319c304ea88e29153dd/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/843e6d44a5fca9718699b532316090e80187be892c30595b075b30c2a50d5a9d/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/5e49612ab795e8af660bb3776e98cea6c54f645cabf8b2f058cf089aca4fcfd2/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/5a950b9841c0d06cd7711980e67a43e5a67b196fcdb1fab205ce22ba47c43a3a/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/91e77a059994b0038818634f411f65257fbe3e97c10270acb6f142e0bae15abf/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/e70a3f8b905f4e225fb5f46e4f65dd4b4026824ca44225576faf413abb3a469a/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/10a5e5d5938e5bcc3012e8435d334e4239c037b1cc7921fbaf2532f69fdd2aa0/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/30040ecf73c0e59a14a56a27895384eb29671cd64327e3b41390bd1667791d99/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/b9f2b1cb4ba1dba0cedac2e9b53c235478b98124c71d36f2ef0ee620c6e8a74b/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/4c823b0551144bb8674a568e54daa9717390594d70300fbef184e9c6487c5c2b/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/15a36c3bc759008ee25d7a07e6c23c20e47f34c71254d2d51d53790b5997e00a/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/2233c44d89cca61aa749c8a679f9cb7d28e878dc7a4bbb8ab31aba0f4eea7734/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/6bd14dc56387e315e1672c3c43ed39aa1fde33a24131a303a508b31660e2067f/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/bd7b3f42b41ad4e6fae9774f78b5f9b17023f47b085c1462f846f7191e3e5855/diff/app/docker-compose.yml
+/var/lib/docker/overlay2/4342378d758de65b39872399cd3f4acd7ba3e5dc8fe7fe54c5d2067d96a07b9b/diff/app/docker-compose.yml
+/var/www/app/docker-compose.yml

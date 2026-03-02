@@ -1,0 +1,65 @@
+TU ES DANS LE PROJET FICHAJES. Objectif: permettre aux admins/managers de se connecter à l'admin Fichajes avec leurs identifiants Gestion (table users) et d'exécuter toutes opérations admin (PDF, rapports, corrections, exports), sans casser kiosk/portal. Les modifications RH des employés liés restent exclusivement dans Gestion.
+
+Contrainte critique:
+audit_log / punch_corrections / punch_reviews / overtime_requests ont des FK NOT NULL vers employees.id => il faut un vrai employee UUID pour les admins Gestion.
+
+Stratégie imposée: PROXY EMPLOYEE
+- Au premier login admin Gestion, créer/maintenir un employee "proxy" avec un vrai UUID.
+- Ajouter employees.gestionUserId (int unique nullable).
+- Auth basée sur users (Gestion), jamais sur employees.password pour ces admins.
+
+Travail demandé:
+T001 Schema:
+- Ajouter employees.gestionUserId int unique nullable.
+- Créer gestion_admin_links (gestionUserId unique, gestionUsername, gestionRole, fichajesRole, employeeId FK employees.id, lastLoginAt, disabled, createdAt).
+- Gérer UUID default: activer pgcrypto ou générer UUID côté app.
+
+T002 JWT/Auth:
+- TokenPayload: source ("gestion_users"|"employees") + gestionUserId.
+- generateGestionAccessToken(proxyEmployee.id UUID, gestionUserId, role).
+- authenticateAdminManager:
+  - si source="gestion_users": charger proxy employee normalement via storage (UUID OK), set req.gestionUserId.
+  - sinon comportement actuel inchangé.
+- IMPORTANT: interdire login employee classique pour un proxy: dans POST /api/auth/login, si employee.gestionUserId != null => 403/410 "Use credenciales de Gestión".
+
+T003 Endpoint login admin:
+- POST /api/auth/admin-login avec {identifier(username), password}.
+- Query SQL paramétrée:
+  SELECT id, username, display_name, password_hash, role, is_active FROM users WHERE username=$1
+- Vérifier is_active, bcrypt.compare, role in (admin, rrhh).
+- Mapping: admin->admin, rrhh->manager.
+- Trouver ou créer proxy employee:
+  - email unique: gestion-admin-{id}@fichajes.internal
+  - password: hash aléatoire (placeholder), jamais utilisé
+  - firstName: display_name || username ; lastName="(Gestión)"
+  - role=mappé ; isActive=true ; gestionUserId=users.id
+- Upsert gestion_admin_links ; refuser si disabled=true.
+- Set cookies JWT comme flux admin existant.
+- Audit log login avec actorId = proxyEmployee.id (UUID).
+
+T004 /me + /refresh:
+- /me: renvoyer user proxy + source="gestion_users" + gestionUserId.
+- /refresh: re-check users(id) => is_active + role. Si KO => clear cookies + 403. Si OK => refresh token + maj role proxy si besoin.
+
+T005 Frontend login:
+- champ "Nombre de usuario" (username).
+- texte "Acceso con credenciales de Gestión".
+- appeler /api/auth/admin-login.
+
+T006 RH employés (ne pas casser):
+- Les employés liés aux monitors (monitorId != null) doivent rester non éditables côté Fichajes (guards PATCH/DELETE + UI).
+- Ajouter la même protection pour proxy admins: si gestionUserId != null => PATCH/DELETE interdits.
+- IMPORTANT UX: ne PAS afficher les proxy admins dans l’onglet Employees (filtrer gestionUserId != null) pour éviter d’augmenter artificiellement le nombre d’employés.
+
+T007 Safe rollout:
+- ALLOW_LEGACY_EMPLOYEE_ADMINS=true par défaut.
+- Après validation login Gestion + opérations PDF, désactiver les admins employees doublons (surtout ceux avec monitorId != null).
+- Puis ALLOW_LEGACY_EMPLOYEE_ADMINS=false.
+
+Acceptance:
+- Un admin Gestion peut se connecter et générer PDF/rapports/corrections.
+- rrhh Gestion a accès manager.
+- staff refusé.
+- Désactivation/role change dans Gestion coupe l’accès au refresh.
+- Kiosk/portal inchangés.
+- Proxy admins invisibles dans la liste employees.

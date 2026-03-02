@@ -1,0 +1,84 @@
+TU ES DANS LE PROJET "FICHAJES". Objectif: permettre aux admins/managers de se connecter à l'admin Fichajes avec leurs identifiants Gestion (table users), pour faire TOUT l'admin Fichajes (PDF, rapports, corrections, exports). IMPORTANT: ne pas casser les flux existants (kiosk/employee portal), et les modifications RH employés restent exclusivement dans Gestion.
+
+CONTEXTE RÉEL
+- Table users (Gestion): id int, username, display_name, password_hash, role (admin/rrhh/staff/...), is_active.
+- Table employees (Fichajes): UUID, role admin/manager/employee, pin, isActive, monitor_id nullable unique.
+- Auth Fichajes: JWT admin en cookies httpOnly + refresh. Kiosk/portal existants doivent rester inchangés.
+- Une règle séparée (déjà prévue ailleurs): employees liés (monitor_id != null) => lecture seule côté Fichajes (pas de CRUD), gérés dans Gestion.
+
+OBJECTIF NON NÉGOCIABLE
+1) Login admin Fichajes via users (Gestion) pour roles admin/rrhh, avec is_active=true.
+2) Ces admins doivent pouvoir utiliser toutes fonctions admin Fichajes (PDF, corrections, reviews, exports) sans casser le système.
+3) Les employés (kiosk/portal) et leurs auth restent inchangés.
+4) Les modifications d'employés liés (monitor_id != null) restent interdites côté Fichajes (mais ça n'empêche pas l'admin Fichajes de faire PDFs, reviews, etc.).
+
+PLAN "SAFE ROLLOUT" (anti-casse)
+- Garder l'ancien login admin employees en place au départ (ALLOW_LEGACY_EMPLOYEE_ADMINS=true).
+- Ajouter le nouveau login admin Gestion.
+- Tester qu'un admin Gestion peut faire PDFs/reports.
+- Ensuite seulement, désactiver les doublons admins dans employees et mettre ALLOW_LEGACY_EMPLOYEE_ADMINS=false.
+
+TRAVAIL À FAIRE (ALIGNÉ AVEC LE PLAN REPLIT)
+T001 - Table traçabilité (OK)
+- Créer gestion_admin_links (ou gestion_admin_links) pour audit/disable côté Fichajes.
+- Ne stocker aucun password.
+- Attention aux UUID default: si gen_random_uuid() indisponible, générer UUID côté app.
+
+T002 - Étendre JWT sans casser l'existant (IMPORTANT)
+- Ajouter au payload: source: "gestion_users" | "employees"
+- NE PAS forcer employeeId synthétique si des parties du code exigent un UUID.
+  -> Recommandation robuste: utiliser claims:
+     - source="gestion_users"
+     - gestionUserId = users.id
+     - role = "admin" | "manager"
+     - sub = "gestion:{id}" (string) ou sub = users.id (number) selon ton implémentation JWT.
+- Dans authenticateAdminManager:
+  - Si source="gestion_users": ne pas chercher dans employees.
+  - Construire req.adminActor (nouveau) OU un objet req.employee synthétique UNIQUEMENT si aucun code ne valide UUID.
+  - S'assurer que toutes routes admin (PDF, exports, corrections, reviews) utilisent un identifiant d'acteur compatible.
+
+T003 - Endpoint login admin Gestion (username-only)
+- POST /api/auth/admin-login
+- Payload: { identifier: string, password: string }
+- Query SQL (paramétrée) sur users:
+  SELECT id, username, display_name, password_hash, role, is_active FROM users WHERE username=$1
+- Vérifier:
+  - is_active=true
+  - bcrypt.compare(password, password_hash)
+  - role autorisé: admin ou rrhh
+  - mapping: admin -> admin, rrhh -> manager
+- Upsert gestion_admin_links + lastLoginAt; refuser si disabled=true.
+- Générer cookies tokens comme le flux admin existant.
+- Audit log: "login" sans jamais loguer password/pin.
+
+T004 - /me + /refresh compatibles Gestion
+- GET /api/auth/me:
+  - si source="gestion_users": retourner { source, gestionUserId, username, displayName, role }
+- POST /api/auth/refresh:
+  - si source="gestion_users": re-check users (is_active + role autorisé). Si KO => clear cookies + 403.
+  - si OK => nouveau access token.
+- Logout inchangé.
+
+T005 - Frontend login admin (ne pas casser l'existant)
+- UI admin login: champ "Nombre de usuario" (username) + password
+- Texte clair: "Acceso con credenciales de Gestión"
+- Appel POST /api/auth/admin-login
+
+T006 - Vérification compatibilité PDF / rapports (crucial)
+- Rechercher toutes les routes/logic qui utilisent req.employee.id / performedBy / reviewedBy / audit fields.
+- Si ces champs attendent UUID, NE PAS écrire "gestion-12".
+  -> Stocker acteur Gestion dans audit_log.details JSON (source + id) OU ajouter un champ performedByGestionUserId si nécessaire.
+- S'assurer que génération PDF, exports, corrections, reviews fonctionnent avec un admin Gestion.
+
+T007 - Variable de bascule legacy
+- ALLOW_LEGACY_EMPLOYEE_ADMINS=true par défaut.
+- Si false:
+  - bloquer le login admin via employees (410 + message), mais laisser employees role=employee inchangés (kiosk/portal).
+
+ACCEPTANCE (zéro casse)
+- Un user Gestion role=admin + is_active=true se connecte à Fichajes admin et peut générer PDF / rapports.
+- Un user Gestion role=rrhh + is_active=true se connecte et peut faire actions manager.
+- Un user staff ne peut pas.
+- Désactiver is_active dans Gestion bloque Fichajes au refresh/login.
+- Kiosk/portal employés inchangés.
+- CRUD employés liés reste interdit côté Fichajes (géré dans Gestion), mais l'admin Fichajes garde accès aux fonctions admin.

@@ -1,0 +1,22 @@
+root@ubuntu-s-1vcpu-1gb-fra1-01:~# docker logs cronos_fichajes_app --tail 20
+{"level":30,"time":1772462587426,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/employees 304 in 92ms"}
+{"level":30,"time":1772462587433,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/admin/stats 304 in 105ms"}
+{"level":30,"time":1772462587441,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/overtime-requests 304 in 95ms"}
+{"level":30,"time":1772462587449,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches/needs-review 304 in 94ms"}
+{"level":30,"time":1772462606370,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/auth/me 304 in 6ms"}
+{"level":30,"time":1772462606423,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/employees 304 in 11ms"}
+{"level":30,"time":1772462606428,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/overtime-requests 304 in 12ms"}
+{"level":30,"time":1772462606435,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/admin/stats 304 in 25ms"}
+{"level":30,"time":1772462606442,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches 304 in 17ms"}
+{"level":30,"time":1772462606466,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches 304 in 46ms"}
+{"level":30,"time":1772462606468,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches/needs-review 304 in 36ms"}
+{"level":30,"time":1772462637614,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/auth/me 304 in 33ms"}
+{"level":30,"time":1772462644525,"pid":7,"hostname":"096bb71845ef","msg":"POST /api/auth/login 200 in 81ms"}
+{"level":30,"time":1772462644817,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/auth/me 304 in 6ms"}
+{"level":30,"time":1772462644935,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/admin/stats 304 in 66ms"}
+{"level":30,"time":1772462645006,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/employees 304 in 110ms"}
+{"level":30,"time":1772462645020,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/overtime-requests 304 in 143ms"}
+{"level":30,"time":1772462645022,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches 304 in 106ms"}
+{"level":30,"time":1772462645034,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches 304 in 128ms"}
+{"level":30,"time":1772462645042,"pid":7,"hostname":"096bb71845ef","msg":"GET /api/punches/needs-review 304 in 117ms"}
+root@ubuntu-s-1vcpu-1gb-fra1-01:~# 
