@@ -1066,146 +1066,16 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/employees", authenticateAdminManager, async (req, res) => {
-    try {
-      const result = insertEmployeeSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
-      }
-
-      const existingEmail = await storage.getEmployeeByEmail(result.data.email);
-      if (existingEmail) {
-        return res.status(400).json({ message: "Ya existe una cuenta con este email" });
-      }
-
-      if (result.data.pin) {
-        const existingPin = await storage.getEmployeeByPin(result.data.pin);
-        if (existingPin) {
-          return res.status(400).json({ message: "Este PIN ya está en uso" });
-        }
-      }
-
-      const hashedPassword = await hashPassword(result.data.password);
-      const employee = await storage.createEmployee({
-        ...result.data,
-        password: hashedPassword,
-      });
-
-      const { password, ...sanitized } = employee;
-      res.status(201).json(sanitized);
-    } catch (error) {
-      handleRouteError(res, error, "[CREATE-EMPLOYEE]");
-    }
+  app.post("/api/employees", authenticateAdminManager, async (_req, res) => {
+    return res.status(403).json({ message: "Los empleados se gestionan desde Gestión" });
   });
 
-  app.patch("/api/employees/:id", authenticateAdminManager, async (req, res) => {
-    try {
-      const id = req.params.id as string;
-      const validation = updateEmployeeSchema.safeParse(req.body);
-      if (!validation.success) {
-        return res.status(400).json({ message: "Datos inválidos", errors: validation.error.errors });
-      }
-
-      const { firstName, lastName, email, pin, role, isActive, password } = validation.data;
-
-      const existing = await storage.getEmployee(id);
-      if (!existing) {
-        return res.status(404).json({ message: "Empleado no encontrado" });
-      }
-
-      if (existing.monitorId !== null) {
-        return res.status(403).json({ 
-          code: "MANAGED_BY_GESTION", 
-          message: "Este empleado está gestionado desde Gestión. Modifíquelo allí." 
-        });
-      }
-
-      if (existing.gestionUserId !== null && existing.gestionUserId !== undefined) {
-        return res.status(403).json({ 
-          code: "MANAGED_BY_GESTION", 
-          message: "Este usuario administrador está vinculado a Gestión." 
-        });
-      }
-
-      if (email && email !== existing.email) {
-        const emailExists = await storage.getEmployeeByEmail(email);
-        if (emailExists) {
-          return res.status(400).json({ message: "Este email ya está en uso" });
-        }
-      }
-
-      if (pin && pin !== existing.pin) {
-        const pinExists = await storage.getEmployeeByPin(pin);
-        if (pinExists) {
-          return res.status(400).json({ message: "Este PIN ya está en uso" });
-        }
-      }
-
-      const updateData: Record<string, any> = {};
-      if (firstName !== undefined) updateData.firstName = firstName;
-      if (lastName !== undefined) updateData.lastName = lastName;
-      if (email !== undefined) updateData.email = email;
-      if (pin !== undefined) updateData.pin = pin;
-      if (role !== undefined) updateData.role = role;
-      if (isActive !== undefined) updateData.isActive = isActive;
-      if (password) updateData.password = await hashPassword(password);
-
-      const updated = await storage.updateEmployee(id, updateData);
-      if (!updated) {
-        return res.status(404).json({ message: "Empleado no encontrado" });
-      }
-
-      const { password: _, ...sanitized } = updated;
-      res.json(sanitized);
-    } catch (error) {
-      handleRouteError(res, error, "[UPDATE-EMPLOYEE]");
-    }
+  app.patch("/api/employees/:id", authenticateAdminManager, async (_req, res) => {
+    return res.status(403).json({ message: "Los empleados se gestionan desde Gestión" });
   });
 
-  app.delete("/api/employees/:id", authenticateAdminManager, async (req, res) => {
-    try {
-      const id = req.params.id as string;
-      const existing = await storage.getEmployee(id);
-      if (!existing) {
-        return res.status(404).json({ message: "Empleado no encontrado" });
-      }
-
-      if (existing.monitorId !== null) {
-        return res.status(403).json({ 
-          code: "MANAGED_BY_GESTION", 
-          message: "Este empleado está gestionado desde Gestión. Elimínelo allí." 
-        });
-      }
-
-      if (existing.gestionUserId !== null && existing.gestionUserId !== undefined) {
-        return res.status(403).json({ 
-          code: "MANAGED_BY_GESTION", 
-          message: "Este usuario administrador está vinculado a Gestión." 
-        });
-      }
-
-      const punchCount = await storage.getEmployeePunchCount(id);
-      if (punchCount > 0) {
-        return res.status(409).json({ 
-          message: "Este empleado tiene fichajes registrados. Solo se puede desactivar." 
-        });
-      }
-
-      await storage.deleteEmployee(id);
-
-      await storage.createAuditLog({
-        action: "DELETE",
-        targetType: "employee",
-        targetId: id,
-        performedBy: (req as any).user?.id || "admin",
-        details: `Empleado eliminado: ${existing.firstName} ${existing.lastName} (${existing.email})`,
-      });
-
-      logInfo(`[DELETE-EMPLOYEE] Employee ${id} (${existing.email}) deleted`);
-      res.json({ message: "Empleado eliminado" });
-    } catch (error) {
-      handleRouteError(res, error, "[DELETE-EMPLOYEE]", "Error al eliminar empleado");
-    }
+  app.delete("/api/employees/:id", authenticateAdminManager, async (_req, res) => {
+    return res.status(403).json({ message: "Los empleados se gestionan desde Gestión" });
   });
 
   // ==================== MONITOR SYNC ====================

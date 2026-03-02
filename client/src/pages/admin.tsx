@@ -46,7 +46,6 @@ import {
   Copy,
   Trash2,
   Power,
-  Pencil,
   Shield,
   RefreshCw,
   Link2,
@@ -57,7 +56,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Employee, Punch } from "@shared/schema";
-import { EmployeeDialog } from "@/components/employee-dialog";
 import { ExportDialog } from "@/components/export-dialog";
 import { CorrectionDialog } from "@/components/correction-dialog";
 import { LOGO_SRC, APP_NAME } from "@/config/brand";
@@ -720,8 +718,6 @@ export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "estado" | "kiosks" | "reports">("dashboard");
-  const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<any>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
   const [selectedOvertime, setSelectedOvertime] = useState<OvertimeRequestWithDetails | null>(null);
@@ -870,64 +866,6 @@ export default function AdminPage() {
     },
   });
 
-  const toggleEmployeeMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      return apiRequest("PATCH", `/api/employees/${id}`, { isActive });
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      toast({
-        title: variables.isActive ? "Empleado activado" : "Empleado desactivado",
-        description: variables.isActive 
-          ? "El empleado puede volver a fichar" 
-          : "El empleado ya no puede fichar",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el estado del empleado",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
-
-  const deleteEmployeeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/employees/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      setEmployeeToDelete(null);
-      toast({
-        title: "Empleado eliminado",
-        description: "El empleado ha sido eliminado correctamente",
-      });
-    },
-    onError: (error: any) => {
-      let message = "No se pudo eliminar el empleado";
-      try {
-        const errorText = error?.message || "";
-        const jsonPart = errorText.includes(": {") ? errorText.substring(errorText.indexOf(": {") + 2) : errorText;
-        const parsed = JSON.parse(jsonPart);
-        if (parsed.message) message = parsed.message;
-      } catch {
-        if (error?.message?.includes("409")) {
-          message = "Este empleado tiene fichajes registrados. Solo se puede desactivar.";
-        }
-      }
-      setEmployeeToDelete(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const syncMonitorsMutation = useMutation({
     mutationFn: async () => {
@@ -1147,10 +1085,6 @@ export default function AdminPage() {
                     <RefreshCw className={`h-4 w-4 mr-2 ${syncMonitorsMutation.isPending ? "animate-spin" : ""}`} />
                     {syncMonitorsMutation.isPending ? "Sincronizando..." : "Sincronizar Monitores"}
                   </Button>
-                  <Button onClick={() => { setEditingEmployee(null); setShowEmployeeDialog(true); }} data-testid="button-add-employee">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Añadir
-                  </Button>
                 </>
               )}
               {activeTab === "reports" && (
@@ -1345,7 +1279,7 @@ export default function AdminPage() {
               <Card className="border-card-border">
                 <CardHeader>
                   <CardTitle>Lista de Empleados</CardTitle>
-                  <CardDescription>Gestione las cuentas de empleados</CardDescription>
+                  <CardDescription>Los empleados se gestionan desde Gestión</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {employeesLoading ? (
@@ -1388,38 +1322,6 @@ export default function AdminPage() {
                             <Badge variant={emp.isActive ? "default" : "secondary"}>
                               {emp.isActive ? "Activo" : "Inactivo"}
                             </Badge>
-                            {!emp.monitorId && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => { setEditingEmployee(emp); setShowEmployeeDialog(true); }}
-                                  title="Editar empleado"
-                                  data-testid={`button-edit-employee-${emp.id}`}
-                                >
-                                  <Pencil className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => toggleEmployeeMutation.mutate({ id: emp.id, isActive: !emp.isActive })}
-                                  disabled={toggleEmployeeMutation.isPending}
-                                  title={emp.isActive ? "Desactivar empleado" : "Activar empleado"}
-                                  data-testid={`button-toggle-employee-${emp.id}`}
-                                >
-                                  <Power className={`h-4 w-4 ${emp.isActive ? "text-muted-foreground" : "text-green-600"}`} />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => setEmployeeToDelete(emp)}
-                                  title="Eliminar empleado"
-                                  data-testid={`button-delete-employee-${emp.id}`}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </>
-                            )}
                           </div>
                         </div>
                       ))}
@@ -1857,36 +1759,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <EmployeeDialog 
-        open={showEmployeeDialog} 
-        onOpenChange={(open) => { setShowEmployeeDialog(open); if (!open) setEditingEmployee(null); }}
-        employee={editingEmployee}
-      />
-
-      <Dialog open={!!employeeToDelete} onOpenChange={(open) => !open && setEmployeeToDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>¿Eliminar este empleado?</DialogTitle>
-            <DialogDescription>
-              Se eliminará a <strong>{employeeToDelete?.firstName} {employeeToDelete?.lastName}</strong> ({employeeToDelete?.email}). Esta acción no se puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEmployeeToDelete(null)} data-testid="button-cancel-delete">
-              Cancelar
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => employeeToDelete && deleteEmployeeMutation.mutate(employeeToDelete.id)}
-              disabled={deleteEmployeeMutation.isPending}
-              data-testid="button-confirm-delete"
-            >
-              {deleteEmployeeMutation.isPending ? "Eliminando..." : "Eliminar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
       <ExportDialog 
         open={showExportDialog} 
         onOpenChange={setShowExportDialog}

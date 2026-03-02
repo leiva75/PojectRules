@@ -56,7 +56,7 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
     - Collision detection: if email already linked to different monitorId, logs error without overwriting.
     - Admin endpoints: `POST /api/admin/sync-monitors` (manual trigger), `GET /api/admin/sync-status`.
     - UI: "Sincronizar Monitores" button in admin employees tab, "Gestión" badge (amber) on linked employees.
-    - **Protection:** Synced employees (monitorId != null) cannot be edited/deleted/toggled via API (403 MANAGED_BY_GESTION) or UI (buttons hidden). Only manageable from Gestion. Internal employees (monitorId == null) remain fully manageable. The sync service bypasses API guards by using Drizzle ORM directly.
+    - **Protection:** ALL employee management is done exclusively from Gestion. Fichajes employee list is read-only. `POST /api/employees`, `PATCH /api/employees/:id`, `DELETE /api/employees/:id` all return 403 "Los empleados se gestionan desde Gestión". Admin UI has no create/edit/delete/toggle buttons — only view + sync. The sync service and `/api/gestion/*` endpoints bypass these guards by using Drizzle ORM directly.
 - **Gestion External API (`/api/gestion/*`):** REST API for Gestion (Gimnasio Cronos) to directly manage Fichajes employees. Authenticated via `X-GESTION-API-KEY` header. Uses `monitorId` as stable external identifier.
     - **Authentication:** Header `X-GESTION-API-KEY` validated against env var `GESTION_API_KEY`. Returns 401 if missing/invalid.
     - **PUT /api/gestion/employees/:monitorId** — Idempotent UPSERT by monitorId.
