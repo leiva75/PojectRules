@@ -1,0 +1,71 @@
+NETTOYAGE FICHAJES — FAUX EMPLOYÉS / TESTS + PURGE EXCEPTIONNELLE (AVEC GARDE-FOUS)
+
+Objectif:
+- Identifier et nettoyer les “faux employés” créés pour tests dans employees.
+- Supprimer (exceptionnellement) certains employés désactivés ET leurs pointages associés, uniquement si demandé explicitement.
+- Ne JAMAIS toucher aux employés synchronisés (monitor_id != null) ni aux proxy admins (gestionUserId != null) sauf règle explicitement définie.
+
+Règles:
+1) Jamais supprimer automatiquement un employee lié:
+- Si employee.monitor_id != null => géré par Gestion, pas de suppression dans Fichajes (au pire désactivation via sync).
+- Si employee.gestionUserId != null => proxy admin, ne pas supprimer.
+2) Candidats nettoyage (tests):
+- employee.monitor_id IS NULL AND employee.gestionUserId IS NULL
+- typiquement role='employee' et email “test/qa” etc.
+3) Purge exceptionnelle (destructive):
+- Permettre de supprimer un employé désactivé (isActive=false) même s’il a des punches, MAIS uniquement via:
+  - flag env PURGE_ENABLED=true
+  - mode DRY_RUN optionnel
+  - endpoint admin-only avec confirmation
+
+Implémentation demandée:
+A) Ajouter un endpoint ADMIN-ONLY “preview cleanup”
+GET /api/admin/cleanup/preview
+- retourne une liste des employees candidats:
+  - monitor_id null, gestionUserId null
+  - include punches_count
+  - include last punch timestamp
+- ne modifie rien
+
+B) Ajouter un endpoint ADMIN-ONLY “purge”
+POST /api/admin/cleanup/purge
+Body:
+{
+  "employeeIds": ["uuid1","uuid2",...],
+  "dryRun": true|false,
+  "reason": "string"
+}
+Contraintes:
+- Refuser si PURGE_ENABLED != true
+- Pour chaque employeeId:
+  - vérifier monitor_id IS NULL AND gestionUserId IS NULL
+  - vérifier isActive=false (sauf si un second flag ALLOW_PURGE_ACTIVE=true)
+  - calculer tous les enregistrements dépendants:
+    - punches
+    - punch_corrections (par originalPunchId)
+    - punch_reviews
+    - refresh_tokens
+    - audit_log (actor_id = employeeId) — décider suppression ou anonymisation
+- Si dryRun=true: retourner le plan de suppression (counts) sans delete.
+- Si dryRun=false: exécuter en TRANSACTION:
+  - delete children first, puis punches, puis employee
+- Loguer un audit “PURGE” (sans données sensibles) avec reason + counts.
+
+C) UI admin
+- Dans admin, ajouter un onglet “Nettoyage”:
+  - bouton “Prévisualiser”
+  - checklist des candidats
+  - bouton “Purger (dry-run)” puis “Purger (confirm)”
+  - message d’avertissement rouge “irréversible”
+
+D) IMPORTANT: conformité / historique
+- Proposer par défaut une alternative non-destructive:
+  - “désactiver + masquer des listings” (soft delete)
+- La purge avec punches doit être explicitement activée.
+
+Acceptance:
+- Les employés synchronisés (monitor_id) ne sont jamais touchés.
+- Les proxy admins (gestionUserId) ne sont jamais touchés.
+- Preview fonctionne.
+- Purge dry-run renvoie un plan correct.
+- Purge réelle supprime les lignes en respectant les FK, sans casser l’app.
