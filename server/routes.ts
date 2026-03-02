@@ -915,6 +915,13 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Empleado no encontrado" });
       }
 
+      if (existing.monitorId !== null) {
+        return res.status(403).json({ 
+          code: "MANAGED_BY_GESTION", 
+          message: "Este empleado está gestionado desde Gestión. Modifíquelo allí." 
+        });
+      }
+
       if (email && email !== existing.email) {
         const emailExists = await storage.getEmployeeByEmail(email);
         if (emailExists) {
@@ -956,6 +963,13 @@ export async function registerRoutes(
       const existing = await storage.getEmployee(id);
       if (!existing) {
         return res.status(404).json({ message: "Empleado no encontrado" });
+      }
+
+      if (existing.monitorId !== null) {
+        return res.status(403).json({ 
+          code: "MANAGED_BY_GESTION", 
+          message: "Este empleado está gestionado desde Gestión. Elimínelo allí." 
+        });
       }
 
       const punchCount = await storage.getEmployeePunchCount(id);

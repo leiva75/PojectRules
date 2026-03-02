@@ -1376,46 +1376,50 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            {emp.monitorId && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200" data-testid={`badge-linked-${emp.id}`}>
+                            {emp.monitorId ? (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200" data-testid={`badge-linked-${emp.id}`}>
                                 <Link2 className="h-3 w-3 mr-1" />
-                                Vinculado
+                                Gestión
                               </Badge>
-                            )}
+                            ) : null}
                             <Badge variant="outline" className="capitalize">
                               {emp.role}
                             </Badge>
                             <Badge variant={emp.isActive ? "default" : "secondary"}>
                               {emp.isActive ? "Activo" : "Inactivo"}
                             </Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => { setEditingEmployee(emp); setShowEmployeeDialog(true); }}
-                              title="Editar empleado"
-                              data-testid={`button-edit-employee-${emp.id}`}
-                            >
-                              <Pencil className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => toggleEmployeeMutation.mutate({ id: emp.id, isActive: !emp.isActive })}
-                              disabled={toggleEmployeeMutation.isPending}
-                              title={emp.isActive ? "Desactivar empleado" : "Activar empleado"}
-                              data-testid={`button-toggle-employee-${emp.id}`}
-                            >
-                              <Power className={`h-4 w-4 ${emp.isActive ? "text-muted-foreground" : "text-green-600"}`} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setEmployeeToDelete(emp)}
-                              title="Eliminar empleado"
-                              data-testid={`button-delete-employee-${emp.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
+                            {!emp.monitorId && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => { setEditingEmployee(emp); setShowEmployeeDialog(true); }}
+                                  title="Editar empleado"
+                                  data-testid={`button-edit-employee-${emp.id}`}
+                                >
+                                  <Pencil className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => toggleEmployeeMutation.mutate({ id: emp.id, isActive: !emp.isActive })}
+                                  disabled={toggleEmployeeMutation.isPending}
+                                  title={emp.isActive ? "Desactivar empleado" : "Activar empleado"}
+                                  data-testid={`button-toggle-employee-${emp.id}`}
+                                >
+                                  <Power className={`h-4 w-4 ${emp.isActive ? "text-muted-foreground" : "text-green-600"}`} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setEmployeeToDelete(emp)}
+                                  title="Eliminar empleado"
+                                  data-testid={`button-delete-employee-${emp.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))}

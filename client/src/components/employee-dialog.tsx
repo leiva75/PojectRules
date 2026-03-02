@@ -60,6 +60,7 @@ interface EmployeeData {
   role: "admin" | "manager" | "employee";
   pin?: string | null;
   isActive: boolean;
+  monitorId?: number | null;
 }
 
 interface EmployeeDialogProps {

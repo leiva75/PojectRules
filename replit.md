@@ -52,7 +52,8 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
     - Deactivates employees when monitor becomes inactive.
     - Collision detection: if email already linked to different monitorId, logs error without overwriting.
     - Admin endpoints: `POST /api/admin/sync-monitors` (manual trigger), `GET /api/admin/sync-status`.
-    - UI: "Sincronizar Monitores" button in admin employees tab, "Vinculado" badge on linked employees.
+    - UI: "Sincronizar Monitores" button in admin employees tab, "Gestión" badge (amber) on linked employees.
+    - **Protection:** Synced employees (monitorId != null) cannot be edited/deleted/toggled via API (403 MANAGED_BY_GESTION) or UI (buttons hidden). Only manageable from Gestion. Internal employees (monitorId == null) remain fully manageable. The sync service bypasses API guards by using Drizzle ORM directly.
 - **Error Handling:** Robust database error handling returns 503 for connection issues. All API error messages are in Spanish.
 
 **System Design Choices:**
