@@ -950,6 +950,30 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== MONITOR SYNC ====================
+
+  app.post("/api/admin/sync-monitors", authenticateAdminManager, async (req, res) => {
+    try {
+      const { syncMonitorsToEmployees, setLastSyncStatus } = await import("./monitor-sync");
+      const result = await syncMonitorsToEmployees();
+      setLastSyncStatus({ lastSyncAt: new Date().toISOString(), lastSyncResult: result });
+      res.json(result);
+    } catch (error) {
+      handleRouteError(res, error, "[SYNC-MONITORS]", "Error al sincronizar monitores");
+    }
+  });
+
+  app.get("/api/admin/sync-status", authenticateAdminManager, async (_req, res) => {
+    try {
+      const { getLastSyncStatus } = await import("./monitor-sync");
+      res.json(getLastSyncStatus());
+    } catch (error) {
+      handleRouteError(res, error, "[SYNC-STATUS]", "Error al obtener estado de sincronización");
+    }
+  });
+
+  // ==================== PUNCHES ====================
+
   app.post("/api/punches", authenticateEmployee, async (req, res) => {
     try {
       const result = punchRequestSchema.safeParse(req.body);

@@ -42,6 +42,16 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
     - Compact layout: employees chain on same page when space allows, reduced cover page spacing, 20px row height.
     - Annexes: A (event detail) and B (corrections) only. Annex C (SHA-256 signature details) removed as unnecessary for authorities.
     - Employee sections include "Corr." column for corrections.
+- **Monitor Sync System (`server/monitor-sync.ts`):** Automatic synchronization from `monitors` table (Gimnasio Cronos) to `employees` table (Cronos Fichajes). Features:
+    - `employees.monitorId` (integer, nullable, unique) links each employee to their monitor.
+    - Cron job runs every 5 minutes via `setInterval` (tag `[MONITOR-SYNC]`).
+    - Non-destructive: never deletes, never modifies role/pin of existing employees.
+    - Creates new employees from monitors with email, hashes email as temp password.
+    - Links existing employees by email match (sets monitorId).
+    - Deactivates employees when monitor becomes inactive.
+    - Collision detection: if email already linked to different monitorId, logs error without overwriting.
+    - Admin endpoints: `POST /api/admin/sync-monitors` (manual trigger), `GET /api/admin/sync-status`.
+    - UI: "Sincronizar Monitores" button in admin employees tab, "Vinculado" badge on linked employees.
 - **Error Handling:** Robust database error handling returns 503 for connection issues. All API error messages are in Spanish.
 
 **System Design Choices:**

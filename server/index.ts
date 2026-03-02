@@ -14,6 +14,7 @@ import { verifyTimezoneSupport } from "./timezone";
 import { storage } from "./storage";
 
 let pauseCronStarted = false;
+let monitorSyncStarted = false;
 
 const tzCheck = verifyTimezoneSupport();
 if (tzCheck.ok) {
@@ -247,6 +248,25 @@ export const cookieOptions = {
     }, 60_000);
 
     logInfo("[PAUSE-CRON] Cron de pausas iniciado (intervalo: 60s)");
+  }
+
+  if (!monitorSyncStarted) {
+    monitorSyncStarted = true;
+    const { syncMonitorsToEmployees, getLastSyncStatus, setLastSyncStatus } = await import("./monitor-sync");
+    const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+    const runSync = async () => {
+      try {
+        const result = await syncMonitorsToEmployees();
+        setLastSyncStatus({ lastSyncAt: new Date().toISOString(), lastSyncResult: result });
+      } catch (error) {
+        logError("[MONITOR-SYNC] Cron error", error);
+      }
+    };
+
+    setTimeout(runSync, 10_000);
+    setInterval(runSync, SYNC_INTERVAL_MS);
+    logInfo("[MONITOR-SYNC] Cron de sincronización iniciado (intervalo: 5min)");
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);

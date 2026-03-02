@@ -15,6 +15,7 @@ export const employees = pgTable("employees", {
   role: roleEnum("role").notNull().default("employee"),
   pin: varchar("pin", { length: 6 }),
   isActive: boolean("is_active").notNull().default(true),
+  monitorId: integer("monitor_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -178,6 +179,7 @@ export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
 export const insertEmployeeSchema = createInsertSchema(employees).omit({
   id: true,
   createdAt: true,
+  monitorId: true,
 }).extend({
   pin: z.string().length(6, "El PIN debe tener exactamente 6 dígitos").regex(/^\d{6}$/, "El PIN debe contener solo números"),
 });

@@ -48,6 +48,8 @@ import {
   Power,
   Pencil,
   Shield,
+  RefreshCw,
+  Link2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -890,6 +892,35 @@ export default function AdminPage() {
     },
   });
 
+  const syncMonitorsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/admin/sync-monitors");
+      return response.json();
+    },
+    onSuccess: (data: { created: number; updated: number; linked: number; deactivated: number; errors: Array<{ monitorId?: number; email?: string; reason: string }> }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      const parts: string[] = [];
+      if (data.created > 0) parts.push(`${data.created} creados`);
+      if (data.updated > 0) parts.push(`${data.updated} actualizados`);
+      if (data.linked > 0) parts.push(`${data.linked} vinculados`);
+      if (data.deactivated > 0) parts.push(`${data.deactivated} desactivados`);
+      if (data.errors.length > 0) parts.push(`${data.errors.length} errores`);
+      toast({
+        title: "Sincronización completada",
+        description: parts.length > 0 ? parts.join(", ") : "Sin cambios",
+        variant: data.errors.length > 0 ? "destructive" : "default",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo sincronizar con monitores",
+        variant: "destructive",
+      });
+    },
+  });
+
   const copyKioskUrl = (deviceId: string) => {
     if (newKioskToken) {
       const url = `${window.location.origin}/kiosk?token=${newKioskToken}`;
@@ -1069,10 +1100,21 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center gap-2">
               {activeTab === "employees" && (
-                <Button onClick={() => { setEditingEmployee(null); setShowEmployeeDialog(true); }} data-testid="button-add-employee">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Añadir
-                </Button>
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => syncMonitorsMutation.mutate()} 
+                    disabled={syncMonitorsMutation.isPending}
+                    data-testid="button-sync-monitors"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${syncMonitorsMutation.isPending ? "animate-spin" : ""}`} />
+                    {syncMonitorsMutation.isPending ? "Sincronizando..." : "Sincronizar Monitores"}
+                  </Button>
+                  <Button onClick={() => { setEditingEmployee(null); setShowEmployeeDialog(true); }} data-testid="button-add-employee">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir
+                  </Button>
+                </>
               )}
               {activeTab === "reports" && (
                 <Button variant="outline" onClick={() => setShowExportDialog(true)} data-testid="button-export-csv">
@@ -1297,6 +1339,12 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
+                            {emp.monitorId && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200" data-testid={`badge-linked-${emp.id}`}>
+                                <Link2 className="h-3 w-3 mr-1" />
+                                Vinculado
+                              </Badge>
+                            )}
                             <Badge variant="outline" className="capitalize">
                               {emp.role}
                             </Badge>
