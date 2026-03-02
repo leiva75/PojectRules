@@ -1,0 +1,60 @@
+Nous avons une incohérence entre Fichajes et Gestion (FeatureS) : des utilisateurs existent côté Fichajes mais plus côté Gestion (ex : Aurora Miguel / Ana Miguel Anton). Cela bloque la gestion normale : quand on tente de créer dans Gestion, on obtient “existe déjà” car Fichajes possède déjà une identité, et la suppression/édition devient impossible ou incohérente.
+
+Nouvelle règle
+
+Gestion est la source de vérité pour les identités.
+Fichajes doit devenir un miroir : il reflète en quasi temps réel les changements venant de Gestion.
+
+Ce que je vous demande
+
+Confirmer les contraintes d’unicité côté Fichajes : sur quoi “existe déjà” se déclenche ? (user_id, email, pin, etc.)
+
+Mettre en place / exposer un identifiant de liaison stable :
+
+accepter un champ external_id envoyé par Gestion (ou fournir un fichajes_user_id à stocker côté Gestion),
+
+permettre l’upsert par external_id (idempotent),
+
+arrêter tout matching basé sur nom/email.
+
+Fournir/adapter des endpoints API idempotents (ou équivalent) :
+
+UPSERT user par external_id (create ou update)
+
+ENABLE/DISABLE par external_id
+
+ARCHIVE/DELETE par external_id
+
+Suppression sans casser l’historique :
+
+si pointages existants → refuser hard delete proprement (409) et proposer archivage/désactivation (l’utilisateur ne pointe plus, mais l’historique reste).
+
+Anti-zombie :
+
+un compte désactivé/archivé par Gestion ne doit jamais être recréé/réactivé par une synchro batch.
+
+si une synchro “toutes les 5 min” existe, elle doit être désactivée ou passer en mode non destructif (pas d’écrasement des décisions Gestion).
+
+Livrables attendus
+
+Spéc API + exemples de payloads JSON + codes retour (200/201/409).
+
+Modèle d’identité retenu (external_id) + contraintes DB.
+
+Plan de migration : rattacher les utilisateurs existants à external_id + dédoublonnage.
+
+Procédure pour résoudre le cas Aurora/Ana :
+
+identifier l’enregistrement maître (celui lié aux pointages),
+
+rattacher à external_id Gestion,
+
+archiver/désactiver le doublon si nécessaire.
+
+Critères d’acceptation
+
+Toute action faite dans Gestion se reflète dans Fichajes en quasi temps réel.
+
+Plus d’erreurs “existe déjà” incohérentes (Gestion doit pouvoir relier au lieu de recréer).
+
+Aucun utilisateur archivé/désactivé ne “revient” automatiquement.

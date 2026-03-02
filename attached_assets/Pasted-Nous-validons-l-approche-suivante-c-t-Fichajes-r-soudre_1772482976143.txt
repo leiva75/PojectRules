@@ -1,0 +1,101 @@
+Nous validons l’approche suivante côté Fichajes : résoudre l’incohérence d’identité avec Gestion en posant Gestion comme source de vérité et Fichajes comme miroir, piloté via une API idempotente basée sur monitorId (identifiant stable déjà présent dans employees.monitorId). Objectif : éliminer les ghost/zombies et résoudre le cas Aurora/Ana.
+
+1) Diagnostic confirmé
+
+Contraintes employees :
+
+email est UNIQUE + NOT NULL → cause majeure des collisions (manuels vs sync).
+
+monitorId est UNIQUE et correspond à notre clé stable de liaison (external_id).
+Problèmes :
+
+collisions email,
+
+réactivation non souhaitée par sync,
+
+pas d’API upsert,
+
+pas de protection anti-zombie,
+
+orphelins non détectés (soft delete / hard delete côté Gestion).
+
+2) Décision technique
+
+monitorId = external_id (clé stable de match / upsert).
+
+On expose des endpoints /api/gestion/ protégés par X-GESTION-API-KEY.
+
+On introduit un flag syncDisabled côté employees : si true, le sync ne doit jamais modifier ni réactiver l’employé (anti-zombie).
+
+3) Travail demandé (Tasks)
+
+T001 — Endpoints API idempotents
+
+PUT /api/gestion/employees/:monitorId (UPSERT)
+Body { nombre, email, pin?, activo }
+Règles :
+
+si employee.monitorId existe → update
+
+sinon si email match → lier (set monitorId) + update
+
+sinon → create
+
+si email déjà pris par un autre monitorId → 409 détaillé
+Retour 200/201 + payload standard.
+
+PATCH /api/gestion/employees/:monitorId/status Body { activo } → 200/404
+
+DELETE /api/gestion/employees/:monitorId :
+
+si pointages existent → 409 + désactivation auto (archivage)
+
+sinon → hard delete
+
+GET /api/gestion/employees : liste + hasPunches
+
+Validation Zod + audit log.
+
+T002 — Auth
+
+env GESTION_API_KEY
+
+middleware header X-GESTION-API-KEY
+
+rate limit dédié
+
+T003 — Fix sync anti-réactivation
+
+ajouter employees.syncDisabled boolean default false
+
+si syncDisabled=true → sync ignore entièrement l’employé
+
+détection orphelins : employees.monitorId sans moniteur correspondant → warning log
+
+T004 — Migration / réconciliation (Aurora/Ana)
+
+script dry-run (SELECT) :
+
+employees sans monitorId mais email match moniteur → proposer rattachement
+
+doublons email → garder le record avec punches comme maître
+
+script fix (UPDATE) :
+
+rattacher Aurora/Ana au bon monitorId
+
+désactiver doublon
+
+T005 — Documentation
+
+doc endpoints + payloads + codes retour + auth + règles d’upsert.
+
+4) Critères d’acceptation
+
+Gestion peut créer / mettre à jour / désactiver / archiver un employé Fichajes via monitorId sans “existe déjà” incohérent.
+
+Un employé désactivé/archivé via API ne revient jamais via sync.
+
+Cas Aurora/Ana : plus de doublon, plus de blocage, historique conservé.
+
+Merci de confirmer : endpoints exacts, effort, et plan d’exécution prod (migration + nettoyage Aurora/Ana).
