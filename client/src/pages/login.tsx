@@ -18,12 +18,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { PunchButton } from "@/components/punch-button";
 
-const loginSchema = z.object({
-  email: z.string().email("Email inválido"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+const adminLoginSchema = z.object({
+  identifier: z.string().min(1, "El nombre de usuario es obligatorio"),
+  password: z.string().min(1, "La contraseña es obligatoria"),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 
 interface KioskEmployee {
   id: string;
@@ -39,7 +39,7 @@ interface PauseStatus {
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { login } = useAuth();
+  const { adminLogin } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -55,10 +55,10 @@ export default function LoginPage() {
   // Admin login dialog state
   const [showAdminDialog, setShowAdminDialog] = useState(false);
 
-  const form = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<AdminLoginFormData>({
+    resolver: zodResolver(adminLoginSchema),
     defaultValues: {
-      email: "",
+      identifier: "",
       password: "",
     },
   });
@@ -255,11 +255,10 @@ export default function LoginPage() {
 
   const nextPunchType: "IN" | "OUT" = employeeStatus === "OFF" ? "IN" : "OUT";
 
-  // Admin login handler
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async (data: AdminLoginFormData) => {
     setIsLoading(true);
     try {
-      await login(data.email, data.password);
+      await adminLogin(data.identifier, data.password);
       setShowAdminDialog(false);
       toast({
         title: "Conexión exitosa",
@@ -493,25 +492,26 @@ export default function LoginPage() {
       <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Acceso Admin / Gerente</DialogTitle>
+            <DialogTitle>Acceso con credenciales de Gestión</DialogTitle>
             <DialogDescription>
-              Ingrese sus credenciales para continuar
+              Ingrese su nombre de usuario y contraseña de Gestión
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="email"
+                name="identifier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Correo electrónico</FormLabel>
+                    <FormLabel>Nombre de usuario</FormLabel>
                     <FormControl>
                       <Input 
-                        type="email" 
-                        placeholder="admin@example.com" 
+                        type="text" 
+                        placeholder="usuario" 
                         className="h-12"
-                        data-testid="input-email"
+                        autoComplete="username"
+                        data-testid="input-username"
                         {...field} 
                       />
                     </FormControl>
@@ -531,6 +531,7 @@ export default function LoginPage() {
                         type="password" 
                         placeholder="••••••••" 
                         className="h-12"
+                        autoComplete="current-password"
                         data-testid="input-password"
                         {...field} 
                       />

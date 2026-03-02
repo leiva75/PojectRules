@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import multer from "multer";
 import { storage } from "./storage";
 import { pool, db } from "./db";
@@ -14,6 +14,8 @@ import {
   generateEmployeeToken,
   generateEmployeePortalAccessToken,
   generateEmployeePortalRefreshToken,
+  generateGestionAccessToken,
+  generateGestionRefreshToken,
   verifyToken,
   getRefreshTokenExpiry,
   authenticateAdminManager,
@@ -40,7 +42,10 @@ import {
   updateKioskDeviceSchema,
   employeePortalLoginSchema,
   shiftsQuerySchema,
-  pauseRequestSchema
+  pauseRequestSchema,
+  adminLoginSchema,
+  gestionAdminLinks,
+  employees as employeesTable
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
@@ -364,6 +369,15 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Use el acceso de empleado para conectarse" });
       }
 
+      if (employee.gestionUserId !== null && employee.gestionUserId !== undefined) {
+        return res.status(403).json({ message: "Use sus credenciales de Gestión para acceder" });
+      }
+
+      const allowLegacy = (process.env.ALLOW_LEGACY_EMPLOYEE_ADMINS || "true").toLowerCase();
+      if (allowLegacy === "false" && ["admin", "manager"].includes(employee.role)) {
+        return res.status(410).json({ message: "Este método de acceso ha sido desactivado. Use sus credenciales de Gestión." });
+      }
+
       const accessToken = generateAccessToken(employee);
       const refreshToken = generateRefreshToken(employee);
 
@@ -396,6 +410,138 @@ export async function registerRoutes(
       res.json({ user: userWithoutPassword });
     } catch (error) {
       handleRouteError(res, error, "[AUTH-LOGIN]");
+    }
+  });
+
+  app.post("/api/auth/admin-login", authLimiter, async (req, res) => {
+    try {
+      const result = adminLoginSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+      }
+
+      const { identifier, password } = result.data;
+
+      const gestionResult = await pool.query(
+        `SELECT id, username, display_name, password_hash, role, is_active FROM users WHERE username = $1`,
+        [identifier]
+      );
+
+      if (gestionResult.rows.length === 0) {
+        return res.status(401).json({ message: "Credenciales inválidas" });
+      }
+
+      const gestionUser = gestionResult.rows[0];
+
+      if (!gestionUser.is_active) {
+        return res.status(401).json({ message: "Cuenta desactivada en Gestión" });
+      }
+
+      const validPassword = await verifyPassword(password, gestionUser.password_hash);
+      if (!validPassword) {
+        return res.status(401).json({ message: "Credenciales inválidas" });
+      }
+
+      const allowedRoles = ["admin", "rrhh"];
+      if (!allowedRoles.includes(gestionUser.role)) {
+        return res.status(403).json({ message: "Su rol en Gestión no permite acceso a Fichajes" });
+      }
+
+      const fichajesRole = gestionUser.role === "admin" ? "admin" : "manager";
+
+      let proxyEmployee = await storage.getEmployeeByGestionUserId(gestionUser.id);
+
+      if (!proxyEmployee) {
+        const placeholderPassword = await hashPassword(randomBytes(32).toString("hex"));
+        const proxyEmail = `gestion-admin-${gestionUser.id}@fichajes.internal`;
+        const displayName = gestionUser.display_name || gestionUser.username;
+
+        proxyEmployee = await db.insert(employeesTable).values({
+          email: proxyEmail,
+          password: placeholderPassword,
+          firstName: displayName,
+          lastName: "(Gestión)",
+          role: fichajesRole,
+          isActive: true,
+          gestionUserId: gestionUser.id,
+        }).returning().then(rows => rows[0]);
+
+        logInfo(`[ADMIN-LOGIN] Created proxy employee for Gestion user ${gestionUser.username} (id=${gestionUser.id})`);
+      } else {
+        if (proxyEmployee.role !== fichajesRole || !proxyEmployee.isActive) {
+          const updateData: Record<string, any> = {};
+          if (proxyEmployee.role !== fichajesRole) updateData.role = fichajesRole;
+          if (!proxyEmployee.isActive) updateData.isActive = true;
+          const displayName = gestionUser.display_name || gestionUser.username;
+          updateData.firstName = displayName;
+
+          proxyEmployee = (await db.update(employeesTable)
+            .set(updateData)
+            .where(eq(employeesTable.id, proxyEmployee.id))
+            .returning()
+            .then(rows => rows[0])) || proxyEmployee;
+        }
+      }
+
+      await db.insert(gestionAdminLinks).values({
+        gestionUserId: gestionUser.id,
+        gestionUsername: gestionUser.username,
+        gestionRole: gestionUser.role,
+        fichajesRole,
+        employeeId: proxyEmployee.id,
+        lastLoginAt: new Date(),
+      }).onConflictDoUpdate({
+        target: gestionAdminLinks.gestionUserId,
+        set: {
+          gestionUsername: gestionUser.username,
+          gestionRole: gestionUser.role,
+          fichajesRole,
+          lastLoginAt: new Date(),
+        },
+      });
+
+      const linkResult = await db.select({ disabled: gestionAdminLinks.disabled })
+        .from(gestionAdminLinks)
+        .where(eq(gestionAdminLinks.gestionUserId, gestionUser.id));
+      
+      if (linkResult.length > 0 && linkResult[0].disabled) {
+        return res.status(403).json({ message: "Acceso a Fichajes deshabilitado por un administrador" });
+      }
+
+      const accessToken = generateGestionAccessToken(proxyEmployee.id, gestionUser.id, fichajesRole);
+      const refreshToken = generateGestionRefreshToken(proxyEmployee.id, gestionUser.id, fichajesRole);
+
+      await storage.createRefreshToken(proxyEmployee.id, refreshToken, getRefreshTokenExpiry());
+
+      res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 60 * 60 * 1000,
+      });
+
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      await storage.createAuditLog({
+        action: "login",
+        actorId: proxyEmployee.id,
+        targetType: "session",
+        targetId: proxyEmployee.id,
+        details: JSON.stringify({ role: fichajesRole, method: "gestion_users", gestionUserId: gestionUser.id, gestionUsername: gestionUser.username }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+
+      logInfo(`[ADMIN-LOGIN] Gestion user ${gestionUser.username} (role=${gestionUser.role}) logged in as ${fichajesRole}`);
+
+      const { password: _, ...userWithoutPassword } = proxyEmployee;
+      res.json({ user: { ...userWithoutPassword, source: "gestion_users", gestionUserId: gestionUser.id } });
+    } catch (error) {
+      handleRouteError(res, error, "[ADMIN-LOGIN]");
     }
   });
 
@@ -501,6 +647,39 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Cuenta desactivada" });
       }
 
+      if (payload.source === "gestion_users" && payload.gestionUserId) {
+        const gestionCheck = await pool.query(
+          `SELECT role, is_active FROM users WHERE id = $1`,
+          [payload.gestionUserId]
+        );
+        if (gestionCheck.rows.length === 0 || !gestionCheck.rows[0].is_active) {
+          res.clearCookie("accessToken");
+          res.clearCookie("refreshToken");
+          return res.status(403).json({ message: "Cuenta desactivada en Gestión" });
+        }
+        const gestionRole = gestionCheck.rows[0].role;
+        if (!["admin", "rrhh"].includes(gestionRole)) {
+          res.clearCookie("accessToken");
+          res.clearCookie("refreshToken");
+          return res.status(403).json({ message: "Su rol en Gestión ya no permite acceso a Fichajes" });
+        }
+        const newFichajesRole = gestionRole === "admin" ? "admin" : "manager";
+        if (employee.role !== newFichajesRole) {
+          await db.update(employeesTable)
+            .set({ role: newFichajesRole })
+            .where(eq(employeesTable.id, employee.id));
+        }
+        const newAccessToken = generateGestionAccessToken(employee.id, payload.gestionUserId, newFichajesRole);
+        res.cookie("accessToken", newAccessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          maxAge: 60 * 60 * 1000,
+        });
+        const { password: _, ...userWithoutPassword } = { ...employee, role: newFichajesRole };
+        return res.json({ user: { ...userWithoutPassword, source: "gestion_users", gestionUserId: payload.gestionUserId } });
+      }
+
       const newAccessToken = generateAccessToken(employee);
 
       res.cookie("accessToken", newAccessToken, {
@@ -544,6 +723,9 @@ export async function registerRoutes(
       }
 
       const { password: _, ...userWithoutPassword } = employee;
+      if (payload.source === "gestion_users" && payload.gestionUserId) {
+        return res.json({ user: { ...userWithoutPassword, source: "gestion_users", gestionUserId: payload.gestionUserId } });
+      }
       res.json({ user: userWithoutPassword });
     } catch (error) {
       handleRouteError(res, error, "[AUTH-ME]");
@@ -860,8 +1042,9 @@ export async function registerRoutes(
 
   app.get("/api/employees", authenticateAdminManager, async (req, res) => {
     try {
-      const employees = await storage.getAllEmployees();
-      const sanitized = employees.map(({ password, ...emp }) => emp);
+      const allEmployees = await storage.getAllEmployees();
+      const filtered = allEmployees.filter(emp => emp.gestionUserId === null || emp.gestionUserId === undefined);
+      const sanitized = filtered.map(({ password, ...emp }) => emp);
       res.json(sanitized);
     } catch (error) {
       handleRouteError(res, error, "[GET-EMPLOYEES]");
@@ -922,6 +1105,13 @@ export async function registerRoutes(
         });
       }
 
+      if (existing.gestionUserId !== null && existing.gestionUserId !== undefined) {
+        return res.status(403).json({ 
+          code: "MANAGED_BY_GESTION", 
+          message: "Este usuario administrador está vinculado a Gestión." 
+        });
+      }
+
       if (email && email !== existing.email) {
         const emailExists = await storage.getEmployeeByEmail(email);
         if (emailExists) {
@@ -969,6 +1159,13 @@ export async function registerRoutes(
         return res.status(403).json({ 
           code: "MANAGED_BY_GESTION", 
           message: "Este empleado está gestionado desde Gestión. Elimínelo allí." 
+        });
+      }
+
+      if (existing.gestionUserId !== null && existing.gestionUserId !== undefined) {
+        return res.status(403).json({ 
+          code: "MANAGED_BY_GESTION", 
+          message: "Este usuario administrador está vinculado a Gestión." 
         });
       }
 

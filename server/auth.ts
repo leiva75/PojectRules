@@ -19,12 +19,15 @@ export interface TokenPayload {
   employeeId: string;
   role: string;
   type: "access" | "refresh" | "employee" | "employee-portal" | "ep-refresh";
+  source?: "gestion_users" | "employees";
+  gestionUserId?: number;
 }
 
 declare global {
   namespace Express {
     interface Request {
       employee?: Employee;
+      gestionUserId?: number;
     }
   }
 }
@@ -79,6 +82,28 @@ export function generateEmployeePortalRefreshToken(employee: Employee): string {
     employeeId: employee.id,
     role: employee.role,
     type: "ep-refresh",
+  };
+  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` });
+}
+
+export function generateGestionAccessToken(proxyEmployeeId: string, gestionUserId: number, role: string): string {
+  const payload: TokenPayload = {
+    employeeId: proxyEmployeeId,
+    role,
+    type: "access",
+    source: "gestion_users",
+    gestionUserId,
+  };
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+}
+
+export function generateGestionRefreshToken(proxyEmployeeId: string, gestionUserId: number, role: string): string {
+  const payload: TokenPayload = {
+    employeeId: proxyEmployeeId,
+    role,
+    type: "refresh",
+    source: "gestion_users",
+    gestionUserId,
   };
   return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` });
 }
@@ -170,6 +195,9 @@ export async function authenticateAdminManager(
   }
 
   req.employee = employee;
+  if (payload.source === "gestion_users" && payload.gestionUserId) {
+    req.gestionUserId = payload.gestionUserId;
+  }
   next();
 }
 

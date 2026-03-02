@@ -2,10 +2,11 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import type { Employee } from "@shared/schema";
 
 interface AuthContextType {
-  user: Employee | null;
+  user: (Employee & { source?: string; gestionUserId?: number }) | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
+  adminLogin: (identifier: string, password: string) => Promise<void>;
   employeeLogin: (pin: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
@@ -14,7 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<Employee | null>(null);
+  const [user, setUser] = useState<(Employee & { source?: string; gestionUserId?: number }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshAuth = useCallback(async () => {
@@ -76,6 +77,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   };
 
+  const adminLogin = async (identifier: string, password: string) => {
+    const response = await fetch("/api/auth/admin-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ identifier, password }),
+    });
+    
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error("Demasiados intentos. Inténtelo de nuevo más tarde.");
+      }
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || "Error de conexión");
+    }
+    
+    const data = await response.json();
+    setUser(data.user);
+  };
+
   const employeeLogin = async (pin: string) => {
     const response = await fetch("/api/auth/employee-login", {
       method: "POST",
@@ -115,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        adminLogin,
         employeeLogin,
         logout,
         refreshAuth,

@@ -16,6 +16,7 @@ export const employees = pgTable("employees", {
   pin: varchar("pin", { length: 6 }),
   isActive: boolean("is_active").notNull().default(true),
   monitorId: integer("monitor_id").unique(),
+  gestionUserId: integer("gestion_user_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -105,6 +106,25 @@ export const auditLog = pgTable("audit_log", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const gestionAdminLinks = pgTable("gestion_admin_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  gestionUserId: integer("gestion_user_id").notNull().unique(),
+  gestionUsername: text("gestion_username").notNull(),
+  gestionRole: text("gestion_role").notNull(),
+  fichajesRole: text("fichajes_role").notNull(),
+  employeeId: varchar("employee_id").notNull().references(() => employees.id),
+  lastLoginAt: timestamp("last_login_at"),
+  disabled: boolean("disabled").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const gestionAdminLinksRelations = relations(gestionAdminLinks, ({ one }) => ({
+  employee: one(employees, {
+    fields: [gestionAdminLinks.employeeId],
+    references: [employees.id],
+  }),
+}));
+
 export const employeesRelations = relations(employees, ({ many }) => ({
   punches: many(punches),
   corrections: many(punchCorrections, { relationName: "correctedBy" }),
@@ -180,6 +200,7 @@ export const insertEmployeeSchema = createInsertSchema(employees).omit({
   id: true,
   createdAt: true,
   monitorId: true,
+  gestionUserId: true,
 }).extend({
   pin: z.string().length(6, "El PIN debe tener exactamente 6 dígitos").regex(/^\d{6}$/, "El PIN debe contener solo números"),
 });
@@ -336,3 +357,9 @@ export type OvertimeReviewRequest = z.infer<typeof overtimeReviewRequestSchema>;
 export type KioskDevice = typeof kioskDevices.$inferSelect;
 export type InsertKioskDevice = z.infer<typeof insertKioskDeviceSchema>;
 export type KioskPunchRequest = z.infer<typeof kioskPunchRequestSchema>;
+export type GestionAdminLink = typeof gestionAdminLinks.$inferSelect;
+
+export const adminLoginSchema = z.object({
+  identifier: z.string().min(1, "El nombre de usuario es obligatorio"),
+  password: z.string().min(1, "La contraseña es obligatoria"),
+});

@@ -17,6 +17,7 @@ export interface IStorage {
   getEmployee(id: string): Promise<Employee | undefined>;
   getEmployeeByEmail(email: string): Promise<Employee | undefined>;
   getEmployeeByPin(pin: string): Promise<Employee | undefined>;
+  getEmployeeByGestionUserId(gestionUserId: number): Promise<Employee | undefined>;
   getAllEmployees(): Promise<Employee[]>;
   createEmployee(employee: InsertEmployee): Promise<Employee>;
   updateEmployee(id: string, data: Partial<InsertEmployee>): Promise<Employee | undefined>;
@@ -98,6 +99,11 @@ export class DatabaseStorage implements IStorage {
 
   async getEmployeeByPin(pin: string): Promise<Employee | undefined> {
     const [employee] = await db.select().from(employees).where(eq(employees.pin, pin));
+    return employee || undefined;
+  }
+
+  async getEmployeeByGestionUserId(gestionUserId: number): Promise<Employee | undefined> {
+    const [employee] = await db.select().from(employees).where(eq(employees.gestionUserId, gestionUserId));
     return employee || undefined;
   }
 
