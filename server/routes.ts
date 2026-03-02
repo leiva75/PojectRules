@@ -44,6 +44,8 @@ import {
   shiftsQuerySchema,
   pauseRequestSchema,
   adminLoginSchema,
+  gestionUpsertEmployeeSchema,
+  gestionStatusSchema,
   gestionAdminLinks,
   employees as employeesTable
 } from "@shared/schema";
@@ -255,6 +257,24 @@ const employeeLimiter = rateLimit({
   max: 50,
   message: { message: "Demasiados intentos, inténtelo más tarde" },
 });
+
+const gestionApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { message: "Demasiados intentos, inténtelo más tarde" },
+});
+
+function authenticateGestionApi(req: any, res: any, next: any) {
+  const apiKey = process.env.GESTION_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ message: "API Gestión no configurada (GESTION_API_KEY no definida)" });
+  }
+  const provided = req.headers["x-gestion-api-key"];
+  if (!provided || provided !== apiKey) {
+    return res.status(401).json({ message: "Clave API inválida" });
+  }
+  next();
+}
 
 const APP_VERSION = "1.0.0";
 
@@ -2287,6 +2307,269 @@ export async function registerRoutes(
       res.send(pdfBuffer);
     } catch (error) {
       handleRouteError(res, error, "[REPORT-AUTHORITIES]", "Error al generar informe para autoridades");
+    }
+  });
+
+  // ==================== GESTION API (EXTERNAL) ====================
+
+  function parseNombre(nombre: string): { firstName: string; lastName: string } {
+    const parts = nombre.trim().split(/\s+/);
+    if (parts.length === 0 || (parts.length === 1 && !parts[0])) {
+      return { firstName: "Sin nombre", lastName: "" };
+    }
+    if (parts.length === 1) {
+      return { firstName: parts[0], lastName: "" };
+    }
+    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+  }
+
+  app.put("/api/gestion/employees/:monitorId", gestionApiLimiter, authenticateGestionApi, async (req, res) => {
+    try {
+      const monitorId = parseInt(req.params.monitorId, 10);
+      if (isNaN(monitorId)) {
+        return res.status(400).json({ message: "monitorId inválido" });
+      }
+
+      const result = gestionUpsertEmployeeSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+      }
+
+      const { nombre, email, pin, activo } = result.data;
+      const { firstName, lastName } = parseNombre(nombre);
+
+      const existingByMonitorId = await storage.getEmployeeByMonitorId(monitorId);
+
+      if (existingByMonitorId) {
+        const updateData: Record<string, any> = {
+          firstName,
+          lastName,
+          email,
+          isActive: activo,
+        };
+        if (pin !== undefined && pin !== null) {
+          const pinOwner = await storage.getEmployeeByPin(pin);
+          if (pinOwner && pinOwner.id !== existingByMonitorId.id) {
+            return res.status(409).json({
+              message: `PIN ya en uso por otro empleado`,
+              conflictEmployeeId: pinOwner.id,
+            });
+          }
+          updateData.pin = pin;
+        }
+        if (!activo) {
+          updateData.syncDisabled = true;
+        }
+
+        const emailOwner = await storage.getEmployeeByEmail(email);
+        if (emailOwner && emailOwner.id !== existingByMonitorId.id) {
+          return res.status(409).json({
+            message: `Email "${email}" ya en uso por otro empleado`,
+            conflictEmployeeId: emailOwner.id,
+            conflictMonitorId: emailOwner.monitorId,
+          });
+        }
+
+        const updated = await storage.updateEmployee(existingByMonitorId.id, updateData);
+        await storage.createAuditLog({
+          action: "update",
+          actorId: existingByMonitorId.id,
+          targetType: "employee",
+          targetId: existingByMonitorId.id,
+          details: JSON.stringify({ source: "gestion-api", monitorId, changes: updateData }),
+          ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+        });
+        logInfo(`[GESTION-API] Updated employee ${existingByMonitorId.id} (monitorId=${monitorId})`);
+        const { password: _, ...safe } = updated!;
+        return res.status(200).json({ action: "updated", employee: safe });
+      }
+
+      const existingByEmail = await storage.getEmployeeByEmail(email);
+
+      if (existingByEmail) {
+        if (existingByEmail.monitorId !== null && existingByEmail.monitorId !== monitorId) {
+          return res.status(409).json({
+            message: `Email "${email}" ya vinculado a otro monitorId (${existingByEmail.monitorId})`,
+            conflictEmployeeId: existingByEmail.id,
+            conflictMonitorId: existingByEmail.monitorId,
+          });
+        }
+
+        const linkData: Record<string, any> = {
+          monitorId,
+          firstName,
+          lastName,
+          isActive: activo,
+        };
+        if (pin !== undefined && pin !== null) {
+          const pinOwner = await storage.getEmployeeByPin(pin);
+          if (pinOwner && pinOwner.id !== existingByEmail.id) {
+            return res.status(409).json({
+              message: `PIN ya en uso por otro empleado`,
+              conflictEmployeeId: pinOwner.id,
+            });
+          }
+          linkData.pin = pin;
+        }
+        if (!activo) {
+          linkData.syncDisabled = true;
+        }
+
+        const updated = await storage.updateEmployee(existingByEmail.id, linkData);
+        await storage.createAuditLog({
+          action: "update",
+          actorId: existingByEmail.id,
+          targetType: "employee",
+          targetId: existingByEmail.id,
+          details: JSON.stringify({ source: "gestion-api", monitorId, action: "linked", changes: linkData }),
+          ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+        });
+        logInfo(`[GESTION-API] Linked employee ${existingByEmail.id} to monitorId=${monitorId}`);
+        const { password: _, ...safe } = updated!;
+        return res.status(200).json({ action: "linked", employee: safe });
+      }
+
+      const hashedPw = await hashPassword(email);
+      const newEmployee = await storage.createEmployee({
+        email,
+        password: hashedPw,
+        firstName,
+        lastName,
+        role: "employee",
+        pin: pin ?? null,
+        isActive: activo,
+        monitorId,
+      } as any);
+
+      if (!activo) {
+        await storage.updateEmployee(newEmployee.id, { syncDisabled: true } as any);
+      }
+
+      await storage.createAuditLog({
+        action: "create",
+        actorId: newEmployee.id,
+        targetType: "employee",
+        targetId: newEmployee.id,
+        details: JSON.stringify({ source: "gestion-api", monitorId }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+      logInfo(`[GESTION-API] Created employee ${newEmployee.id} (monitorId=${monitorId}, email=${email})`);
+      const { password: _, ...safe } = newEmployee;
+      return res.status(201).json({ action: "created", employee: safe });
+    } catch (error) {
+      handleRouteError(res, error, "[GESTION-API-UPSERT]");
+    }
+  });
+
+  app.patch("/api/gestion/employees/:monitorId/status", gestionApiLimiter, authenticateGestionApi, async (req, res) => {
+    try {
+      const monitorId = parseInt(req.params.monitorId, 10);
+      if (isNaN(monitorId)) {
+        return res.status(400).json({ message: "monitorId inválido" });
+      }
+
+      const result = gestionStatusSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+      }
+
+      const employee = await storage.getEmployeeByMonitorId(monitorId);
+      if (!employee) {
+        return res.status(404).json({ message: `Empleado con monitorId=${monitorId} no encontrado` });
+      }
+
+      const updateData: Record<string, any> = { isActive: result.data.activo };
+      if (!result.data.activo) {
+        updateData.syncDisabled = true;
+      }
+
+      const updated = await storage.updateEmployee(employee.id, updateData);
+      await storage.createAuditLog({
+        action: "update",
+        actorId: employee.id,
+        targetType: "employee",
+        targetId: employee.id,
+        details: JSON.stringify({ source: "gestion-api", monitorId, activo: result.data.activo }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+      logInfo(`[GESTION-API] Status changed for employee ${employee.id}: activo=${result.data.activo}`);
+      const { password: _, ...safe } = updated!;
+      return res.status(200).json({ employee: safe });
+    } catch (error) {
+      handleRouteError(res, error, "[GESTION-API-STATUS]");
+    }
+  });
+
+  app.delete("/api/gestion/employees/:monitorId", gestionApiLimiter, authenticateGestionApi, async (req, res) => {
+    try {
+      const monitorId = parseInt(req.params.monitorId, 10);
+      if (isNaN(monitorId)) {
+        return res.status(400).json({ message: "monitorId inválido" });
+      }
+
+      const employee = await storage.getEmployeeByMonitorId(monitorId);
+      if (!employee) {
+        return res.status(404).json({ message: `Empleado con monitorId=${monitorId} no encontrado` });
+      }
+
+      const punchCount = await storage.getEmployeePunchCount(employee.id);
+
+      if (punchCount > 0) {
+        await storage.updateEmployee(employee.id, { isActive: false, syncDisabled: true } as any);
+        await storage.createAuditLog({
+          action: "update",
+          actorId: employee.id,
+          targetType: "employee",
+          targetId: employee.id,
+          details: JSON.stringify({ source: "gestion-api", monitorId, action: "archived", punchCount }),
+          ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+        });
+        logInfo(`[GESTION-API] Archived employee ${employee.id} (has ${punchCount} punches)`);
+        return res.status(409).json({
+          message: "Tiene fichajes registrados. Se ha desactivado en lugar de eliminar.",
+          action: "archived",
+          employeeId: employee.id,
+          punchCount,
+        });
+      }
+
+      await storage.deleteEmployee(employee.id);
+      await storage.createAuditLog({
+        action: "delete",
+        actorId: employee.id,
+        targetType: "employee",
+        targetId: employee.id,
+        details: JSON.stringify({ source: "gestion-api", monitorId, action: "deleted" }),
+        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
+      });
+      logInfo(`[GESTION-API] Deleted employee ${employee.id} (monitorId=${monitorId})`);
+      return res.status(200).json({ action: "deleted", employeeId: employee.id });
+    } catch (error) {
+      handleRouteError(res, error, "[GESTION-API-DELETE]");
+    }
+  });
+
+  app.get("/api/gestion/employees", gestionApiLimiter, authenticateGestionApi, async (req, res) => {
+    try {
+      const allEmployees = await storage.getAllEmployees();
+      const result = await Promise.all(
+        allEmployees.map(async (emp) => {
+          const punchCount = await storage.getEmployeePunchCount(emp.id);
+          return {
+            id: emp.id,
+            monitorId: emp.monitorId,
+            email: emp.email,
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            isActive: emp.isActive,
+            syncDisabled: emp.syncDisabled,
+            hasPunches: punchCount > 0,
+          };
+        })
+      );
+      return res.json({ employees: result });
+    } catch (error) {
+      handleRouteError(res, error, "[GESTION-API-LIST]");
     }
   });
 

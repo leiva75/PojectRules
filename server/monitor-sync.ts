@@ -1,9 +1,9 @@
 import { pool } from "./db";
 import { db } from "./db";
 import { employees } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { hashPassword } from "./auth";
-import { logInfo, logError } from "./logger";
+import { logInfo, logError, logWarn } from "./logger";
 import crypto from "crypto";
 
 interface Monitor {
@@ -78,6 +78,11 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
           .where(eq(employees.monitorId, monitor.id));
 
         if (existingByMonitorId) {
+          if (existingByMonitorId.syncDisabled) {
+            logInfo(`[MONITOR-SYNC] Skipping employee ${existingByMonitorId.id} (monitorId=${monitor.id}): syncDisabled=true`);
+            continue;
+          }
+
           const pinNeedsUpdate = monitor.pin !== null && existingByMonitorId.pin !== monitor.pin;
           const needsUpdate =
             existingByMonitorId.firstName !== firstName ||
@@ -108,6 +113,11 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
           .where(eq(employees.email, monitor.email!));
 
         if (existingByEmail) {
+          if (existingByEmail.syncDisabled) {
+            logInfo(`[MONITOR-SYNC] Skipping employee ${existingByEmail.id} (email match, monitorId=${monitor.id}): syncDisabled=true`);
+            continue;
+          }
+
           if (existingByEmail.monitorId !== null && existingByEmail.monitorId !== monitor.id) {
             result.errors.push({
               monitorId: monitor.id,
@@ -175,6 +185,23 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
         const reason = err instanceof Error ? err.message : String(err);
         result.errors.push({ monitorId: monitor.id, email: monitor.email ?? undefined, reason });
         logError(`[MONITOR-SYNC] Error deactivating for monitor ${monitor.id}`, err);
+      }
+    }
+
+    const monitorIds = new Set(allMonitors.map(m => m.id));
+    const linkedEmployees = await db
+      .select({ id: employees.id, monitorId: employees.monitorId, email: employees.email })
+      .from(employees)
+      .where(isNotNull(employees.monitorId));
+
+    for (const emp of linkedEmployees) {
+      if (emp.monitorId !== null && !monitorIds.has(emp.monitorId)) {
+        logWarn(`[MONITOR-SYNC] Orphan detected: employee ${emp.id} (${emp.email}) has monitorId=${emp.monitorId} but no matching monitor`);
+        result.errors.push({
+          monitorId: emp.monitorId,
+          email: emp.email,
+          reason: `Orphan: monitorId=${emp.monitorId} not found in monitors table`,
+        });
       }
     }
 

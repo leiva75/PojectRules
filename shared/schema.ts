@@ -17,6 +17,7 @@ export const employees = pgTable("employees", {
   isActive: boolean("is_active").notNull().default(true),
   monitorId: integer("monitor_id").unique(),
   gestionUserId: integer("gestion_user_id").unique(),
+  syncDisabled: boolean("sync_disabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -362,3 +363,17 @@ export const adminLoginSchema = z.object({
   identifier: z.string().min(1, "El nombre de usuario es obligatorio"),
   password: z.string().min(1, "La contraseña es obligatoria"),
 });
+
+export const gestionUpsertEmployeeSchema = z.object({
+  nombre: z.string().min(1, "El nombre es obligatorio"),
+  email: z.string().email("Email inválido"),
+  pin: z.string().length(6).regex(/^\d{6}$/).nullable().optional(),
+  activo: z.boolean(),
+});
+
+export const gestionStatusSchema = z.object({
+  activo: z.boolean(),
+});
+
+export type GestionUpsertEmployee = z.infer<typeof gestionUpsertEmployeeSchema>;
+export type GestionStatus = z.infer<typeof gestionStatusSchema>;
