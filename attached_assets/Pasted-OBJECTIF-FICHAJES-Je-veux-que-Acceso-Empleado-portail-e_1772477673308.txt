@@ -1,0 +1,71 @@
+OBJECTIF (FICHAJES)
+Je veux que "Acceso Empleado" (portail employé pour consulter ses propres pointages + télécharger ses rapports) se fasse UNIQUEMENT via un PIN à 6 chiffres, et non plus via email + mot de passe.
+
+CONTEXTE ACTUEL
+- Le kiosque fonctionne déjà via PIN (employees.pin) et punches sont liés à employees.id.
+- Il existe un login employé par email/password (écran "Acceso Empleado" avec Email + Contraseña), que je veux SUPPRIMER.
+- Je ne veux pas gérer de mots de passe pour les moniteurs/employés.
+- Le PIN est la clé unique terrain: l’employé tape son code, et il ne doit voir QUE ses propres fichajes.
+
+RÈGLES MÉTIER (NON NÉGOCIABLES)
+1) Acceso Empleado = PIN uniquement
+- L’employé saisit son PIN (6 chiffres).
+- On identifie l’employé via employees.pin.
+- On crée une session/jeton employé qui ne donne accès QU’À ses propres données (employeeId).
+- Aucun email/mot de passe requis, aucune création de password, aucune gestion de reset.
+
+2) Séparation stricte des accès
+- PIN: employé uniquement (kiosque + accès employé).
+- Admin/Gérant: username + mot de passe via users (Gestion) uniquement (déjà en place via /api/auth/admin-login).
+- Le PIN ne doit JAMAIS permettre d’accéder à l’admin.
+- Le mot de passe admin ne doit JAMAIS être demandé sur l’accès employé.
+
+3) Sécurité minimale
+- Rate limit sur le PIN login (anti bruteforce).
+- Option: délai progressif après X échecs.
+- Ne jamais logger le PIN en clair.
+
+TRAVAIL À FAIRE (BACKEND)
+A) Ajouter/adapter un endpoint de login PIN pour "Acceso Empleado"
+- Soit réutiliser POST /api/auth/employee-login (déjà existant) si c’est bien un login PIN,
+- Sinon créer POST /api/auth/employee-pin-login
+Payload: { pin: string } avec validation /^\d{6}$/.
+Traitement:
+- storage.getEmployeeByPin(pin)
+- vérifier employee.isActive=true
+- générer un token employé (Bearer ou cookie, au choix) dont le scope est strictement "self" (employeeId).
+- retourner user minimal (firstName, lastName, id) sans exposer le pin.
+
+B) Désactiver/supprimer le login employé email/password
+- Identifier le endpoint actuel qui authentifie par email/password pour le portail employé.
+- Le retirer OU le laisser en 410 Gone ("Este método ha sido desactivado. Use su PIN.").
+
+TRAVAIL À FAIRE (FRONTEND)
+A) Modifier la page "Acceso Empleado"
+- Remplacer champs Email + Contraseña par un seul champ: "Código PIN (6 dígitos)" (type password ou numeric).
+- UI: keypad optionnel mais pas obligatoire.
+- Le bouton "Entrar" appelle le endpoint PIN login.
+- Afficher erreurs claires:
+  - PIN invalide / non trouvé
+  - compte inactif
+  - trop d’essais (rate limit)
+
+B) Après login
+- Le portail doit charger les données via /api/... en utilisant le token et doit montrer UNIQUEMENT les fichajes de l’employé connecté.
+
+CONTRAINTES DE NON-RÉGRESSION
+- Ne pas casser: kiosk-login, kiosk-punch, punches existants.
+- Ne pas casser: admin-login via Gestion.users.
+- Ne pas modifier monitor-sync.
+- Ne pas changer employees.pin existants.
+
+TESTS D’ACCEPTANCE
+1) Employé: PIN valide => accès à SON historique uniquement + export OK.
+2) Employé: PIN invalide => refus + message.
+3) Employé: compte isActive=false => refus.
+4) Admin: login admin via users inchangé.
+5) Kiosk: pointage par PIN inchangé.
+
+SORTIE ATTENDUE
+- Liste des fichiers modifiés (routes.ts + page login employé + auth context).
+- Implémentation minimale, sûre, sans refactor massif.

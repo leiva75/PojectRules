@@ -1,0 +1,97 @@
+OBJECTIF (AUDIT REPLIT — PROJET FICHAJES)
+Tu es un agent senior Node/Express/TypeScript + PostgreSQL/Drizzle. Fais un AUDIT du projet Fichajes pour vérifier comment il gère:
+1) l’accès EMPLOYÉ (PIN 6 chiffres) et le kiosque/portail,
+2) l’accès ADMIN/GÉRANT (username + mot de passe venant de Gestion.users),
+3) l’interdiction de modifier les employés liés (monitorId != null),
+4) la compatibilité avec les contraintes FK vers employees.id (audit/corrections/reviews/PDF),
+sans casser les flux existants.
+
+CONTEXTE À RESPECTER
+- PIN 6 chiffres = accès employé seulement (kiosk + consultation de ses pointages).
+- Acceso Admin / Gerente = username + mot de passe (table users de Gestion), JAMAIS via PIN.
+- Gestion est maître sur les profils RH (nom/email/actif/PIN via monitors → sync → employees). Fichajes doit rester READ-ONLY sur ces champs pour les employés liés (monitorId != null).
+- Certaines tables ont des FK NOT NULL vers employees.id (audit_log / punch_corrections / punch_reviews / overtime_requests) => toute action admin doit disposer d’un employee UUID valide (proxy employee si nécessaire).
+
+CE QUE TU DOIS AUDITER (CHECKLIST EXHAUSTIVE)
+
+A) AUTHENTIFICATION — EMPLOYÉ (PIN)
+1) Localiser le flux PIN:
+- routes: endpoints kiosk / employee login
+- vérification: employees.pin comparé à la saisie
+- création punches: employeeId utilisé
+2) Vérifier non-régression:
+- Aucune dépendance à un mot de passe pour un employé/moniteur standard
+- PIN existants ne sont jamais modifiés par l’admin UI
+- Le sync ne doit JAMAIS écraser un PIN par NULL
+
+B) AUTHENTIFICATION — ADMIN/GÉRANT
+1) Identifier l’écran/route “Acceso Admin / Gerente”:
+- endpoint(s) de login admin (ex /api/auth/admin-login, /api/auth/login, etc.)
+- tokens (JWT cookies access/refresh)
+2) Vérifier la source d’identité:
+- Utilise-t-on employees (mauvais pour ton besoin) OU Gestion.users (objectif)?
+- La table Gestion.users a: username, password_hash, role, is_active.
+- Vérifier qu’aucun login admin ne dépend du PIN.
+3) Vérifier le mapping rôles:
+- users.role=admin => admin Fichajes
+- users.role=rrhh => manager Fichajes
+- staff et autres => refus (403)
+- is_active=false => refus (401/403)
+4) Vérifier refresh:
+- au refresh, re-check en DB du rôle/is_active dans Gestion.users
+- clear cookies si révoqué
+
+C) PROXY EMPLOYEE (si nécessaire)
+1) Confirmer les FK:
+- audit_log/performedBy, punch_corrections.correctedBy, punch_reviews.reviewedBy, overtime_requests.reviewerId, etc.
+- vérifier types (UUID vs text) et NOT NULL
+2) Si FK vers employees.id (UUID) obligatoire:
+- vérifier si un “proxy employee admin” existe déjà ou doit être créé
+- vérifier s’il existe un champ du style gestionUserId / ou un lien équivalent
+- vérifier que les actions admin (PDF, corrections, reports) écrivent un employeeId UUID valide
+3) Vérifier qu’on NE COPIE PAS users.password_hash dans employees (interdit)
+
+D) READ-ONLY EMPLOYÉS LIÉS (monitorId != null)
+1) Backend:
+- PATCH /api/employees/:id : si monitorId != null => 403 MANAGED_BY_GESTION
+- DELETE /api/employees/:id : idem
+- POST /api/employees : empêcher création d’un employé “lié” depuis l’admin UI (monitorId non-null)
+2) Frontend admin:
+- masquer edit/toggle/delete pour employés monitorId != null
+- afficher badge “Géré dans Gestion”
+3) Vérifier qu’un admin/gérant peut toujours:
+- générer PDF
+- faire corrections/reviews
+- exports
+sans pouvoir éditer les champs RH des employés liés
+
+E) SYNC monitors → employees
+1) Localiser le code de sync:
+- server/monitor-sync.ts ou équivalent
+2) Vérifier:
+- champs écrits: firstName/lastName/email/isActive/pin/monitorId (selon vos règles)
+- pin: update seulement si non null
+- ne touche jamais role/password des employees existants
+3) Vérifier gestion des orphelins:
+- employees.monitorId non trouvé dans monitors => désactivation recommandée (isActive=false) ou signalement
+
+F) INVENTAIRE DES ÉCARTS / RISQUES
+Pour chaque point non conforme:
+- où (fichier + fonction + endpoint)
+- impact (sécurité / casse flux / données)
+- correction minimale proposée (sans refactor massif)
+
+SORTIE ATTENDUE (FORMAT IMPOSÉ)
+1) Schéma d’auth actuel (employé vs admin) + sources de vérité
+2) Liste des endpoints concernés (login employee, login admin, refresh, me, employees CRUD)
+3) Vérification des FK et besoin proxy employee (OUI/NON) + pourquoi
+4) Vérification read-only monitorId != null (OUI/NON) + gaps
+5) Vérification sync non-régression PIN/role/password (OUI/NON) + gaps
+6) Recommandations “minimal changes” (priorisées P0/P1/P2) avec fichiers exacts à modifier
+7) Plan de tests manuels (5 à 10 tests) pour garantir “zéro casse”
+
+CONTRAINTES
+- Ne pas casser kiosk/portal.
+- Ne jamais loguer passwords/PIN.
+- Ne pas proposer de fusion de tables ou refonte totale.
+- Préférer des changements minimaux, sûrs, et réversibles.
