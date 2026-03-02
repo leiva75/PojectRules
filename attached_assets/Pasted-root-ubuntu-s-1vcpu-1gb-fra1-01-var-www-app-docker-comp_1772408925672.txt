@@ -1,0 +1,204 @@
+root@ubuntu-s-1vcpu-1gb-fra1-01:/var/www/app# docker compose down
+docker compose build --no-cache
+docker compose up -d
+docker compose logs --tail 30
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] down 2/2
+ ✔ Container cronos_app Removed                                        0.7s
+ ✔ Network app_default  Removed                                        0.1s
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+WARN[0000] Docker Compose requires buildx plugin to be installed 
+Sending build context to Docker daemon  6.006MB
+Step 1/31 : FROM node:20-alpine AS deps
+ ---> 458b0b7c1c60
+Step 2/31 : WORKDIR /app
+ ---> Running in 4b5b63a08611
+ ---> Removed intermediate container 4b5b63a08611
+ ---> 9e0c2849dccc
+Step 3/31 : COPY package*.json ./
+ ---> 2e3cb23436fb
+Step 4/31 : RUN npm ci
+ ---> Running in c2d1cec26d8e
+npm warn deprecated lodash.get@4.4.2: This package is deprecated. Use the optional chaining (?.) operator instead.
+npm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+
+added 780 packages, and audited 781 packages in 45s
+
+116 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (1 low, 2 moderate, 9 high, 1 critical)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container c2d1cec26d8e
+ ---> c5107d9bb248
+Step 5/31 : FROM node:20-alpine AS builder
+ ---> 458b0b7c1c60
+Step 6/31 : WORKDIR /app
+ ---> Running in 88a7fa0124a2
+ ---> Removed intermediate container 88a7fa0124a2
+ ---> e057f006e5fa
+Step 7/31 : COPY --from=deps /app/node_modules ./node_modules
+ ---> 0c1477a22c53
+Step 8/31 : COPY . .
+ ---> 9a0bd86feb8b
+Step 9/31 : RUN npm run build
+ ---> Running in e502f8ed6f9b
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1849 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                           0.92 kB │ gzip:   0.48 kB
+../dist/public/assets/logo-cronos-C7LUbuHU.png  1,947.53 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+../dist/public/assets/index-BvWk63U-.css           87.24 kB │ gzip:  14.28 kB
+../dist/public/assets/index-BfKnqcWP.js           596.81 kB │ gzip: 175.66 kB
+✓ built in 21.50s
+building server...
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:24:24:
+      24 │       "@": path.resolve(import.meta.dirname, "client", "src"),
+         ╵                         ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:25:30:
+      25 │       "@shared": path.resolve(import.meta.dirname, "shared"),
+         ╵                               ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:26:30:
+      26 │ ...  "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+         ╵                              ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:29:21:
+      29 │   root: path.resolve(import.meta.dirname, "client"),
+         ╵                      ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:31:25:
+      31 │     outDir: path.resolve(import.meta.dirname, "dist/public"),
+         ╵                          ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+5 warnings
+
+  dist/index.cjs  1.4mb ⚠️
+
+⚡ Done in 847ms
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container e502f8ed6f9b
+ ---> 3fef48f07cbd
+Step 10/31 : FROM node:20-alpine AS production-deps
+ ---> 458b0b7c1c60
+Step 11/31 : WORKDIR /app
+ ---> Running in bf168439f638
+ ---> Removed intermediate container bf168439f638
+ ---> dc67205ab1e2
+Step 12/31 : COPY package*.json ./
+ ---> b68e872723d6
+Step 13/31 : RUN npm ci --omit=dev
+ ---> Running in 6239a719b912
+npm warn deprecated lodash.get@4.4.2: This package is deprecated. Use the optional chaining (?.) operator instead.
+npm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+
+added 712 packages, and audited 713 packages in 40s
+
+109 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (1 low, 2 moderate, 9 high, 1 critical)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container 6239a719b912
+ ---> 9a6bff13faf1
+Step 14/31 : FROM node:20-alpine AS runner
+ ---> 458b0b7c1c60
+Step 15/31 : WORKDIR /app
+ ---> Running in c5c9033d7f2f
+ ---> Removed intermediate container c5c9033d7f2f
+ ---> 574919d19a92
+Step 16/31 : RUN apk add --no-cache tini tzdata
+ ---> Running in 0faf674cfe41
+(1/2) Installing tini (0.19.0-r3)
+(2/2) Installing tzdata (2025c-r0)
+Executing busybox-1.37.0-r30.trigger
+OK: 11.3 MiB in 20 packages
+ ---> Removed intermediate container 0faf674cfe41
+ ---> 81acad5704a5
+Step 17/31 : ENV NODE_ENV=production
+ ---> Running in eb86c88d196e
+ ---> Removed intermediate container eb86c88d196e
+ ---> f666ee2ee34d
+Step 18/31 : ENV PORT=3000
+ ---> Running in dab7e55d3a21
+ ---> Removed intermediate container dab7e55d3a21
+ ---> 738fd750c0ef
+Step 19/31 : ENV TZ=UTC
+ ---> Running in a7e0fc77a808
+ ---> Removed intermediate container a7e0fc77a808
+ ---> 8a4b93799470
+Step 20/31 : COPY --from=production-deps /app/node_modules ./node_modules
+ ---> 8655316a0723
+Step 21/31 : COPY --from=builder /app/dist ./dist
+ ---> e231a8d79c33
+Step 22/31 : COPY package*.json ./
+ ---> f98d769b1d33
+Step 23/31 : COPY certs/ca-certificate.crt ./certs/ca-certificate.crt
+ ---> 432b8cf05307
+Step 24/31 : COPY docker-entrypoint.sh ./docker-entrypoint.sh
+[+] build 0/1
+ ⠙ Image app-app Building                                            274.9s
+COPY failed: file not found in build context or excluded by .dockerignore: stat docker-entrypoint.sh: file does not exist
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] up 2/2
+ ✔ Network app_default  Created                                        0.1s
+ ✔ Container cronos_app Started                                        0.3s
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+root@ubuntu-s-1vcpu-1gb-fra1-01:/var/www/app# 

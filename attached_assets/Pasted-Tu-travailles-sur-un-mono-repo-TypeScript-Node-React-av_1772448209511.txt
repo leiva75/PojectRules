@@ -1,0 +1,161 @@
+Tu travailles sur un mono-repo TypeScript/Node/React avec Drizzle + PostgreSQL (base partagée defaultdb) et deux apps: Gimnasio Cronos (table monitors) et Cronos Fichajes (table employees). Le pointage est en production: zéro suppression, zéro modification destructive, ne pas casser les données existantes.
+
+Objectif
+
+Synchroniser automatiquement les moniteurs depuis monitors (Gimnasio Cronos) vers employees (Cronos Fichajes). Quand un monitor est ajouté/modifié dans Gimnasio, il apparaît automatiquement dans Fichajes sans recréation manuelle. Approche non-destructive: jamais DELETE, pas d’impact sur les pointages existants.
+
+Contexte tables
+monitors (Gimnasio Cronos)
+
+id (integer auto)
+
+nombre (text)
+
+email (text nullable)
+
+activo (boolean)
+
+horas_contratadas (integer)
+
+especialidad, telefono, imagen
+
+employees (Cronos Fichajes)
+
+id (varchar UUID)
+
+email (text unique)
+
+password
+
+firstName
+
+lastName
+
+role
+
+pin
+
+isActive
+
+createdAt
+
+Liaison actuelle: par email uniquement.
+
+T001 — Ajouter monitorId à employees
+
+Fichier: shared/schema.ts
+
+Ajouter colonne monitorId (integer, nullable, unique) mappée en DB sur monitor_id.
+
+Nullable car les admins/managers n’ont pas forcément de monitor.
+
+Unique car un monitor correspond à un seul employee.
+
+Appliquer via db:push (migration non destructive).
+
+Acceptance: colonne monitor_id ajoutée sans perte/altération des données existantes.
+
+T002/T005 — Créer le service de sync monitors → employees (inclut linking initial)
+
+Fichier: server/monitor-sync.ts
+Créer une fonction exportée syncMonitorsToEmployees(logger) qui:
+
+Lit tous les monitors actifs avec email non-null.
+
+Pour chaque monitor actif:
+
+Si un employee avec le même monitorId existe → UPDATE firstName/lastName/email/isActive.
+
+Sinon si un employee avec le même email existe et monitorId est NULL → LINK en mettant monitorId = monitor.id + UPDATE firstName/lastName/isActive.
+
+Sinon → CREATE un nouvel employee:
+
+email = monitor.email
+
+firstName/lastName parsés depuis nombre (split espace: 1er mot = firstName, reste = lastName; si vide fallback)
+
+role = "employee"
+
+password temporaire = hash de l’email (bcrypt ou équivalent déjà utilisé dans le projet)
+
+pin = null
+
+isActive = monitor.activo
+
+monitorId = monitor.id
+
+id = UUID v4 (crypto.randomUUID)
+
+Gestion des monitors devenus inactifs:
+
+Pour les monitors activo=false avec email non-null, si un employee lié via monitorId existe → isActive=false.
+
+Interdiction absolue de delete.
+
+Logger chaque action avec un tag [MONITOR-SYNC]:
+
+created / updated / linked / deactivated / error
+
+Retourner un résumé:
+
+{ created: number; updated: number; linked: number; deactivated: number; errors: Array<{ monitorId?: number; email?: string; reason: string }> }
+
+Acceptance: service idempotent, non destructif, crée/maj/lie correctement, désactive sans supprimer.
+
+T003 — Cron + endpoints admin + status
+
+Fichiers: server/index.ts, server/routes.ts
+
+Ajouter un job toutes les 5 minutes qui exécute syncMonitorsToEmployees.
+
+Simple setInterval acceptable si pas de scheduler déjà en place.
+
+Ajouter endpoints:
+
+POST /api/admin/sync-monitors (admin only) → déclenche une sync et renvoie le résultat.
+
+GET /api/admin/sync-status (admin only) → renvoie { lastSyncAt, lastSyncResult }.
+
+Logger les résultats et erreurs avec [MONITOR-SYNC].
+
+Acceptance: sync automatique toutes les 5 minutes + endpoints admin fonctionnels.
+
+T004 — UI Admin: bouton sync + résultat + indicateur de liaison
+
+Fichier: client/src/pages/employees.tsx (ou équivalent)
+
+Ajouter un bouton "Sincronizar Monitores" qui appelle POST /api/admin/sync-monitors.
+
+Afficher le résultat: X creados, X actualizados, X vinculados, X desactivados, X errores.
+
+Afficher un badge/icône sur la liste employees quand monitorId != null (ex: “Vinculado”).
+
+Acceptance: bouton fonctionne, résultat visible, indication de liaison visible.
+
+Contraintes critiques (ne pas négocier)
+
+AUCUN DELETE sur employees ou monitors.
+
+Ne jamais casser les pointages existants: ne pas toucher aux tables/time entries.
+
+Éviter de modifier role/pin d’un employé existant (sauf nouvel employé créé).
+
+Collision email: si un employee existe avec le même email mais déjà lié à un autre monitorId, ne pas écraser: logger une erreur dans errors[].
+
+Livrables attendus
+
+Diff clair sur:
+
+shared/schema.ts
+
+server/monitor-sync.ts
+
+server/index.ts
+
+server/routes.ts
+
+client/src/pages/employees.tsx
+
+Inclure les imports corrects, types, et vérifier la compilation.
+
+S’assurer que la sync est idempotente (2 exécutions consécutives → pas de doublons).

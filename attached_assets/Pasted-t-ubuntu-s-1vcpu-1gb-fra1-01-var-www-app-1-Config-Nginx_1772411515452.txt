@@ -1,0 +1,64 @@
+t@ubuntu-s-1vcpu-1gb-fra1-01:/var/www/app# # 1. Config Nginx actuelle
+cat /etc/nginx/sites-enabled/cronosfichajes.es
+
+# 2. Tester la config Nginx
+nginx -t
+
+# 3. Logs d'accès récents
+tail -30 /var/log/nginx/access.log
+server {
+    listen 80;
+    server_name cronosfichajes.es www.cronosfichajes.es;
+    return 301 https://cronosfichajes.es$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name www.cronosfichajes.es;
+
+    ssl_certificate /etc/letsencrypt/live/cronosfichajes.es/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cronosfichajes.es/privkey.pem;
+
+    return 301 https://cronosfichajes.es$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name cronosfichajes.es;
+
+    ssl_certificate /etc/letsencrypt/live/cronosfichajes.es/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cronosfichajes.es/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+74.82.47.3 - - [02/Mar/2026:00:03:00 +0000] "GET / HTTP/1.1" 200 510 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+74.82.47.3 - - [02/Mar/2026:00:09:11 +0000] "GET /webui/ HTTP/1.1" 200 510 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15"
+74.82.47.3 - - [02/Mar/2026:00:12:46 +0000] "GET /favicon.ico HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36"
+74.82.47.3 - - [02/Mar/2026:00:13:57 +0000] "GET /favicon.png HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15"
+74.82.47.3 - - [02/Mar/2026:00:15:50 +0000] "GET / HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /..%5C..%5C..%5C..%5C..%5C..%5Cetc%5Cpasswd HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd HTTP/1.1" 400 166 "-" "-"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /..%5C..%5C..%5C..%5C..%5C..%5Cetc%5Cpasswd HTTP/1.1" 400 264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd HTTP/1.1" 400 166 "-" "-"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /etc/passwd HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd HTTP/1.1" 400 166 "-" "-"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /etc/passwd HTTP/1.1" 400 264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET /%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd HTTP/1.1" 400 166 "-" "-"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET //etc/passwd HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0"
+104.192.2.154 - - [02/Mar/2026:00:23:55 +0000] "GET //etc/passwd HTTP/1.1" 400 264 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0"
+54.91.92.82 - - [02/Mar/2026:00:29:03 +0000] "GET /favicon.ico HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+74.82.47.3 - - [02/Mar/2026:00:30:14 +0000] "GET /geoserver/web/ HTTP/1.1" 301 178 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15"
+root@ubuntu-s-1vcpu-1gb-fra1-01:/var/www/app# 
