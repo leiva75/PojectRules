@@ -163,6 +163,131 @@ export async function authenticateEmployeePortal(
   next();
 }
 
+export const ADMIN_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: "lax" as const,
+  path: "/",
+};
+
+export interface GestionUser {
+  id: number;
+  username: string;
+  display_name: string | null;
+  role: string;
+  is_active: boolean;
+}
+
+export interface AdminSessionResult {
+  proxyEmployee: Employee;
+  fichajesRole: string;
+  accessToken: string;
+  refreshToken: string;
+}
+
+export async function createAdminSession(
+  res: import("express").Response,
+  gestionUser: GestionUser,
+  ipAddress: string,
+  auditAction: string = "login",
+  auditMethod: string = "gestion_users",
+): Promise<AdminSessionResult> {
+  const { db } = await import("./db");
+  const { eq } = await import("drizzle-orm");
+  const { employees: employeesTable, gestionAdminLinks } = await import("@shared/schema");
+  const { randomBytes } = await import("crypto");
+
+  const allowedRoles = ["admin", "rrhh"];
+  if (!allowedRoles.includes(gestionUser.role)) {
+    throw new Error("ROLE_NOT_ALLOWED");
+  }
+
+  const fichajesRole = gestionUser.role === "admin" ? "admin" : "manager";
+
+  let proxyEmployee = await storage.getEmployeeByGestionUserId(gestionUser.id);
+
+  if (!proxyEmployee) {
+    const placeholderPassword = await hashPassword(randomBytes(32).toString("hex"));
+    const proxyEmail = `gestion-admin-${gestionUser.id}@fichajes.internal`;
+    const displayName = gestionUser.display_name || gestionUser.username;
+
+    proxyEmployee = await db.insert(employeesTable).values({
+      email: proxyEmail,
+      password: placeholderPassword,
+      firstName: displayName,
+      lastName: "(Gestión)",
+      role: fichajesRole,
+      isActive: true,
+      gestionUserId: gestionUser.id,
+    }).returning().then(rows => rows[0]);
+  } else {
+    if (proxyEmployee.role !== fichajesRole || !proxyEmployee.isActive) {
+      const updateData: Record<string, any> = {};
+      if (proxyEmployee.role !== fichajesRole) updateData.role = fichajesRole;
+      if (!proxyEmployee.isActive) updateData.isActive = true;
+      const displayName = gestionUser.display_name || gestionUser.username;
+      updateData.firstName = displayName;
+
+      proxyEmployee = (await db.update(employeesTable)
+        .set(updateData)
+        .where(eq(employeesTable.id, proxyEmployee.id))
+        .returning()
+        .then(rows => rows[0])) || proxyEmployee;
+    }
+  }
+
+  await db.insert(gestionAdminLinks).values({
+    gestionUserId: gestionUser.id,
+    gestionUsername: gestionUser.username,
+    gestionRole: gestionUser.role,
+    fichajesRole,
+    employeeId: proxyEmployee.id,
+    lastLoginAt: new Date(),
+  }).onConflictDoUpdate({
+    target: gestionAdminLinks.gestionUserId,
+    set: {
+      gestionUsername: gestionUser.username,
+      gestionRole: gestionUser.role,
+      fichajesRole,
+      lastLoginAt: new Date(),
+    },
+  });
+
+  const linkResult = await db.select({ disabled: gestionAdminLinks.disabled })
+    .from(gestionAdminLinks)
+    .where(eq(gestionAdminLinks.gestionUserId, gestionUser.id));
+
+  if (linkResult.length > 0 && linkResult[0].disabled) {
+    throw new Error("ACCESS_DISABLED");
+  }
+
+  const accessToken = generateGestionAccessToken(proxyEmployee.id, gestionUser.id, fichajesRole);
+  const refreshToken = generateGestionRefreshToken(proxyEmployee.id, gestionUser.id, fichajesRole);
+
+  await storage.createRefreshToken(proxyEmployee.id, refreshToken, getRefreshTokenExpiry());
+
+  res.cookie("accessToken", accessToken, {
+    ...ADMIN_COOKIE_OPTIONS,
+    maxAge: 60 * 60 * 1000,
+  });
+
+  res.cookie("refreshToken", refreshToken, {
+    ...ADMIN_COOKIE_OPTIONS,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  await storage.createAuditLog({
+    action: auditAction as any,
+    actorId: proxyEmployee.id,
+    targetType: "session",
+    targetId: proxyEmployee.id,
+    details: JSON.stringify({ role: fichajesRole, method: auditMethod, gestionUserId: gestionUser.id, gestionUsername: gestionUser.username }),
+    ipAddress,
+  });
+
+  return { proxyEmployee, fichajesRole, accessToken, refreshToken };
+}
+
 export async function authenticateAdminManager(
   req: Request,
   res: Response,

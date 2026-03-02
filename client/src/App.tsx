@@ -10,6 +10,7 @@ import EmployeeLoginPage from "@/pages/employee-login";
 import MobilePage from "@/pages/mobile";
 import KioskPage from "@/pages/kiosk";
 import AdminPage from "@/pages/admin";
+import AdminLoginPage from "@/pages/admin-login";
 import EmployeePortalLoginPage from "@/pages/employee-portal-login";
 import EmployeeShiftsPage from "@/pages/employee-shifts";
 import { Loader2 } from "lucide-react";
@@ -33,7 +34,7 @@ function ProtectedRoute({
   }
 
   if (!isAuthenticated) {
-    return <Redirect to="/" />;
+    return <Redirect to="/admin/login" />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
@@ -54,6 +55,7 @@ function Router() {
       <Route path="/kiosk" component={KioskPage} />
       <Route path="/empleado" component={EmployeePortalLoginPage} />
       <Route path="/empleado/mis-fichajes" component={EmployeeShiftsPage} />
+      <Route path="/admin/login" component={AdminLoginPage} />
       <Route path="/mobile">
         <ProtectedRoute allowedRoles={["employee", "manager", "admin"]}>
           <MobilePage />

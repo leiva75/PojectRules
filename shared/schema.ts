@@ -79,6 +79,14 @@ export const punchReviews = pgTable("punch_reviews", {
   note: text("note"),
 });
 
+export const ssoNonces = pgTable("sso_nonces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nonce: varchar("nonce").notNull().unique(),
+  usedAt: timestamp("used_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const auditActionEnum = pgEnum("audit_action", ["correction", "review", "create", "login", "export", "overtime_create", "overtime_review"]);
 
 export const overtimeStatusEnum = pgEnum("overtime_status", ["pending", "approved", "rejected"]);
@@ -375,5 +383,13 @@ export const gestionStatusSchema = z.object({
   activo: z.boolean(),
 });
 
+export const cleanupPurgeSchema = z.object({
+  employeeIds: z.array(z.string().uuid()).min(1, "Debe seleccionar al menos un empleado"),
+  dryRun: z.boolean(),
+  reason: z.string().min(5, "El motivo debe tener al menos 5 caracteres"),
+});
+
 export type GestionUpsertEmployee = z.infer<typeof gestionUpsertEmployeeSchema>;
 export type GestionStatus = z.infer<typeof gestionStatusSchema>;
+export type CleanupPurgeRequest = z.infer<typeof cleanupPurgeSchema>;
+export type SsoNonce = typeof ssoNonces.$inferSelect;

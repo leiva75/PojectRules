@@ -1,29 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Delete, ShieldCheck, Users, Coffee, Play } from "lucide-react";
+import { Loader2, Delete, Users, Coffee, Play } from "lucide-react";
 import { useCountdown, formatCountdown } from "@/hooks/use-countdown";
 import { LOGO_SRC, APP_NAME } from "@/config/brand";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 import { PunchButton } from "@/components/punch-button";
-
-const adminLoginSchema = z.object({
-  identifier: z.string().min(1, "El nombre de usuario es obligatorio"),
-  password: z.string().min(1, "La contraseña es obligatoria"),
-});
-
-type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 
 interface KioskEmployee {
   id: string;
@@ -39,11 +24,8 @@ interface PauseStatus {
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { adminLogin } = useAuth();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
   
-  // Kiosk state
   const [pin, setPin] = useState("");
   const [isPinLoading, setIsPinLoading] = useState(false);
   const [employee, setEmployee] = useState<KioskEmployee | null>(null);
@@ -51,17 +33,6 @@ export default function LoginPage() {
   const [lastPunchType, setLastPunchType] = useState<"IN" | "OUT" | null>(null);
   const [pauseStatus, setPauseStatus] = useState<PauseStatus | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // Admin login dialog state
-  const [showAdminDialog, setShowAdminDialog] = useState(false);
-
-  const form = useForm<AdminLoginFormData>({
-    resolver: zodResolver(adminLoginSchema),
-    defaultValues: {
-      identifier: "",
-      password: "",
-    },
-  });
 
   // Update clock
   useEffect(() => {
@@ -255,29 +226,6 @@ export default function LoginPage() {
 
   const nextPunchType: "IN" | "OUT" = employeeStatus === "OFF" ? "IN" : "OUT";
 
-  const onSubmit = async (data: AdminLoginFormData) => {
-    setIsLoading(true);
-    try {
-      await adminLogin(data.identifier, data.password);
-      setShowAdminDialog(false);
-      toast({
-        title: "Conexión exitosa",
-        description: "Bienvenido a su espacio",
-      });
-      // Use setTimeout to ensure state updates complete before navigation
-      setTimeout(() => {
-        window.location.href = "/admin";
-      }, 100);
-    } catch (error) {
-      toast({
-        title: "Error de conexión",
-        description: error instanceof Error ? error.message : "Credenciales incorrectas",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-kiosk-radial flex flex-col text-white">
       {/* Header with logo and time */}
@@ -466,17 +414,7 @@ export default function LoginPage() {
         )}
       </main>
 
-      {/* Footer with secondary access links */}
       <footer className="px-6 py-4 flex justify-center gap-6">
-        <Button 
-          variant="ghost"
-          className="text-blue-200/70 hover:text-white hover:bg-white/10"
-          onClick={() => setShowAdminDialog(true)}
-          data-testid="button-admin-access"
-        >
-          <ShieldCheck className="mr-2 h-4 w-4" />
-          Acceso Admin / Gerente
-        </Button>
         <Button 
           variant="ghost"
           className="text-blue-200/70 hover:text-white hover:bg-white/10"
@@ -487,79 +425,6 @@ export default function LoginPage() {
           Acceso Empleado
         </Button>
       </footer>
-
-      {/* Admin login dialog */}
-      <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Acceso con credenciales de Gestión</DialogTitle>
-            <DialogDescription>
-              Ingrese su nombre de usuario y contraseña de Gestión
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="identifier"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre de usuario</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="text" 
-                        placeholder="usuario" 
-                        className="h-12"
-                        autoComplete="username"
-                        data-testid="input-username"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contraseña</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="password" 
-                        placeholder="••••••••" 
-                        className="h-12"
-                        autoComplete="current-password"
-                        data-testid="input-password"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button 
-                type="submit" 
-                className="w-full h-12 text-base font-medium"
-                disabled={isLoading}
-                data-testid="button-login"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Conectando...
-                  </>
-                ) : (
-                  "Iniciar sesión"
-                )}
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

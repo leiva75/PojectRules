@@ -12,9 +12,11 @@ import { ApiError } from "./errors";
 import { initSpaces, isSpacesConfigured } from "./spaces";
 import { verifyTimezoneSupport } from "./timezone";
 import { storage } from "./storage";
+import { pool } from "./db";
 
 let pauseCronStarted = false;
 let monitorSyncStarted = false;
+let noncePurgeStarted = false;
 
 const tzCheck = verifyTimezoneSupport();
 if (tzCheck.ok) {
@@ -267,6 +269,28 @@ export const cookieOptions = {
     setTimeout(runSync, 10_000);
     setInterval(runSync, SYNC_INTERVAL_MS);
     logInfo("[MONITOR-SYNC] Cron de sincronización iniciado (intervalo: 5min)");
+  }
+
+  if (!noncePurgeStarted) {
+    noncePurgeStarted = true;
+    const NONCE_PURGE_INTERVAL_MS = 60 * 60 * 1000;
+
+    const purgeExpiredNonces = async () => {
+      try {
+        const result = await pool.query(
+          `DELETE FROM sso_nonces WHERE expires_at < NOW()`
+        );
+        if (result.rowCount && result.rowCount > 0) {
+          logInfo(`[NONCE-PURGE] Purged ${result.rowCount} expired nonces`);
+        }
+      } catch (error) {
+        logError("[NONCE-PURGE] Error", error);
+      }
+    };
+
+    purgeExpiredNonces();
+    setInterval(purgeExpiredNonces, NONCE_PURGE_INTERVAL_MS);
+    logInfo("[NONCE-PURGE] Purge de nonces iniciada (intervalo: 1h)");
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);

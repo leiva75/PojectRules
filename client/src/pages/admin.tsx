@@ -55,6 +55,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Employee, Punch } from "@shared/schema";
 import { ExportDialog } from "@/components/export-dialog";
 import { CorrectionDialog } from "@/components/correction-dialog";
@@ -714,10 +715,399 @@ function ReportsTab({ employees }: { employees: Employee[] }) {
   );
 }
 
+interface CleanupCandidate {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: boolean;
+  punchCount: number;
+  lastPunchAt: string | null;
+  protected: boolean;
+  protectReason?: string;
+}
+
+interface PurgeResult {
+  employeeId: string;
+  email: string;
+  name: string;
+  status: "ok" | "skipped" | "error";
+  reason?: string;
+  counts?: Record<string, number>;
+}
+
+function LimpiezaTab() {
+  const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmText, setConfirmText] = useState("");
+  const [purgeReason, setPurgeReason] = useState("");
+  const [dryRunResults, setDryRunResults] = useState<PurgeResult[] | null>(null);
+  const [purgeResults, setPurgeResults] = useState<PurgeResult[] | null>(null);
+
+  const { data: candidates, isLoading: previewLoading, refetch: refetchPreview } = useQuery<CleanupCandidate[]>({
+    queryKey: ["/api/admin/cleanup/preview"],
+    enabled: false,
+  });
+
+  const dryRunMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/cleanup/purge", {
+        employeeIds: Array.from(selectedIds),
+        dryRun: true,
+        reason: purgeReason || "Simulación de purga",
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setDryRunResults(data.results || data);
+      toast({ title: "Simulación completada", description: "Revise los resultados antes de purgar" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const purgeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/cleanup/purge", {
+        employeeIds: Array.from(selectedIds),
+        dryRun: false,
+        reason: purgeReason,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setPurgeResults(data.results || data);
+      setSelectedIds(new Set());
+      setConfirmText("");
+      setPurgeReason("");
+      setDryRunResults(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/cleanup/preview"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      toast({ title: "Purga completada", description: "Los empleados seleccionados han sido eliminados" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectableCount = candidates?.filter((c) => !c.protected).length || 0;
+  const allSelectableSelected = selectableCount > 0 && candidates?.filter((c) => !c.protected).every((c) => selectedIds.has(c.id));
+
+  const toggleAll = () => {
+    if (allSelectableSelected) {
+      setSelectedIds(new Set());
+    } else {
+      const ids = new Set<string>();
+      candidates?.forEach((c) => {
+        if (!c.protected) ids.add(c.id);
+      });
+      setSelectedIds(ids);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-card-border">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <CardTitle data-testid="text-cleanup-title">Limpieza de empleados</CardTitle>
+              <CardDescription>
+                Previsualice y purgue empleados huérfanos (sin vínculo con Gestión ni Monitor)
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex gap-3 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => refetchPreview()}
+              disabled={previewLoading}
+              data-testid="button-cleanup-preview"
+            >
+              {previewLoading ? (
+                <>
+                  <Activity className="h-4 w-4 mr-2 animate-spin" />
+                  Cargando...
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Previsualizar
+                </>
+              )}
+            </Button>
+          </div>
+
+          {candidates && candidates.length === 0 && (
+            <div className="text-center py-8">
+              <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-500 opacity-50" />
+              <p className="text-muted-foreground" data-testid="text-no-candidates">
+                No hay empleados huérfanos para purgar
+              </p>
+            </div>
+          )}
+
+          {candidates && candidates.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 pb-2 border-b">
+                <Checkbox
+                  checked={allSelectableSelected}
+                  onCheckedChange={toggleAll}
+                  data-testid="checkbox-select-all"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedIds.size} de {selectableCount} seleccionados
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {candidates.map((candidate) => (
+                  <div
+                    key={candidate.id}
+                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                      candidate.protected ? "opacity-60 bg-muted/30" : "bg-card"
+                    }`}
+                    data-testid={`cleanup-candidate-${candidate.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedIds.has(candidate.id)}
+                        onCheckedChange={() => toggleSelect(candidate.id)}
+                        disabled={candidate.protected}
+                        data-testid={`checkbox-candidate-${candidate.id}`}
+                      />
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+                          {candidate.firstName[0]}{candidate.lastName[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-sm">
+                          {candidate.firstName} {candidate.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{candidate.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {candidate.protected && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" data-testid={`badge-protected-${candidate.id}`}>
+                          <Shield className="h-3 w-3 mr-1" />
+                          PROTEGIDO
+                        </Badge>
+                      )}
+                      {candidate.punchCount === 0 ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800" data-testid={`badge-punches-${candidate.id}`}>
+                          Sin fichajes
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className={`${
+                          candidate.punchCount > 10
+                            ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800"
+                            : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
+                        }`} data-testid={`badge-punches-${candidate.id}`}>
+                          Con fichajes {candidate.punchCount}
+                        </Badge>
+                      )}
+                      <Badge variant={candidate.isActive ? "default" : "secondary"} data-testid={`badge-active-${candidate.id}`}>
+                        {candidate.isActive ? "Activo" : "Inactivo"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t pt-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="purge-reason">Motivo de la purga</Label>
+                  <Textarea
+                    id="purge-reason"
+                    value={purgeReason}
+                    onChange={(e) => setPurgeReason(e.target.value)}
+                    placeholder="Empleados de prueba / datos huérfanos..."
+                    className="resize-none"
+                    data-testid="input-purge-reason"
+                  />
+                </div>
+
+                <div className="flex gap-3 flex-wrap">
+                  <Button
+                    variant="outline"
+                    onClick={() => dryRunMutation.mutate()}
+                    disabled={selectedIds.size === 0 || dryRunMutation.isPending || purgeReason.length < 5}
+                    data-testid="button-cleanup-dryrun"
+                  >
+                    {dryRunMutation.isPending ? (
+                      <>
+                        <Activity className="h-4 w-4 mr-2 animate-spin" />
+                        Simulando...
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Simular purga
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {dryRunResults && (
+                <Card className="border-amber-200 dark:border-amber-800">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      Resultado de simulación
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-3 font-medium text-muted-foreground">Empleado</th>
+                            <th className="text-left py-2 px-3 font-medium text-muted-foreground">Estado</th>
+                            <th className="text-left py-2 px-3 font-medium text-muted-foreground">Registros a eliminar</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dryRunResults.map((r) => (
+                            <tr key={r.employeeId} className="border-b last:border-0">
+                              <td className="py-2 px-3">
+                                <div>
+                                  <p className="font-medium">{r.name}</p>
+                                  <p className="text-xs text-muted-foreground">{r.email}</p>
+                                </div>
+                              </td>
+                              <td className="py-2 px-3">
+                                {r.status === "ok" ? (
+                                  <Badge variant="outline" className="text-green-700 border-green-300">Listo</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-amber-700 border-amber-300">
+                                    {r.reason || "Omitido"}
+                                  </Badge>
+                                )}
+                              </td>
+                              <td className="py-2 px-3">
+                                {r.counts ? (
+                                  <div className="flex gap-2 flex-wrap">
+                                    {Object.entries(r.counts).map(([key, val]) => (
+                                      <Badge key={key} variant="secondary" className="text-xs">
+                                        {key}: {val}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {dryRunResults && dryRunResults.some((r) => r.status === "ok") && (
+                <Card className="border-destructive/50">
+                  <CardContent className="pt-6 space-y-4">
+                    <p className="text-sm text-destructive font-medium" data-testid="text-purge-warning">
+                      Esta acción es irreversible. Se eliminarán los empleados seleccionados y TODOS sus registros asociados, incluyendo fichajes y registros de auditoría.
+                    </p>
+                    <p className="text-xs text-muted-foreground" data-testid="text-audit-note">
+                      Nota: Los registros de auditoría (audit_log) asociados a los empleados purgados serán eliminados de forma voluntaria.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-purge">Escriba PURGAR para confirmar</Label>
+                      <Input
+                        id="confirm-purge"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        placeholder="PURGAR"
+                        className="w-48"
+                        data-testid="input-confirm-purge"
+                      />
+                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={() => purgeMutation.mutate()}
+                      disabled={confirmText !== "PURGAR" || purgeMutation.isPending || purgeReason.length < 5}
+                      data-testid="button-cleanup-purge"
+                    >
+                      {purgeMutation.isPending ? (
+                        <>
+                          <Activity className="h-4 w-4 mr-2 animate-spin" />
+                          Purgando...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Purgar definitivamente
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {purgeResults && (
+                <Card className="border-green-200 dark:border-green-800">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Resultado de la purga
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {purgeResults.map((r) => (
+                        <div key={r.employeeId} className="flex items-center justify-between py-2 border-b last:border-0">
+                          <div>
+                            <p className="font-medium text-sm">{r.name}</p>
+                            <p className="text-xs text-muted-foreground">{r.email}</p>
+                          </div>
+                          {r.status === "ok" ? (
+                            <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Eliminado</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-amber-700 border-amber-300">
+                              {r.reason || "Omitido"}
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "estado" | "kiosks" | "reports">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "employees" | "punches" | "revision" | "overtime" | "estado" | "kiosks" | "reports" | "cleanup">("dashboard");
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedPunchForCorrection, setSelectedPunchForCorrection] = useState<PunchWithEmployee | null>(null);
   const [selectedOvertime, setSelectedOvertime] = useState<OvertimeRequestWithDetails | null>(null);
@@ -978,6 +1368,7 @@ export default function AdminPage() {
     { id: "overtime", label: "Horas Extra", icon: Timer, accent: "section-accent-overtime", description: "Solicitudes de horas extra", adminOnly: false },
     { id: "reports", label: "Informes", icon: FileText, accent: "section-accent-reports", description: "PDF y exportaciones", adminOnly: false },
     { id: "kiosks", label: "Quioscos", icon: Monitor, accent: "section-accent-dashboard", description: "Dispositivos de fichaje", adminOnly: true },
+    { id: "cleanup", label: "Limpieza", icon: Trash2, accent: "section-accent-dashboard", description: "Purgar empleados huérfanos", adminOnly: true },
     { id: "estado", label: "Estado", icon: Activity, accent: "section-accent-dashboard", description: "Estado del sistema", adminOnly: true },
   ];
 
@@ -1751,6 +2142,8 @@ export default function AdminPage() {
                 </Card>
               </div>
             )}
+
+            {activeTab === "cleanup" && <LimpiezaTab />}
 
             {activeTab === "estado" && <EstadoTab />}
 

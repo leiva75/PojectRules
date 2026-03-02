@@ -51,6 +51,7 @@ integrations = ["javascript_database:1.0.0"]
 [userenv.shared]
 EXPECTED_DAILY_MINUTES = "480"
 OVERTIME_MIN_THRESHOLD = "15"
+SSO_SHARED_SECRET = "91ad088a853d697a6e5c4a7f248fa5946d402b4ec1127807ec986dc6758e500f"
 
 [userenv.development]
 

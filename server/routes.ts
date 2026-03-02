@@ -5,7 +5,7 @@ import multer from "multer";
 import { storage } from "./storage";
 import { pool, db } from "./db";
 import { punches, auditLog } from "@shared/schema";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, desc, sql } from "drizzle-orm";
 import { 
   hashPassword, 
   verifyPassword, 
@@ -21,8 +21,10 @@ import {
   authenticateAdminManager,
   authenticateEmployee,
   authenticateEmployeePortal,
+  createAdminSession,
   EP_COOKIE_OPTIONS
 } from "./auth";
+import jwt from "jsonwebtoken";
 import { authenticateKiosk, generateKioskToken, hashToken, getClientIp } from "./kiosk";
 import { uploadSignature, isSpacesConfigured, getSignedDownloadUrl } from "./spaces";
 import { logInfo, logError } from "./logger";
@@ -47,7 +49,12 @@ import {
   gestionUpsertEmployeeSchema,
   gestionStatusSchema,
   gestionAdminLinks,
-  employees as employeesTable
+  employees as employeesTable,
+  cleanupPurgeSchema,
+  punchCorrections,
+  punchReviews,
+  refreshTokens,
+  overtimeRequests
 } from "@shared/schema";
 import { Parser } from "json2csv";
 import rateLimit from "express-rate-limit";
@@ -462,106 +469,120 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Credenciales inválidas" });
       }
 
-      const allowedRoles = ["admin", "rrhh"];
-      if (!allowedRoles.includes(gestionUser.role)) {
-        return res.status(403).json({ message: "Su rol en Gestión no permite acceso a Fichajes" });
-      }
+      const ipAddress = (req.ip || req.socket.remoteAddress || "") as string;
 
-      const fichajesRole = gestionUser.role === "admin" ? "admin" : "manager";
-
-      let proxyEmployee = await storage.getEmployeeByGestionUserId(gestionUser.id);
-
-      if (!proxyEmployee) {
-        const placeholderPassword = await hashPassword(randomBytes(32).toString("hex"));
-        const proxyEmail = `gestion-admin-${gestionUser.id}@fichajes.internal`;
-        const displayName = gestionUser.display_name || gestionUser.username;
-
-        proxyEmployee = await db.insert(employeesTable).values({
-          email: proxyEmail,
-          password: placeholderPassword,
-          firstName: displayName,
-          lastName: "(Gestión)",
-          role: fichajesRole,
-          isActive: true,
-          gestionUserId: gestionUser.id,
-        }).returning().then(rows => rows[0]);
-
-        logInfo(`[ADMIN-LOGIN] Created proxy employee for Gestion user ${gestionUser.username} (id=${gestionUser.id})`);
-      } else {
-        if (proxyEmployee.role !== fichajesRole || !proxyEmployee.isActive) {
-          const updateData: Record<string, any> = {};
-          if (proxyEmployee.role !== fichajesRole) updateData.role = fichajesRole;
-          if (!proxyEmployee.isActive) updateData.isActive = true;
-          const displayName = gestionUser.display_name || gestionUser.username;
-          updateData.firstName = displayName;
-
-          proxyEmployee = (await db.update(employeesTable)
-            .set(updateData)
-            .where(eq(employeesTable.id, proxyEmployee.id))
-            .returning()
-            .then(rows => rows[0])) || proxyEmployee;
+      try {
+        const { proxyEmployee, fichajesRole } = await createAdminSession(res, gestionUser, ipAddress, "login", "gestion_users");
+        logInfo(`[ADMIN-LOGIN] Gestion user ${gestionUser.username} (role=${gestionUser.role}) logged in as ${fichajesRole}`);
+        const { password: _, ...userWithoutPassword } = proxyEmployee;
+        res.json({ user: { ...userWithoutPassword, source: "gestion_users", gestionUserId: gestionUser.id } });
+      } catch (sessionError) {
+        const msg = sessionError instanceof Error ? sessionError.message : "";
+        if (msg === "ROLE_NOT_ALLOWED") {
+          return res.status(403).json({ message: "Su rol en Gestión no permite acceso a Fichajes" });
         }
+        if (msg === "ACCESS_DISABLED") {
+          return res.status(403).json({ message: "Acceso a Fichajes deshabilitado por un administrador" });
+        }
+        throw sessionError;
       }
-
-      await db.insert(gestionAdminLinks).values({
-        gestionUserId: gestionUser.id,
-        gestionUsername: gestionUser.username,
-        gestionRole: gestionUser.role,
-        fichajesRole,
-        employeeId: proxyEmployee.id,
-        lastLoginAt: new Date(),
-      }).onConflictDoUpdate({
-        target: gestionAdminLinks.gestionUserId,
-        set: {
-          gestionUsername: gestionUser.username,
-          gestionRole: gestionUser.role,
-          fichajesRole,
-          lastLoginAt: new Date(),
-        },
-      });
-
-      const linkResult = await db.select({ disabled: gestionAdminLinks.disabled })
-        .from(gestionAdminLinks)
-        .where(eq(gestionAdminLinks.gestionUserId, gestionUser.id));
-      
-      if (linkResult.length > 0 && linkResult[0].disabled) {
-        return res.status(403).json({ message: "Acceso a Fichajes deshabilitado por un administrador" });
-      }
-
-      const accessToken = generateGestionAccessToken(proxyEmployee.id, gestionUser.id, fichajesRole);
-      const refreshToken = generateGestionRefreshToken(proxyEmployee.id, gestionUser.id, fichajesRole);
-
-      await storage.createRefreshToken(proxyEmployee.id, refreshToken, getRefreshTokenExpiry());
-
-      res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 60 * 60 * 1000,
-      });
-
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-
-      await storage.createAuditLog({
-        action: "login",
-        actorId: proxyEmployee.id,
-        targetType: "session",
-        targetId: proxyEmployee.id,
-        details: JSON.stringify({ role: fichajesRole, method: "gestion_users", gestionUserId: gestionUser.id, gestionUsername: gestionUser.username }),
-        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
-      });
-
-      logInfo(`[ADMIN-LOGIN] Gestion user ${gestionUser.username} (role=${gestionUser.role}) logged in as ${fichajesRole}`);
-
-      const { password: _, ...userWithoutPassword } = proxyEmployee;
-      res.json({ user: { ...userWithoutPassword, source: "gestion_users", gestionUserId: gestionUser.id } });
     } catch (error) {
       handleRouteError(res, error, "[ADMIN-LOGIN]");
+    }
+  });
+
+  const ssoErrorPage = (message: string) => `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer">
+<title>Error de acceso - Fichajes</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#eef2ff;color:#1e1b4b}
+.card{background:#fff;border-radius:12px;padding:2rem 3rem;box-shadow:0 4px 24px rgba(0,0,0,.08);text-align:center;max-width:400px}
+h1{font-size:1.5rem;margin-bottom:1rem;color:#dc2626}p{color:#64748b;line-height:1.6}
+a{color:#4f46e5;text-decoration:none;font-weight:500}</style></head>
+<body><div class="card"><h1>Error de acceso</h1><p>${message}</p><p style="margin-top:1.5rem"><a href="/admin/login">Iniciar sesión manualmente</a></p></div></body></html>`;
+
+  app.get("/sso", authLimiter, async (req, res) => {
+    try {
+      const SSO_SHARED_SECRET = process.env.SSO_SHARED_SECRET;
+      if (!SSO_SHARED_SECRET) {
+        logError("[SSO] SSO_SHARED_SECRET not configured");
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(500).type("html").send(ssoErrorPage("Servicio SSO no configurado. Contacte al administrador."));
+      }
+
+      const token = req.query.token as string;
+      if (!token) {
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(400).type("html").send(ssoErrorPage("Token no proporcionado."));
+      }
+
+      let decoded: any;
+      try {
+        decoded = jwt.verify(token, SSO_SHARED_SECRET, { algorithms: ["HS256"] });
+      } catch (jwtErr) {
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(401).type("html").send(ssoErrorPage("Token inválido o expirado. Solicite un nuevo enlace desde Gestión."));
+      }
+
+      const { sub, username, displayName, role, nonce } = decoded;
+
+      if (!sub || !username || !role || !nonce) {
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(401).type("html").send(ssoErrorPage("Token incompleto."));
+      }
+
+      const nonceResult = await pool.query(
+        `UPDATE sso_nonces SET used_at = NOW() WHERE nonce = $1 AND used_at IS NULL AND expires_at >= NOW() RETURNING *`,
+        [nonce]
+      );
+
+      if (nonceResult.rowCount === 0) {
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(401).type("html").send(ssoErrorPage("Token inválido, expirado o ya utilizado. Solicite un nuevo enlace desde Gestión."));
+      }
+
+      const gestionResult = await pool.query(
+        `SELECT id, username, display_name, role, is_active FROM users WHERE id = $1`,
+        [sub]
+      );
+
+      if (gestionResult.rows.length === 0 || !gestionResult.rows[0].is_active) {
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(401).type("html").send(ssoErrorPage("Usuario no encontrado o desactivado en Gestión."));
+      }
+
+      const gestionUser = gestionResult.rows[0];
+      const ipAddress = (req.ip || req.socket.remoteAddress || "") as string;
+
+      try {
+        await createAdminSession(res, gestionUser, ipAddress, "sso_login", "sso");
+        logInfo(`[SSO] Gestion user ${gestionUser.username} (role=${gestionUser.role}) logged in via SSO`);
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.redirect(302, "/admin");
+      } catch (sessionError) {
+        const msg = sessionError instanceof Error ? sessionError.message : "";
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        if (msg === "ROLE_NOT_ALLOWED") {
+          return res.status(403).type("html").send(ssoErrorPage("Su rol en Gestión no permite acceso a Fichajes."));
+        }
+        if (msg === "ACCESS_DISABLED") {
+          return res.status(403).type("html").send(ssoErrorPage("Acceso a Fichajes deshabilitado por un administrador."));
+        }
+        throw sessionError;
+      }
+    } catch (error) {
+      logError("[SSO] Error processing SSO request");
+      res.setHeader("Referrer-Policy", "no-referrer");
+      res.setHeader("Cache-Control", "no-store");
+      res.status(500).type("html").send(ssoErrorPage("Error interno del servidor. Inténtelo de nuevo."));
     }
   });
 
@@ -2435,6 +2456,216 @@ export async function registerRoutes(
       return res.json({ employees: result });
     } catch (error) {
       handleRouteError(res, error, "[GESTION-API-LIST]");
+    }
+  });
+
+  app.get("/api/admin/cleanup/preview", authenticateAdminManager, async (req, res) => {
+    try {
+      const allEmployees = await storage.getAllEmployees();
+      const candidates = allEmployees.filter(
+        (e) => e.monitorId === null && e.gestionUserId === null
+      );
+
+      const result = await Promise.all(
+        candidates.map(async (emp) => {
+          const punchCount = await storage.getEmployeePunchCount(emp.id);
+
+          const lastPunchResult = await db
+            .select({ timestamp: punches.timestamp })
+            .from(punches)
+            .where(eq(punches.employeeId, emp.id))
+            .orderBy(desc(punches.timestamp))
+            .limit(1);
+          const lastPunchAt = lastPunchResult.length > 0 ? lastPunchResult[0].timestamp : null;
+
+          const isProtected =
+            ["admin", "manager"].includes(emp.role) ||
+            (emp.email && emp.email.endsWith("@fichajes.internal"));
+
+          return {
+            id: emp.id,
+            email: emp.email,
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            role: emp.role,
+            isActive: emp.isActive,
+            punchCount,
+            lastPunchAt,
+            protected: isProtected,
+            protectReason: isProtected ? "Cuenta interna/admin" : null,
+          };
+        })
+      );
+
+      return res.json(result);
+    } catch (error) {
+      handleRouteError(res, error, "[CLEANUP-PREVIEW]", "Error al obtener vista previa de limpieza");
+    }
+  });
+
+  app.post("/api/admin/cleanup/purge", authenticateAdminManager, async (req, res) => {
+    try {
+      if (process.env.PURGE_ENABLED !== "true") {
+        return res.status(403).json({ message: "Purga no habilitada" });
+      }
+
+      const result = cleanupPurgeSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+      }
+
+      const { employeeIds, dryRun, reason } = result.data;
+      const results: Array<{
+        employeeId: string;
+        email: string;
+        name: string;
+        status: "ok" | "skipped" | "error";
+        reason?: string;
+        counts?: Record<string, number>;
+      }> = [];
+
+      for (const employeeId of employeeIds) {
+        const emp = await storage.getEmployee(employeeId);
+        if (!emp) {
+          results.push({ employeeId, email: "", name: "", status: "skipped", reason: "Empleado no encontrado" });
+          continue;
+        }
+
+        if (emp.monitorId !== null || emp.gestionUserId !== null) {
+          results.push({ employeeId, email: emp.email, name: `${emp.firstName} ${emp.lastName}`, status: "skipped", reason: "Empleado vinculado a monitor o gestión" });
+          continue;
+        }
+
+        if (emp.isActive && process.env.ALLOW_PURGE_ACTIVE !== "true") {
+          results.push({ employeeId, email: emp.email, name: `${emp.firstName} ${emp.lastName}`, status: "skipped", reason: "Empleado activo (ALLOW_PURGE_ACTIVE no habilitado)" });
+          continue;
+        }
+
+        const isProtected =
+          ["admin", "manager"].includes(emp.role) ||
+          (emp.email && emp.email.endsWith("@fichajes.internal"));
+
+        if (isProtected && process.env.FORCE_PURGE_ADMINS !== "true") {
+          results.push({ employeeId, email: emp.email, name: `${emp.firstName} ${emp.lastName}`, status: "skipped", reason: "Cuenta protegida (interna/admin)" });
+          continue;
+        }
+
+        const employeePunchIds = await db
+          .select({ id: punches.id })
+          .from(punches)
+          .where(eq(punches.employeeId, employeeId));
+        const punchIdList = employeePunchIds.map((p) => p.id);
+
+        let correctionCount = 0;
+        let reviewCount = 0;
+        if (punchIdList.length > 0) {
+          const [corrResult] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(punchCorrections)
+            .where(sql`${punchCorrections.originalPunchId} IN (${sql.join(punchIdList.map(id => sql`${id}`), sql`, `)})`);
+          correctionCount = Number(corrResult?.count || 0);
+
+          const [revResult] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(punchReviews)
+            .where(sql`${punchReviews.punchId} IN (${sql.join(punchIdList.map(id => sql`${id}`), sql`, `)})`);
+          reviewCount = Number(revResult?.count || 0);
+        }
+
+        const [otResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(overtimeRequests)
+          .where(eq(overtimeRequests.employeeId, employeeId));
+        const overtimeCount = Number(otResult?.count || 0);
+
+        const [rtResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(refreshTokens)
+          .where(eq(refreshTokens.employeeId, employeeId));
+        const refreshTokenCount = Number(rtResult?.count || 0);
+
+        const [alResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(auditLog)
+          .where(eq(auditLog.actorId, employeeId));
+        const auditLogCount = Number(alResult?.count || 0);
+
+        const [galResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(gestionAdminLinks)
+          .where(eq(gestionAdminLinks.employeeId, employeeId));
+        const gestionLinkCount = Number(galResult?.count || 0);
+
+        const counts = {
+          punches: punchIdList.length,
+          punchCorrections: correctionCount,
+          punchReviews: reviewCount,
+          overtimeRequests: overtimeCount,
+          refreshTokens: refreshTokenCount,
+          auditLog: auditLogCount,
+          gestionAdminLinks: gestionLinkCount,
+        };
+
+        if (dryRun) {
+          results.push({ employeeId, email: emp.email, name: `${emp.firstName} ${emp.lastName}`, status: "ok", counts });
+        } else {
+          const client = await pool.connect();
+          try {
+            await client.query("BEGIN");
+
+            await client.query(
+              `INSERT INTO audit_log (id, action, actor_id, target_type, target_id, details, ip_address, created_at)
+               VALUES (gen_random_uuid(), 'purge', $1, 'employee', $2, $3, $4, NOW())`,
+              [
+                req.employee!.id,
+                employeeId,
+                JSON.stringify({
+                  reason,
+                  counts,
+                  employeeEmail: emp.email,
+                  employeeName: `${emp.firstName} ${emp.lastName}`,
+                  note: "audit_log del empleado también eliminado",
+                }),
+                (req.ip || req.socket.remoteAddress || "") as string,
+              ]
+            );
+
+            if (punchIdList.length > 0) {
+              const punchPlaceholders = punchIdList.map((_, i) => `$${i + 1}`).join(", ");
+              await client.query(
+                `DELETE FROM punch_corrections WHERE original_punch_id IN (${punchPlaceholders})`,
+                punchIdList
+              );
+              await client.query(
+                `DELETE FROM punch_reviews WHERE punch_id IN (${punchPlaceholders})`,
+                punchIdList
+              );
+            }
+
+            await client.query(`DELETE FROM overtime_requests WHERE employee_id = $1`, [employeeId]);
+            await client.query(`DELETE FROM refresh_tokens WHERE employee_id = $1`, [employeeId]);
+            await client.query(`DELETE FROM audit_log WHERE actor_id = $1`, [employeeId]);
+            await client.query(`DELETE FROM punches WHERE employee_id = $1`, [employeeId]);
+            await client.query(`DELETE FROM gestion_admin_links WHERE employee_id = $1`, [employeeId]);
+            await client.query(`DELETE FROM employees WHERE id = $1`, [employeeId]);
+
+            await client.query("COMMIT");
+            results.push({ employeeId, email: emp.email, name: `${emp.firstName} ${emp.lastName}`, status: "ok", counts });
+            logInfo(`[CLEANUP-PURGE] Purged employee ${emp.email} (${employeeId})`, { counts: counts as any, reason });
+          } catch (txError) {
+            await client.query("ROLLBACK");
+            const errMsg = txError instanceof Error ? txError.message : String(txError);
+            logError(`[CLEANUP-PURGE] Transaction failed for ${employeeId}: ${errMsg}`, txError);
+            results.push({ employeeId, email: emp.email, name: `${emp.firstName} ${emp.lastName}`, status: "error", reason: errMsg });
+          } finally {
+            client.release();
+          }
+        }
+      }
+
+      return res.json({ dryRun, results });
+    } catch (error) {
+      handleRouteError(res, error, "[CLEANUP-PURGE]", "Error al purgar empleados");
     }
   });
 
