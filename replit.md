@@ -43,17 +43,39 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
     - Annexes: A (event detail) and B (corrections) only. Annex C (SHA-256 signature details) removed as unnecessary for authorities.
     - Employee sections include "Corr." column for corrections.
 - **Monitor Sync System (`server/monitor-sync.ts`):** Automatic synchronization from `monitors` table (Gimnasio Cronos) to `employees` table (Cronos Fichajes). Features:
-    - `employees.monitorId` (integer, nullable, unique) links each employee to their monitor.
+    - `employees.monitorId` (integer, nullable, unique) links each employee to their monitor — this is the stable external ID.
+    - `employees.syncDisabled` (boolean, default false) — when true, monitor-sync skips this employee entirely (no updates, no reactivation). Set by Gestion API on archive/deactivate operations.
     - Cron job runs every 5 minutes via `setInterval` (tag `[MONITOR-SYNC]`).
     - Non-destructive: never deletes, never modifies role of existing employees.
+    - **Anti-zombie protection:** Employees with `syncDisabled=true` are never reactivated by the sync, even if their monitor becomes active again. Only the Gestion API can re-enable them.
+    - **Orphan detection:** After each sync cycle, queries employees with a `monitorId` not found in the current monitors list and logs warnings (`[MONITOR-SYNC] Orphan detected`).
     - PIN sync: if `monitors.pin` is set (non-null), propagates to `employees.pin`. If `monitors.pin` is null, preserves existing employee PIN.
     - Creates new employees from monitors with email, hashes email as temp password, uses monitor PIN if set.
-    - Links existing employees by email match (sets monitorId).
+    - Links existing employees by email match (sets monitorId). Skips employees with `syncDisabled=true`.
     - Deactivates employees when monitor becomes inactive.
     - Collision detection: if email already linked to different monitorId, logs error without overwriting.
     - Admin endpoints: `POST /api/admin/sync-monitors` (manual trigger), `GET /api/admin/sync-status`.
     - UI: "Sincronizar Monitores" button in admin employees tab, "Gestión" badge (amber) on linked employees.
     - **Protection:** Synced employees (monitorId != null) cannot be edited/deleted/toggled via API (403 MANAGED_BY_GESTION) or UI (buttons hidden). Only manageable from Gestion. Internal employees (monitorId == null) remain fully manageable. The sync service bypasses API guards by using Drizzle ORM directly.
+- **Gestion External API (`/api/gestion/*`):** REST API for Gestion (Gimnasio Cronos) to directly manage Fichajes employees. Authenticated via `X-GESTION-API-KEY` header. Uses `monitorId` as stable external identifier.
+    - **Authentication:** Header `X-GESTION-API-KEY` validated against env var `GESTION_API_KEY`. Returns 401 if missing/invalid.
+    - **PUT /api/gestion/employees/:monitorId** — Idempotent UPSERT by monitorId.
+        - Body: `{ nombre: string, email: string, pin?: string, activo: boolean }`
+        - Logic: If monitorId exists → update. If email matches unlinked employee → link + update. Otherwise → create new.
+        - Email collision (email used by different monitorId) → 409.
+        - Returns: `{ action: "created"|"updated"|"linked", employee: {...} }` with 200/201.
+    - **PATCH /api/gestion/employees/:monitorId/status** — Activate/Deactivate.
+        - Body: `{ activo: boolean }`
+        - Sets `syncDisabled=true` when deactivating (prevents sync reactivation).
+        - Clears `syncDisabled=false` when activating.
+        - Returns 200 or 404.
+    - **DELETE /api/gestion/employees/:monitorId** — Archive or delete.
+        - If employee has punches → deactivate + `syncDisabled=true` (409 with explanation).
+        - If no punches → hard delete.
+        - Returns: `{ action: "deleted"|"archived", ... }`
+    - **GET /api/gestion/employees** — List all employees for reconciliation.
+        - Returns: `{ employees: [{ id, monitorId, email, firstName, lastName, isActive, syncDisabled, hasPunches }] }`
+    - All operations log to audit_log with source `gestion-api`.
 - **Error Handling:** Robust database error handling returns 503 for connection issues. All API error messages are in Spanish.
 
 **System Design Choices:**
@@ -63,7 +85,7 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
 - **Database URL Priority:** `EXTERNAL_DATABASE_URL` (preferred) → `DATABASE_URL` (fallback). Auto-detects DigitalOcean hosts for SSL. Looks for CA cert in `certs/ca-certificate.crt` or `certs/do-ca-certificate.crt`.
 - **Security:** JWTs are signed with separate secrets for access, refresh, and employee tokens. Kiosk tokens are SHA-256 hashed. Rate limiting is applied to authentication endpoints.
 - **Logging:** Instrumented logging (e.g., `[KIOSK-PUNCH]`, `[PAUSE-CRON]`) for debugging and monitoring.
-- **Environment Variables:** Critical configurations are managed via environment variables and validated at startup.
+- **Environment Variables:** Critical configurations are managed via environment variables and validated at startup. Key vars: `GESTION_API_KEY` (required for `/api/gestion/*` endpoints), `ALLOW_LEGACY_EMPLOYEE_ADMINS` (default true, controls legacy email/password admin login).
 
 ## External Dependencies
 - **PostgreSQL:** Shared database (`defaultdb` on DigitalOcean `db-postgresql-fra1-86634`) with Gimnasio Cronos app. Cronos Fichajes manages its own tables (`employees`, `punches`, `punch_corrections`, `punch_reviews`, `overtime_requests`, `audit_log`, `kiosk_devices`, `refresh_tokens`). The Gimnasio Cronos app has 34+ tables in the same database — DO NOT modify or delete them. The `monitors` table (Gimnasio Cronos) can be linked to `employees` via email.

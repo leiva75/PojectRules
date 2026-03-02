@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "crypto";
 import multer from "multer";
 import { storage } from "./storage";
 import { pool, db } from "./db";
-import { punches } from "@shared/schema";
+import { punches, auditLog } from "@shared/schema";
 import { eq, and, gt } from "drizzle-orm";
 import { 
   hashPassword, 
@@ -2481,6 +2481,8 @@ export async function registerRoutes(
       const updateData: Record<string, any> = { isActive: result.data.activo };
       if (!result.data.activo) {
         updateData.syncDisabled = true;
+      } else {
+        updateData.syncDisabled = false;
       }
 
       const updated = await storage.updateEmployee(employee.id, updateData);
@@ -2533,15 +2535,8 @@ export async function registerRoutes(
         });
       }
 
+      await db.delete(auditLog).where(eq(auditLog.actorId, employee.id));
       await storage.deleteEmployee(employee.id);
-      await storage.createAuditLog({
-        action: "delete",
-        actorId: employee.id,
-        targetType: "employee",
-        targetId: employee.id,
-        details: JSON.stringify({ source: "gestion-api", monitorId, action: "deleted" }),
-        ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
-      });
       logInfo(`[GESTION-API] Deleted employee ${employee.id} (monitorId=${monitorId})`);
       return res.status(200).json({ action: "deleted", employeeId: employee.id });
     } catch (error) {
