@@ -920,6 +920,7 @@ export default function AdminPage() {
         }
       }
       setEmployeeToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       toast({
         title: "Error",
         description: message,
