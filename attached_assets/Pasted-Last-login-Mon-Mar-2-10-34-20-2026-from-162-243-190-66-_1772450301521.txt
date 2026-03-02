@@ -1,0 +1,197 @@
+Last login: Mon Mar  2 10:34:20 2026 from 162.243.190.66
+root@ubuntu-s-1vcpu-1gb-fra1-01:~# cd /var/www/app
+git fetch origin main
+git reset --hard origin/main
+docker compose build
+docker compose down
+docker compose up -d
+remote: Enumerating objects: 42, done.
+remote: Counting objects: 100% (42/42), done.
+remote: Compressing objects: 100% (15/15), done.
+remote: Total 30 (delta 14), reused 30 (delta 14), pack-reused 0 (from 0)
+Unpacking objects: 100% (30/30), 795.87 KiB | 4.40 MiB/s, done.
+From https://github.com/leiva75/PojectRules
+ * branch            main       -> FETCH_HEAD
+   8d1e750..75abe13  main       -> origin/main
+HEAD is now at 75abe13 Add automatic synchronization between monitors and employee records
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+WARN[0000] Docker Compose requires buildx plugin to be installed 
+Sending build context to Docker daemon   6.01MB
+Step 1/31 : FROM node:20-alpine AS deps
+ ---> 458b0b7c1c60
+Step 2/31 : WORKDIR /app
+ ---> Using cache
+ ---> 4d55dd426d27
+Step 3/31 : COPY package*.json ./
+ ---> Using cache
+ ---> 42563a5419fc
+Step 4/31 : RUN npm ci
+ ---> Using cache
+ ---> 1ec6fc23dbab
+Step 5/31 : FROM node:20-alpine AS builder
+ ---> 458b0b7c1c60
+Step 6/31 : WORKDIR /app
+ ---> Using cache
+ ---> 4d55dd426d27
+Step 7/31 : COPY --from=deps /app/node_modules ./node_modules
+ ---> Using cache
+ ---> 0b9bc2bb3f2b
+Step 8/31 : COPY . .
+ ---> bf0531619750
+Step 9/31 : RUN npm run build
+ ---> Running in 8844b66759e9
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 1849 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                           0.92 kB │ gzip:   0.48 kB
+../dist/public/assets/logo-cronos-C7LUbuHU.png  1,947.53 kB
+../dist/public/assets/index-BQWcCRvt.css           87.33 kB │ gzip:  14.29 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+../dist/public/assets/index-BAsC8e6U.js           598.50 kB │ gzip: 176.10 kB
+✓ built in 21.77s
+building server...
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:24:24:
+      24 │       "@": path.resolve(import.meta.dirname, "client", "src"),
+         ╵                         ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:25:30:
+      25 │       "@shared": path.resolve(import.meta.dirname, "shared"),
+         ╵                               ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:26:30:
+      26 │ ...  "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+         ╵                              ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:29:21:
+      29 │   root: path.resolve(import.meta.dirname, "client"),
+         ╵                      ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    vite.config.ts:31:25:
+      31 │     outDir: path.resolve(import.meta.dirname, "dist/public"),
+         ╵                          ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+5 warnings
+
+  dist/index.cjs  1.4mb ⚠️
+
+⚡ Done in 990ms
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+ ---> Removed intermediate container 8844b66759e9
+ ---> 448ead47d448
+Step 10/31 : FROM node:20-alpine AS production-deps
+ ---> 458b0b7c1c60
+Step 11/31 : WORKDIR /app
+ ---> Using cache
+ ---> 4d55dd426d27
+Step 12/31 : COPY package*.json ./
+ ---> Using cache
+ ---> 42563a5419fc
+Step 13/31 : RUN npm ci --omit=dev
+ ---> Using cache
+ ---> 76864be7c7ef
+Step 14/31 : FROM node:20-alpine AS runner
+ ---> 458b0b7c1c60
+Step 15/31 : WORKDIR /app
+ ---> Using cache
+ ---> 4d55dd426d27
+Step 16/31 : RUN apk add --no-cache tini tzdata
+ ---> Using cache
+ ---> dd68df125814
+Step 17/31 : ENV NODE_ENV=production
+ ---> Using cache
+ ---> e668b8334406
+Step 18/31 : ENV PORT=3000
+ ---> Using cache
+ ---> db72c7937d59
+Step 19/31 : ENV TZ=UTC
+ ---> Using cache
+ ---> 8c99e069c7d7
+Step 20/31 : COPY --from=production-deps /app/node_modules ./node_modules
+ ---> Using cache
+ ---> c719fe5ea579
+Step 21/31 : COPY --from=builder /app/dist ./dist
+ ---> a3d607144582
+Step 22/31 : COPY package*.json ./
+ ---> 97ded821e2b6
+Step 23/31 : COPY certs/ca-certificate.crt ./certs/ca-certificate.crt
+ ---> a7f3ea7313a3
+Step 24/31 : COPY docker-entrypoint.sh ./docker-entrypoint.sh
+ ---> 7af7e54127a6
+Step 25/31 : RUN chmod +x ./docker-entrypoint.sh
+ ---> Running in 78c66e78b5ca
+ ---> Removed intermediate container 78c66e78b5ca
+ ---> 354dc9d8f8b4
+Step 26/31 : RUN mkdir -p /backups && chmod 755 /backups
+ ---> Running in ec6ad81e3ea6
+ ---> Removed intermediate container ec6ad81e3ea6
+ ---> 591704255576
+Step 27/31 : EXPOSE 3000
+ ---> Running in c7b4205fbed9
+ ---> Removed intermediate container c7b4205fbed9
+ ---> dc8f2bbaa21f
+Step 28/31 : HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/healthz || exit 1
+ ---> Running in 7295e3c4a2ed
+ ---> Removed intermediate container 7295e3c4a2ed
+ ---> 29c986b92555
+Step 29/31 : ENTRYPOINT ["/sbin/tini", "--"]
+ ---> Running in 42e0768ad8f3
+ ---> Removed intermediate container 42e0768ad8f3
+ ---> ecd813741259
+Step 30/31 : CMD ["./docker-entrypoint.sh"]
+ ---> Running in ea941a71aab8
+ ---> Removed intermediate container ea941a71aab8
+ ---> 9543fb3c8ccd
+Step 31/31 : LABEL com.docker.compose.image.builder=classic
+ ---> Running in 6a862ba2019c
+ ---> Removed intermediate container 6a862ba2019c
+ ---> b24a86429e12
+Successfully built b24a86429e12
+Successfully tagged app-app:latest
+[+] build 1/1
+ ✔ Image app-app Built                                                                            31.0s
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] down 2/2
+ ✔ Container cronos_fichajes_app Removed                                                           0.2s
+ ✔ Network app_default           Removed                                                           0.1s
+WARN[0000] /var/www/app/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] up 2/2
+ ✔ Network app_default           Created                                                           0.1s
+ ✔ Container cronos_fichajes_app Started                                                           0.4s
+root@ubuntu-s-1vcpu-1gb-fra1-01:/var/www/app# 

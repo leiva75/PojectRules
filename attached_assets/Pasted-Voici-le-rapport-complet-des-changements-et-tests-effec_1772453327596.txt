@@ -1,0 +1,26 @@
+Voici le rapport complet des changements et tests effectués :
+
+Rapport — Ajout du champ PIN Kiosk (Fichajes)
+1. Modifications effectuées
+4 fichiers modifiés :
+
+Fichier	Changement
+shared/schema.ts	Ajout de varchar dans les imports Drizzle. Ajout de la colonne pin: varchar("pin", { length: 6 }) dans la table monitors. Ajout de la validation Zod dans insertMonitorSchema : regex ^\d{6}$, nullable, preprocessing (trim, vide → null).
+server/migrate.ts	Ajout du repair automatique au boot : ALTER TABLE monitors ADD COLUMN pin VARCHAR(6) si absent. Création de l'index unique partiel monitors_pin_unique_idx sur pin WHERE pin IS NOT NULL.
+server/routes.ts	Route POST (/api/monitors) : ajout du champ pin dans les données de création, validation format 6 chiffres, vérification d'unicité avant insertion. Route PATCH (/api/monitors/:id) : idem pour la mise à jour, avec exclusion du monitor courant dans le check d'unicité. Imports ajoutés : and, eq, ne (drizzle-orm), monitors (schema).
+client/src/pages/monitors.tsx	Ajout de pin: string dans MonitorFormData. UI : 6 inputs individuels (type text, inputMode numeric, maxLength 1) avec auto-advance au chiffre suivant, retour au précédent sur Backspace, support du copier-coller. Bouton "Borrar" pour effacer le PIN. Texte d'aide : "6 dígitos. Se sincroniza con Cronos Fichajes cada 5 min." Affichage du PIN dans la liste des monitors avec icône clé (KeyRound).
+2. Tests effectués
+Test	Commande / Action	Résultat
+Colonne en base	SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'monitors' AND column_name = 'pin'	pin — character varying(6) ✅
+Index unique	SELECT indexname, indexdef FROM pg_indexes WHERE indexname = 'monitors_pin_unique_idx'	Index créé : UNIQUE (pin) WHERE pin IS NOT NULL ✅
+Sauvegarder un PIN valide	PATCH /api/monitors/4 avec {"pin":"123456"}	Réponse : "pin":"123456" ✅
+PIN dupliqué	PATCH /api/monitors/5 avec {"pin":"123456"} (déjà pris par monitor 4)	Réponse 400 : "Ya existe un monitor con ese PIN" ✅
+PIN invalide (lettres)	PATCH /api/monitors/4 avec {"pin":"abc123"}	Réponse 400 : "El PIN debe ser exactamente 6 dígitos numéricos" ✅
+Effacer le PIN	PATCH /api/monitors/4 avec {"pin":""}	PIN mis à null ✅
+PIN dans la réponse API	GET /api/monitors	Champ pin présent dans chaque monitor ✅
+Boot serveur	Redémarrage complet	Colonne créée, index créé, 5 stages OK, serveur démarré ✅
+TypeScript	npm run check (tsc)	Aucune erreur ✅
+Code review	Architect review automatique	Verdict : PASS ✅
+3. Comportement de synchronisation
+Le PIN est maintenant stocké dans monitors.pin. Le cron de Cronos Fichajes (toutes les 5 minutes) lit les monitors et synchronise les données vers employees — y compris le PIN qui sera copié dans employees.pin pour l'authentification au kiosque.
+
