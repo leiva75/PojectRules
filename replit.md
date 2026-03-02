@@ -45,8 +45,9 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
 - **Monitor Sync System (`server/monitor-sync.ts`):** Automatic synchronization from `monitors` table (Gimnasio Cronos) to `employees` table (Cronos Fichajes). Features:
     - `employees.monitorId` (integer, nullable, unique) links each employee to their monitor.
     - Cron job runs every 5 minutes via `setInterval` (tag `[MONITOR-SYNC]`).
-    - Non-destructive: never deletes, never modifies role/pin of existing employees.
-    - Creates new employees from monitors with email, hashes email as temp password.
+    - Non-destructive: never deletes, never modifies role of existing employees.
+    - PIN sync: if `monitors.pin` is set (non-null), propagates to `employees.pin`. If `monitors.pin` is null, preserves existing employee PIN.
+    - Creates new employees from monitors with email, hashes email as temp password, uses monitor PIN if set.
     - Links existing employees by email match (sets monitorId).
     - Deactivates employees when monitor becomes inactive.
     - Collision detection: if email already linked to different monitorId, logs error without overwriting.

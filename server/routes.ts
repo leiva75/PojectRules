@@ -950,6 +950,38 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/employees/:id", authenticateAdminManager, async (req, res) => {
+    try {
+      const id = req.params.id as string;
+      const existing = await storage.getEmployee(id);
+      if (!existing) {
+        return res.status(404).json({ message: "Empleado no encontrado" });
+      }
+
+      const punchCount = await storage.getEmployeePunchCount(id);
+      if (punchCount > 0) {
+        return res.status(409).json({ 
+          message: "Este empleado tiene fichajes registrados. Solo se puede desactivar." 
+        });
+      }
+
+      await storage.deleteEmployee(id);
+
+      await storage.createAuditLog({
+        action: "DELETE",
+        targetType: "employee",
+        targetId: id,
+        performedBy: (req as any).user?.id || "admin",
+        details: `Empleado eliminado: ${existing.firstName} ${existing.lastName} (${existing.email})`,
+      });
+
+      logInfo(`[DELETE-EMPLOYEE] Employee ${id} (${existing.email}) deleted`);
+      res.json({ message: "Empleado eliminado" });
+    } catch (error) {
+      handleRouteError(res, error, "[DELETE-EMPLOYEE]", "Error al eliminar empleado");
+    }
+  });
+
   // ==================== MONITOR SYNC ====================
 
   app.post("/api/admin/sync-monitors", authenticateAdminManager, async (req, res) => {

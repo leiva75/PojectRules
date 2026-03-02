@@ -12,6 +12,7 @@ interface Monitor {
   email: string | null;
   activo: boolean;
   horas_contratadas: number | null;
+  pin: string | null;
 }
 
 export interface SyncResult {
@@ -61,7 +62,7 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
 
   try {
     const { rows: allMonitors } = await pool.query<Monitor>(
-      `SELECT id, nombre, email, activo, horas_contratadas FROM monitors WHERE email IS NOT NULL AND email != ''`
+      `SELECT id, nombre, email, activo, horas_contratadas, pin FROM monitors WHERE email IS NOT NULL AND email != ''`
     );
 
     const activeMonitors = allMonitors.filter(m => m.activo);
@@ -77,16 +78,23 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
           .where(eq(employees.monitorId, monitor.id));
 
         if (existingByMonitorId) {
+          const pinNeedsUpdate = monitor.pin !== null && existingByMonitorId.pin !== monitor.pin;
           const needsUpdate =
             existingByMonitorId.firstName !== firstName ||
             existingByMonitorId.lastName !== lastName ||
             existingByMonitorId.email !== monitor.email ||
-            existingByMonitorId.isActive !== true;
+            existingByMonitorId.isActive !== true ||
+            pinNeedsUpdate;
 
           if (needsUpdate) {
+            const updateData: Record<string, any> = { firstName, lastName, email: monitor.email!, isActive: true };
+            if (pinNeedsUpdate) {
+              updateData.pin = monitor.pin;
+              logInfo(`[MONITOR-SYNC] PIN updated for employee ${existingByMonitorId.id} from monitor ${monitor.id}`);
+            }
             await db
               .update(employees)
-              .set({ firstName, lastName, email: monitor.email!, isActive: true })
+              .set(updateData)
               .where(eq(employees.id, existingByMonitorId.id));
             result.updated++;
             logInfo(`[MONITOR-SYNC] Updated employee ${existingByMonitorId.id} from monitor ${monitor.id}`);
@@ -110,9 +118,14 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
             continue;
           }
 
+          const linkData: Record<string, any> = { monitorId: monitor.id, firstName, lastName, isActive: true };
+          if (monitor.pin !== null) {
+            linkData.pin = monitor.pin;
+            logInfo(`[MONITOR-SYNC] PIN set for linked employee ${existingByEmail.id} from monitor ${monitor.id}`);
+          }
           await db
             .update(employees)
-            .set({ monitorId: monitor.id, firstName, lastName, isActive: true })
+            .set(linkData)
             .where(eq(employees.id, existingByEmail.id));
           result.linked++;
           logInfo(`[MONITOR-SYNC] Linked employee ${existingByEmail.id} to monitor ${monitor.id}`);
@@ -129,7 +142,7 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
           firstName,
           lastName,
           role: "employee",
-          pin: null,
+          pin: monitor.pin ?? null,
           isActive: true,
           monitorId: monitor.id,
         });

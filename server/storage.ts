@@ -21,6 +21,9 @@ export interface IStorage {
   createEmployee(employee: InsertEmployee): Promise<Employee>;
   updateEmployee(id: string, data: Partial<InsertEmployee>): Promise<Employee | undefined>;
 
+  getEmployeePunchCount(employeeId: string): Promise<number>;
+  deleteEmployee(id: string): Promise<void>;
+
   createPunch(punch: InsertPunch): Promise<Punch>;
   getPunchById(id: string): Promise<Punch | undefined>;
   getPunchesByEmployee(employeeId: string, limit?: number): Promise<Punch[]>;
@@ -110,6 +113,17 @@ export class DatabaseStorage implements IStorage {
   async updateEmployee(id: string, data: Partial<InsertEmployee>): Promise<Employee | undefined> {
     const [updated] = await db.update(employees).set(data).where(eq(employees.id, id)).returning();
     return updated || undefined;
+  }
+
+  async getEmployeePunchCount(employeeId: string): Promise<number> {
+    const [result] = await db.select({ count: sql<number>`count(*)` }).from(punches).where(eq(punches.employeeId, employeeId));
+    return Number(result?.count || 0);
+  }
+
+  async deleteEmployee(id: string): Promise<void> {
+    await db.delete(refreshTokens).where(eq(refreshTokens.employeeId, id));
+    await db.delete(overtimeRequests).where(eq(overtimeRequests.employeeId, id));
+    await db.delete(employees).where(eq(employees.id, id));
   }
 
   async createPunch(punch: InsertPunch): Promise<Punch> {

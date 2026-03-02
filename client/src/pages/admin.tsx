@@ -892,6 +892,42 @@ export default function AdminPage() {
     },
   });
 
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+
+  const deleteEmployeeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/employees/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      setEmployeeToDelete(null);
+      toast({
+        title: "Empleado eliminado",
+        description: "El empleado ha sido eliminado correctamente",
+      });
+    },
+    onError: (error: any) => {
+      let message = "No se pudo eliminar el empleado";
+      try {
+        const errorText = error?.message || "";
+        const jsonPart = errorText.includes(": {") ? errorText.substring(errorText.indexOf(": {") + 2) : errorText;
+        const parsed = JSON.parse(jsonPart);
+        if (parsed.message) message = parsed.message;
+      } catch {
+        if (error?.message?.includes("409")) {
+          message = "Este empleado tiene fichajes registrados. Solo se puede desactivar.";
+        }
+      }
+      setEmployeeToDelete(null);
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const syncMonitorsMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/admin/sync-monitors");
@@ -1370,6 +1406,15 @@ export default function AdminPage() {
                             >
                               <Power className={`h-4 w-4 ${emp.isActive ? "text-muted-foreground" : "text-green-600"}`} />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setEmployeeToDelete(emp)}
+                              title="Eliminar empleado"
+                              data-testid={`button-delete-employee-${emp.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -1812,6 +1857,30 @@ export default function AdminPage() {
         onOpenChange={(open) => { setShowEmployeeDialog(open); if (!open) setEditingEmployee(null); }}
         employee={editingEmployee}
       />
+
+      <Dialog open={!!employeeToDelete} onOpenChange={(open) => !open && setEmployeeToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Eliminar este empleado?</DialogTitle>
+            <DialogDescription>
+              Se eliminará a <strong>{employeeToDelete?.firstName} {employeeToDelete?.lastName}</strong> ({employeeToDelete?.email}). Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmployeeToDelete(null)} data-testid="button-cancel-delete">
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => employeeToDelete && deleteEmployeeMutation.mutate(employeeToDelete.id)}
+              disabled={deleteEmployeeMutation.isPending}
+              data-testid="button-confirm-delete"
+            >
+              {deleteEmployeeMutation.isPending ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       <ExportDialog 
         open={showExportDialog} 
