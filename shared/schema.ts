@@ -314,8 +314,7 @@ export const updateKioskDeviceSchema = z.object({
 });
 
 export const employeePortalLoginSchema = z.object({
-  email: z.string().email("Email inválido"),
-  password: z.string().min(1, "La contraseña es obligatoria"),
+  pin: z.string().length(6, "El PIN debe tener 6 dígitos").regex(/^\d{6}$/, "El PIN debe contener solo dígitos"),
 });
 
 export const shiftsQuerySchema = z.object({

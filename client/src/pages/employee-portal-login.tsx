@@ -15,7 +15,7 @@ export default function EmployeePortalLoginPage() {
 
   const form = useForm<EmployeePortalLoginInput>({
     resolver: zodResolver(employeePortalLoginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { pin: "" },
   });
 
   const loginMutation = useMutation({
@@ -35,7 +35,7 @@ export default function EmployeePortalLoginPage() {
           throw new Error("Servicio temporalmente no disponible. Inténtelo de nuevo.");
         }
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Email o contraseña incorrectos");
+        throw new Error(body.message || "PIN incorrecto");
       }
       return res.json();
     },
@@ -68,7 +68,7 @@ export default function EmployeePortalLoginPage() {
 
         <Card className="border-white/10 bg-white/5 backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg text-white/90">Iniciar sesión</CardTitle>
+            <CardTitle className="text-lg text-white/90">Introduzca su PIN</CardTitle>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -82,41 +82,21 @@ export default function EmployeePortalLoginPage() {
 
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="pin"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-blue-200/80">Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          inputMode="email"
-                          autoComplete="username"
-                          placeholder="tu.email@empresa.es"
-                          disabled={loginMutation.isPending}
-                          className="h-12 bg-white/10 border-white/20 text-white placeholder:text-white/30 focus:border-blue-400 focus:ring-blue-400/30"
-                          data-testid="input-email"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-200/80">Contraseña</FormLabel>
+                      <FormLabel className="text-blue-200/80">Código PIN (6 dígitos)</FormLabel>
                       <FormControl>
                         <Input
                           type="password"
-                          autoComplete="current-password"
-                          placeholder="••••••••"
+                          inputMode="numeric"
+                          maxLength={6}
+                          pattern="[0-9]*"
+                          autoComplete="off"
+                          placeholder="••••••"
                           disabled={loginMutation.isPending}
-                          className="h-12 bg-white/10 border-white/20 text-white placeholder:text-white/30 focus:border-blue-400 focus:ring-blue-400/30"
-                          data-testid="input-password"
+                          className="h-14 text-center text-2xl tracking-[0.5em] bg-white/10 border-white/20 text-white placeholder:text-white/30 focus:border-blue-400 focus:ring-blue-400/30 font-mono"
+                          data-testid="input-pin"
                           {...field}
                         />
                       </FormControl>

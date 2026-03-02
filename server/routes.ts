@@ -753,23 +753,18 @@ export async function registerRoutes(
     try {
       const result = employeePortalLoginSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+        return res.status(400).json({ message: "PIN inválido. Debe ser un código de 6 dígitos." });
       }
 
-      const { email, password } = result.data;
-      const employee = await storage.getEmployeeByEmail(email);
+      const { pin } = result.data;
+      const employee = await storage.getEmployeeByPin(pin);
 
       if (!employee) {
-        return res.status(401).json({ message: "Email o contraseña incorrectos" });
-      }
-
-      const validPassword = await verifyPassword(password, employee.password);
-      if (!validPassword) {
-        return res.status(401).json({ message: "Email o contraseña incorrectos" });
+        return res.status(401).json({ message: "PIN incorrecto" });
       }
 
       if (!employee.isActive) {
-        return res.status(401).json({ message: "Cuenta desactivada" });
+        return res.status(401).json({ message: "Cuenta desactivada. Contacte con su administrador." });
       }
 
       const accessToken = generateEmployeePortalAccessToken(employee);
@@ -796,7 +791,7 @@ export async function registerRoutes(
         ipAddress: (req.ip || req.socket.remoteAddress || "") as string,
       });
 
-      const { password: _, id: _id, ...userWithoutSensitive } = employee;
+      const { password: _, pin: _pin, ...userWithoutSensitive } = employee;
       res.json({ user: { ...userWithoutSensitive, role: employee.role } });
     } catch (error) {
       handleRouteError(res, error, "[EP-LOGIN]");

@@ -22,10 +22,10 @@ The design system, "Icy Indigo Palette," uses a premium, modern aesthetic.
 - **Append-Only Punches:** Punch records are designed to be append-only, ensuring data integrity. Corrections are recorded separately, preserving the original data.
 - **Geolocation Capture:** Employee punches include geolocation data, rounded to 4 decimal places.
 - **Triple Authentication:**
-    - **Admin/Manager:** Utilizes httpOnly cookies for session management.
-    - **Employee PIN:** Kiosk mode uses a 6-digit PIN for quick login, with JWT stored in localStorage.
-    - **Employee Portal:** Separate httpOnly cookies for portal access, distinct from admin sessions.
-- **Employee Portal ("Mis Fichajes"):** Provides employees a read-only view of their shifts, with PDF/CSV export functionality. Strict anti-IDOR measures are in place to prevent unauthorized data access.
+    - **Admin/Manager:** Username + password via Gestion `users` table (`POST /api/auth/admin-login`). httpOnly cookies (`accessToken`/`refreshToken`) with `source: "gestion_users"`. Proxy employee created on first login (linked via `employees.gestionUserId`). Legacy email/password login available via `POST /api/auth/login` (can be disabled with `ALLOW_LEGACY_EMPLOYEE_ADMINS=false`).
+    - **Employee PIN (Kiosk):** 6-digit PIN for kiosk clock-in/out (`POST /api/auth/kiosk-login`, `POST /api/kiosk/punch`). JWT stored in localStorage.
+    - **Employee Portal:** 6-digit PIN login (`POST /api/auth/employee/login`). Separate httpOnly cookies (`epAccessToken`/`epRefreshToken`) for portal session, distinct from admin cookies. No email/password required.
+- **Employee Portal ("Mis Fichajes"):** Provides employees a read-only view of their shifts, with PDF/CSV export functionality. Login via PIN only. Strict anti-IDOR measures are in place to prevent unauthorized data access.
 - **Kiosk Device System:**
     - Supports device enrollment with one-time tokens.
     - Uses `X-KIOSK-TOKEN` header for authentication.
