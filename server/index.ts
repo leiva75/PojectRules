@@ -290,7 +290,7 @@ export const cookieOptions = {
     const purgeExpiredNonces = async () => {
       try {
         const result = await pool.query(
-          `DELETE FROM sso_nonces WHERE expires_at < NOW() OR used IS NOT NULL`
+          `DELETE FROM sso_nonces WHERE expires_at < NOW() OR used = true`
         );
         if (result.rowCount && result.rowCount > 0) {
           logInfo(`[NONCE-PURGE] Purged ${result.rowCount} expired nonces`);

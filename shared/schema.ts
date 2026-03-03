@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, decimal, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, decimal, integer, serial, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -80,11 +80,11 @@ export const punchReviews = pgTable("punch_reviews", {
 });
 
 export const ssoNonces = pgTable("sso_nonces", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  nonce: varchar("nonce").notNull().unique(),
-  gestionUserId: integer("gestion_user_id"),
-  used: timestamp("used"),
+  id: serial("id").primaryKey(),
+  nonce: text("nonce").notNull().unique(),
+  gestionUserId: integer("gestion_user_id").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
