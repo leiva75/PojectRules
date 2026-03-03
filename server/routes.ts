@@ -535,7 +535,7 @@ a{color:#4f46e5;text-decoration:none;font-weight:500}</style></head>
       }
 
       const nonceResult = await pool.query(
-        `UPDATE sso_nonces SET used_at = NOW() WHERE nonce = $1 AND used_at IS NULL AND expires_at >= NOW() RETURNING *`,
+        `UPDATE sso_nonces SET used = NOW() WHERE nonce = $1 AND used IS NULL AND expires_at >= NOW() RETURNING *`,
         [nonce]
       );
 

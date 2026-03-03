@@ -62,6 +62,16 @@ function validateConfig() {
     } else if (process.env.KIOSK_KEY.length < 16) {
       errors.push("KIOSK_KEY debe tener al menos 16 caracteres");
     }
+
+    if (!process.env.SSO_SHARED_SECRET) {
+      errors.push("SSO_SHARED_SECRET es obligatorio en producción");
+    } else if (process.env.SSO_SHARED_SECRET.length < 32) {
+      errors.push("SSO_SHARED_SECRET debe tener al menos 32 caracteres");
+    }
+
+    if (!process.env.GESTION_API_KEY) {
+      errors.push("GESTION_API_KEY es obligatorio en producción");
+    }
   }
 
   if (errors.length > 0) {
@@ -77,6 +87,8 @@ function validateConfig() {
     CORS_ORIGIN: process.env.CORS_ORIGIN || "(not set — defaults to allow all)",
     KIOSK_KEY: !!process.env.KIOSK_KEY,
     DO_SPACES_KEY: !!process.env.DO_SPACES_KEY,
+    SSO_SHARED_SECRET: !!process.env.SSO_SHARED_SECRET,
+    GESTION_API_KEY: !!process.env.GESTION_API_KEY,
     NODE_ENV: process.env.NODE_ENV || "development",
   };
   logInfo("Configuración validada correctamente", { env: isProd ? "production" : "development", vars: envStatus });
@@ -278,7 +290,7 @@ export const cookieOptions = {
     const purgeExpiredNonces = async () => {
       try {
         const result = await pool.query(
-          `DELETE FROM sso_nonces WHERE expires_at < NOW()`
+          `DELETE FROM sso_nonces WHERE expires_at < NOW() OR used IS NOT NULL`
         );
         if (result.rowCount && result.rowCount > 0) {
           logInfo(`[NONCE-PURGE] Purged ${result.rowCount} expired nonces`);

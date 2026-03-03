@@ -82,12 +82,13 @@ export const punchReviews = pgTable("punch_reviews", {
 export const ssoNonces = pgTable("sso_nonces", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   nonce: varchar("nonce").notNull().unique(),
-  usedAt: timestamp("used_at"),
+  gestionUserId: integer("gestion_user_id"),
+  used: timestamp("used"),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const auditActionEnum = pgEnum("audit_action", ["correction", "review", "create", "login", "export", "overtime_create", "overtime_review"]);
+export const auditActionEnum = pgEnum("audit_action", ["correction", "review", "create", "login", "export", "overtime_create", "overtime_review", "purge", "sso_login"]);
 
 export const overtimeStatusEnum = pgEnum("overtime_status", ["pending", "approved", "rejected"]);
 

@@ -38,7 +38,7 @@ The "Icy Indigo Palette" design system provides a modern aesthetic with a focus 
 - **Database URL Priority:** Prioritizes `EXTERNAL_DATABASE_URL` over `DATABASE_URL`, with auto-detection for DigitalOcean SSL.
 - **Security:** Uses separate JWT secrets, SHA-256 hashed kiosk tokens, and rate limiting for authentication.
 - **Logging:** Instrumented logging for monitoring.
-- **Environment Variables:** Critical configurations are managed and validated via environment variables.
+- **Environment Variables:** Critical configurations are managed and validated via environment variables. Production startup requires: `DATABASE_URL`, `JWT_ACCESS_SECRET` (≥32 chars), `JWT_REFRESH_SECRET` (≥32 chars), `CORS_ORIGIN` (not `*`), `KIOSK_KEY` (≥16 chars), `SSO_SHARED_SECRET` (≥32 chars), `GESTION_API_KEY`. All are logged (redacted) at startup.
 
 ## External Dependencies
 - **PostgreSQL:** Shared database (`defaultdb`) with Gimnasio Cronos app. Cronos Fichajes manages its own tables (`employees`, `punches`, `punch_corrections`, `punch_reviews`, `overtime_requests`, `audit_log`, `kiosk_devices`, `refresh_tokens`, `sso_nonces`, `gestion_admin_links`), while linking to the `monitors` table from Gimnasio Cronos.
