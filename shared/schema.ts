@@ -374,11 +374,16 @@ export const adminLoginSchema = z.object({
 });
 
 export const gestionUpsertEmployeeSchema = z.object({
-  nombre: z.string().min(1, "El nombre es obligatorio"),
+  nombre: z.string().min(1).optional(),
+  prenom: z.string().min(1).optional(),
+  nom: z.string().optional(),
   email: z.string().email("Email inválido"),
   pin: z.string().length(6).regex(/^\d{6}$/).nullable().optional(),
   activo: z.boolean(),
-});
+}).refine(
+  (data) => data.prenom || data.nombre,
+  { message: "Se requiere 'prenom' o 'nombre'", path: ["nombre"] }
+);
 
 export const gestionStatusSchema = z.object({
   activo: z.boolean(),

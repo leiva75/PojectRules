@@ -2203,15 +2203,28 @@ a{color:#4f46e5;text-decoration:none;font-weight:500}</style></head>
 
   // ==================== GESTION API (EXTERNAL) ====================
 
-  function parseNombre(nombre: string): { firstName: string; lastName: string } {
-    const parts = nombre.trim().split(/\s+/);
-    if (parts.length === 0 || (parts.length === 1 && !parts[0])) {
-      return { firstName: "Sin nombre", lastName: "" };
+  function resolveNamesFromBody(data: { prenom?: string; nom?: string; nombre?: string }): { firstName: string; lastName: string } {
+    const prenom = (data.prenom ?? "").trim();
+    const nom = (data.nom ?? "").trim();
+
+    if (prenom || nom) {
+      return {
+        firstName: prenom || nom || "Sin nombre",
+        lastName: prenom ? nom : "",
+      };
     }
-    if (parts.length === 1) {
-      return { firstName: parts[0], lastName: "" };
+
+    if (data.nombre) {
+      const parts = data.nombre.trim().split(/\s+/);
+      if (parts.length === 0 || (parts.length === 1 && !parts[0])) {
+        return { firstName: "Sin nombre", lastName: "" };
+      }
+      if (parts.length === 1) {
+        return { firstName: parts[0], lastName: "" };
+      }
+      return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
     }
-    return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+    return { firstName: "Sin nombre", lastName: "" };
   }
 
   app.put("/api/gestion/employees/:monitorId", gestionApiLimiter, authenticateGestionApi, async (req, res) => {
@@ -2226,8 +2239,8 @@ a{color:#4f46e5;text-decoration:none;font-weight:500}</style></head>
         return res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
       }
 
-      const { nombre, email, pin, activo } = result.data;
-      const { firstName, lastName } = parseNombre(nombre);
+      const { email, pin, activo } = result.data;
+      const { firstName, lastName } = resolveNamesFromBody(result.data);
 
       const existingByMonitorId = await storage.getEmployeeByMonitorId(monitorId);
 

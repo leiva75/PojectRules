@@ -9,6 +9,8 @@ import crypto from "crypto";
 interface Monitor {
   id: number;
   nombre: string;
+  prenom: string | null;
+  nom: string | null;
   email: string | null;
   activo: boolean;
   horas_contratadas: number | null;
@@ -40,8 +42,18 @@ export function setLastSyncStatus(status: SyncStatus): void {
 
 let syncInProgress = false;
 
-function parseNombre(nombre: string): { firstName: string; lastName: string } {
-  const parts = nombre.trim().split(/\s+/);
+function resolveNames(monitor: Monitor): { firstName: string; lastName: string } {
+  const prenom = (monitor.prenom ?? "").trim();
+  const nom = (monitor.nom ?? "").trim();
+
+  if (prenom || nom) {
+    return {
+      firstName: prenom || nom || "Sin nombre",
+      lastName: prenom ? nom : "",
+    };
+  }
+
+  const parts = monitor.nombre.trim().split(/\s+/);
   if (parts.length === 0 || (parts.length === 1 && !parts[0])) {
     return { firstName: "Sin nombre", lastName: "" };
   }
@@ -62,7 +74,7 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
 
   try {
     const { rows: allMonitors } = await pool.query<Monitor>(
-      `SELECT id, nombre, email, activo, horas_contratadas, pin FROM monitors WHERE email IS NOT NULL AND email != ''`
+      `SELECT id, nombre, prenom, nom, email, activo, horas_contratadas, pin FROM monitors WHERE email IS NOT NULL AND email != ''`
     );
 
     const activeMonitors = allMonitors.filter(m => m.activo);
@@ -70,7 +82,7 @@ export async function syncMonitorsToEmployees(): Promise<SyncResult> {
 
     for (const monitor of activeMonitors) {
       try {
-        const { firstName, lastName } = parseNombre(monitor.nombre);
+        const { firstName, lastName } = resolveNames(monitor);
 
         const [existingByMonitorId] = await db
           .select()
