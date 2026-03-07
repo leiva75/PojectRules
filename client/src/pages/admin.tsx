@@ -50,7 +50,6 @@ import {
   RefreshCw,
   Link2,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -1440,48 +1439,30 @@ export default function AdminPage() {
                 <p className="text-xs text-sidebar-foreground/60 capitalize">{user?.role}</p>
               </div>
             </div>
-            {user?.source === "gestion_users" && (
-              <div className="space-y-1 mb-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    window.location.href = import.meta.env.VITE_GESTION_URL || "https://gestion.cronosfichajes.es";
-                  }}
-                  data-testid="button-back-gestion"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Volver a Gestión
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    window.close();
-                    setTimeout(() => {
-                      if (!window.closed) {
-                        toast({ title: "Cierre la pestaña manualmente para volver a Gestión.", variant: "default" });
-                      }
-                    }, 500);
-                  }}
-                  data-testid="button-close-fichajes"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cerrar Fichajes
-                </Button>
-              </div>
+            {user?.source === "gestion_users" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => {
+                  window.location.href = import.meta.env.VITE_GESTION_URL || "https://gestion.cronosfichajes.es";
+                }}
+                data-testid="button-back-gestion"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Volver a Gestión
+              </Button>
+            ) : (
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                onClick={handleLogout}
+                data-testid="button-admin-logout"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Cerrar sesión
+              </Button>
             )}
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              onClick={handleLogout}
-              data-testid="button-admin-logout"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Cerrar sesión
-            </Button>
           </SidebarFooter>
         </Sidebar>
 
